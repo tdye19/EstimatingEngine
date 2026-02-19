@@ -6,7 +6,7 @@ import { Zap } from 'lucide-react';
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('estimator@apex-demo.com');
+  const [email, setEmail] = useState('estimator@summitbuilders.com');
   const [password, setPassword] = useState('estimate123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -68,7 +68,7 @@ export default function LoginPage() {
           </button>
 
           <p className="text-xs text-gray-400 text-center">
-            Demo: estimator@apex-demo.com / estimate123
+            Demo: estimator@summitbuilders.com / estimate123
           </p>
         </form>
       </div>
