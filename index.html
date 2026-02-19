@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estimating Engine Workspace</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --surface: #ffffff;
+      --surface-alt: #eef2ff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #4f46e5;
+      --primary-soft: rgba(79, 70, 229, 0.12);
+      --border: #dbe2f0;
+      --success: #059669;
+      --warn: #d97706;
+      --danger: #dc2626;
+      --shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+      --radius: 14px;
+    }
+
+    html[data-theme="dark"] {
+      --bg: #0b1220;
+      --surface: #111c34;
+      --surface-alt: #1a2744;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --primary: #818cf8;
+      --primary-soft: rgba(129, 140, 248, 0.16);
+      --border: #334155;
+      --success: #34d399;
+      --warn: #f59e0b;
+      --danger: #f87171;
+      --shadow: 0 20px 40px rgba(2, 6, 23, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Roboto, system-ui, sans-serif;
+      background: radial-gradient(circle at top right, var(--surface-alt), var(--bg) 40%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      min-height: 100vh;
+      transition: grid-template-columns 0.25s ease;
+    }
+    .layout.sidebar-collapsed { grid-template-columns: 82px 1fr; }
+
+    .sidebar {
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: var(--shadow);
+      z-index: 5;
+    }
+
+    .header-row, .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+    }
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--primary), #22d3ee);
+      color: white;
+      font-size: 14px;
+      box-shadow: 0 10px 20px rgba(79, 70, 229, 0.25);
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+      color: inherit;
+    }
+
+    .icon-btn, .action-btn {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+    }
+
+    .action-btn {
+      padding: 8px 12px;
+      font-weight: 600;
+    }
+
+    .action-btn.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+
+    .icon-btn:hover, .action-btn:hover {
+      transform: translateY(-1px);
+      border-color: var(--primary);
+      box-shadow: 0 10px 20px rgba(79, 70, 229, 0.13);
+    }
+
+    .filters {
+      background: var(--surface-alt);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .field { display: grid; gap: 6px; }
+    .field label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .field input, .field select, .field textarea {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 9px 11px;
+      background: var(--surface);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-soft);
+    }
+
+    .project-list { display: grid; gap: 8px; max-height: 40vh; overflow: auto; }
+    .project-item {
+      border: 1px solid transparent;
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 10px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .project-item.active {
+      border-color: var(--primary);
+      background: var(--primary-soft);
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .main {
+      padding: 24px;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(140px, 1fr));
+      gap: 12px;
+    }
+
+    .kpi { padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-alt); }
+    .kpi strong { display: block; font-size: 1.1rem; margin-top: 4px; }
+
+    .task-table { width: 100%; border-collapse: collapse; }
+    .task-table th, .task-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .task-table th { text-align: left; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+    .task-row.dragging { opacity: .3; }
+    .task-row.completed { opacity: 0.65; }
+
+    .inline {
+      border: none;
+      background: transparent;
+      width: 100%;
+      padding: 2px 4px;
+      border-radius: 6px;
+    }
+    .inline:focus { outline: 1px solid var(--primary); background: var(--surface); }
+
+    .priority-high { color: var(--danger); }
+    .priority-medium { color: var(--warn); }
+    .priority-low { color: var(--success); }
+
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag { background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 8px; font-size: 11px; }
+
+    .subtasks { margin-top: 6px; display: grid; gap: 4px; }
+    .subtask { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+
+    .row-actions { display: flex; gap: 6px; }
+    .drop-target { outline: 2px dashed var(--primary); outline-offset: -4px; }
+
+    .layout.sidebar-collapsed .sidebar .textual,
+    .layout.sidebar-collapsed .sidebar .field,
+    .layout.sidebar-collapsed .sidebar .filters,
+    .layout.sidebar-collapsed .sidebar .project-name,
+    .layout.sidebar-collapsed .sidebar h3,
+    .layout.sidebar-collapsed .sidebar .action-btn span {
+      display: none;
+    }
+
+    .layout.sidebar-collapsed .sidebar .action-btn { padding: 8px; }
+
+    @media (max-width: 1080px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+      .kpis { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout" id="layout">
+    <aside class="sidebar">
+      <div class="header-row">
+        <div class="brand"><span class="brand-mark">EE</span> <span class="textual">Estimating Engine</span></div>
+        <button class="icon-btn" id="collapseBtn" title="Toggle sidebar">☰</button>
+      </div>
+
+      <div class="toolbar">
+        <button class="action-btn primary" id="newProjectBtn"><span>+ Project</span></button>
+        <button class="icon-btn" id="themeBtn" title="Toggle theme">🌓</button>
+      </div>
+
+      <section>
+        <h3 class="textual">Projects</h3>
+        <div class="project-list" id="projectList"></div>
+      </section>
+
+      <section class="filters">
+        <h3 class="textual" style="margin:0;">Filters</h3>
+        <div class="field">
+          <label>Status</label>
+          <select id="statusFilter">
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Priority</label>
+          <select id="priorityFilter">
+            <option value="all">All</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Due before</label>
+          <input type="date" id="dueFilter" />
+        </div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <section class="card">
+        <div class="header-row">
+          <div>
+            <h2 id="projectTitle" style="margin:0;">Estimate Backlog</h2>
+            <p id="projectDescription" style="margin:4px 0 0; color:var(--muted);">Track scopes, takeoffs, assemblies, and production rates.</p>
+          </div>
+          <div class="toolbar">
+            <button class="action-btn" id="newTaskBtn">+ New Task</button>
+            <button class="action-btn" id="saveBtn">Save</button>
+          </div>
+        </div>
+        <div class="kpis" id="kpiGrid"></div>
+      </section>
+
+      <section class="card" id="taskContainer"></section>
+    </main>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'estimating_engine_state_v1';
+    const THEME_KEY = 'estimating_engine_theme';
+    let saveTimer;
+    let draggedTaskId = null;
+
+    const defaultState = {
+      sidebarCollapsed: false,
+      selectedProjectId: 'p1',
+      filters: { status: 'all', priority: 'all', dueBefore: '' },
+      projects: [
+        {
+          id: 'p1',
+          name: 'Hospital Expansion',
+          description: 'Complete estimate pipeline from document intake to assembly rollup.',
+          tasks: [
+            {
+              id: crypto.randomUUID(),
+              title: 'Parse MEP manuals and identify scope packages',
+              description: 'Extract CSI divisions and map to estimate buckets.',
+              dueDate: '',
+              priority: 'high',
+              completed: false,
+              tags: ['scope', 'manuals'],
+              subtasks: [
+                { id: crypto.randomUUID(), title: 'Electrical package split', done: false },
+                { id: crypto.randomUUID(), title: 'Mechanical package split', done: true }
+              ],
+              recurring: 'weekly',
+              quantity: 120,
+              productionRate: 1.8
+            }
+          ]
+        }
+      ]
+    };
+
+    let state = loadState();
+
+    const el = {
+      layout: document.getElementById('layout'),
+      collapseBtn: document.getElementById('collapseBtn'),
+      projectList: document.getElementById('projectList'),
+      projectTitle: document.getElementById('projectTitle'),
+      projectDescription: document.getElementById('projectDescription'),
+      taskContainer: document.getElementById('taskContainer'),
+      newProjectBtn: document.getElementById('newProjectBtn'),
+      newTaskBtn: document.getElementById('newTaskBtn'),
+      saveBtn: document.getElementById('saveBtn'),
+      themeBtn: document.getElementById('themeBtn'),
+      statusFilter: document.getElementById('statusFilter'),
+      priorityFilter: document.getElementById('priorityFilter'),
+      dueFilter: document.getElementById('dueFilter'),
+      kpiGrid: document.getElementById('kpiGrid')
+    };
+
+    init();
+
+    function init() {
+      const persistedTheme = localStorage.getItem(THEME_KEY) || 'light';
+      document.documentElement.setAttribute('data-theme', persistedTheme);
+      applyFiltersToUI();
+      bindEvents();
+      render();
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return structuredClone(defaultState);
+        const parsed = JSON.parse(raw);
+        return { ...structuredClone(defaultState), ...parsed, filters: { ...defaultState.filters, ...parsed.filters } };
+      } catch {
+        return structuredClone(defaultState);
+      }
+    }
+
+    function getSelectedProject() {
+      return state.projects.find((p) => p.id === state.selectedProjectId) || state.projects[0];
+    }
+
+    function saveNow() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function queueSave() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveNow, 2000);
+    }
+
+    function bindEvents() {
+      el.collapseBtn.addEventListener('click', () => {
+        state.sidebarCollapsed = !state.sidebarCollapsed;
+        queueSave();
+        render();
+      });
+
+      el.newProjectBtn.addEventListener('click', () => {
+        const name = prompt('New project name');
+        if (!name) return;
+        const project = { id: crypto.randomUUID(), name, description: 'New estimate workspace', tasks: [] };
+        state.projects.push(project);
+        state.selectedProjectId = project.id;
+        queueSave();
+        render();
+      });
+
+      el.newTaskBtn.addEventListener('click', createTask);
+      el.saveBtn.addEventListener('click', () => {
+        saveNow();
+        flashSaved();
+      });
+
+      el.themeBtn.addEventListener('click', () => {
+        const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem(THEME_KEY, next);
+      });
+
+      el.statusFilter.addEventListener('change', (e) => { state.filters.status = e.target.value; queueSave(); renderTasks(); });
+      el.priorityFilter.addEventListener('change', (e) => { state.filters.priority = e.target.value; queueSave(); renderTasks(); });
+      el.dueFilter.addEventListener('change', (e) => { state.filters.dueBefore = e.target.value; queueSave(); renderTasks(); });
+
+      document.addEventListener('keydown', (e) => {
+        const mod = e.metaKey || e.ctrlKey;
+        if (!mod) return;
+
+        if (e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          saveNow();
+          flashSaved();
+        }
+
+        if (e.key.toLowerCase() === 'n') {
+          e.preventDefault();
+          createTask();
+        }
+
+        const selectedRow = document.querySelector('tr.task-row.selected');
+        if (e.key.toLowerCase() === 'd' && selectedRow) {
+          e.preventDefault();
+          toggleComplete(selectedRow.dataset.id);
+        }
+
+        if (e.key === 'Delete' && selectedRow) {
+          e.preventDefault();
+          deleteTask(selectedRow.dataset.id);
+        }
+      });
+    }
+
+    function createTask() {
+      const p = getSelectedProject();
+      if (!p) return;
+      p.tasks.unshift({
+        id: crypto.randomUUID(),
+        title: 'New takeoff task',
+        description: 'Describe scope/assembly',
+        dueDate: '',
+        priority: 'medium',
+        completed: false,
+        tags: ['takeoff'],
+        subtasks: [],
+        recurring: 'none',
+        quantity: 0,
+        productionRate: 1
+      });
+      queueSave();
+      renderTasks();
+      renderKpis();
+    }
+
+    function filteredTasks(project) {
+      return project.tasks.filter((task) => {
+        const f = state.filters;
+        if (f.status === 'active' && task.completed) return false;
+        if (f.status === 'completed' && !task.completed) return false;
+        if (f.priority !== 'all' && task.priority !== f.priority) return false;
+        if (f.dueBefore && task.dueDate && task.dueDate > f.dueBefore) return false;
+        return true;
+      });
+    }
+
+    function render() {
+      el.layout.classList.toggle('sidebar-collapsed', !!state.sidebarCollapsed);
+      renderProjects();
+      renderTasks();
+      renderKpis();
+    }
+
+    function renderProjects() {
+      el.projectList.innerHTML = '';
+      for (const project of state.projects) {
+        const btn = document.createElement('button');
+        btn.className = `project-item ${project.id === state.selectedProjectId ? 'active' : ''}`;
+        btn.innerHTML = `<span class="project-name">${project.name}</span><span class="badge">${project.tasks.length}</span>`;
+        btn.addEventListener('click', () => {
+          state.selectedProjectId = project.id;
+          queueSave();
+          render();
+        });
+        btn.addEventListener('dragover', (e) => { e.preventDefault(); btn.classList.add('drop-target'); });
+        btn.addEventListener('dragleave', () => btn.classList.remove('drop-target'));
+        btn.addEventListener('drop', (e) => {
+          e.preventDefault();
+          btn.classList.remove('drop-target');
+          moveTaskToProject(draggedTaskId, project.id);
+        });
+        el.projectList.appendChild(btn);
+      }
+    }
+
+    function renderKpis() {
+      const project = getSelectedProject();
+      if (!project) return;
+      const tasks = project.tasks;
+      const total = tasks.length;
+      const completed = tasks.filter(t => t.completed).length;
+      const qty = tasks.reduce((a, t) => a + Number(t.quantity || 0), 0);
+      const prodHours = tasks.reduce((a, t) => a + (Number(t.quantity || 0) / Math.max(Number(t.productionRate || 1), 0.01)), 0);
+      el.kpiGrid.innerHTML = `
+        <article class="kpi"><small>Tasks</small><strong>${total}</strong></article>
+        <article class="kpi"><small>Completed</small><strong>${completed}</strong></article>
+        <article class="kpi"><small>Total Quantity</small><strong>${qty.toFixed(1)}</strong></article>
+        <article class="kpi"><small>Production Hours</small><strong>${prodHours.toFixed(1)}h</strong></article>
+      `;
+      el.projectTitle.textContent = project.name;
+      el.projectDescription.textContent = project.description;
+    }
+
+    function renderTasks() {
+      const project = getSelectedProject();
+      if (!project) return;
+      const tasks = filteredTasks(project);
+      el.taskContainer.innerHTML = `
+        <table class="task-table">
+          <thead><tr><th>Task</th><th>Due</th><th>Priority</th><th>Estimate Inputs</th><th>Tags/Subtasks</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${tasks.map(taskTemplate).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:18px;">No matching tasks</td></tr>'}
+          </tbody>
+        </table>`;
+
+      el.taskContainer.querySelectorAll('.task-row').forEach(row => {
+        row.addEventListener('click', () => {
+          el.taskContainer.querySelectorAll('.selected').forEach(s => s.classList.remove('selected'));
+          row.classList.add('selected');
+        });
+        row.addEventListener('dragstart', () => {
+          draggedTaskId = row.dataset.id;
+          row.classList.add('dragging');
+        });
+        row.addEventListener('dragend', () => row.classList.remove('dragging'));
+        row.addEventListener('dragover', (e) => e.preventDefault());
+        row.addEventListener('drop', (e) => {
+          e.preventDefault();
+          reorderTask(draggedTaskId, row.dataset.id);
+        });
+      });
+
+      hookTaskInputs(project);
+    }
+
+    function taskTemplate(task) {
+      return `<tr class="task-row ${task.completed ? 'completed' : ''}" draggable="true" data-id="${task.id}">
+        <td>
+          <input class="inline t-title" data-id="${task.id}" value="${escapeHtml(task.title)}" />
+          <textarea class="inline t-desc" data-id="${task.id}" rows="2">${escapeHtml(task.description || '')}</textarea>
+          <div class="field" style="margin-top:4px;">
+            <label style="font-size:10px;">Recurring</label>
+            <select class="t-recurring" data-id="${task.id}">
+              ${['none', 'daily', 'weekly', 'monthly'].map(r => `<option ${task.recurring === r ? 'selected' : ''}>${r}</option>`).join('')}
+            </select>
+          </div>
+        </td>
+        <td><input type="date" class="inline t-due" data-id="${task.id}" value="${task.dueDate || ''}" /></td>
+        <td>
+          <select class="inline t-priority priority-${task.priority}" data-id="${task.id}">
+            ${['high','medium','low'].map(p => `<option value="${p}" ${task.priority === p ? 'selected' : ''}>${p}</option>`).join('')}
+          </select>
+          <label><input type="checkbox" class="t-complete" data-id="${task.id}" ${task.completed ? 'checked' : ''}/> Complete</label>
+        </td>
+        <td>
+          <div class="field"><label style="font-size:10px;">Qty</label><input type="number" class="inline t-qty" data-id="${task.id}" value="${task.quantity ?? 0}" /></div>
+          <div class="field"><label style="font-size:10px;">Prod Rate</label><input type="number" step="0.1" class="inline t-rate" data-id="${task.id}" value="${task.productionRate ?? 1}" /></div>
+        </td>
+        <td>
+          <input class="inline t-tags" data-id="${task.id}" value="${escapeHtml((task.tags || []).join(', '))}" />
+          <div class="tags">${(task.tags || []).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>
+          <div class="subtasks">
+            ${(task.subtasks || []).map(st => `<label class="subtask"><input type="checkbox" class="t-subtask" data-task-id="${task.id}" data-id="${st.id}" ${st.done ? 'checked' : ''}/> ${escapeHtml(st.title)}</label>`).join('')}
+            <button class="action-btn add-subtask" data-id="${task.id}" type="button">+ subtask</button>
+          </div>
+        </td>
+        <td>
+          <div class="row-actions">
+            <button class="icon-btn delete-task" data-id="${task.id}" title="Delete">🗑</button>
+          </div>
+        </td>
+      </tr>`;
+    }
+
+    function hookTaskInputs(project) {
+      const getTask = (id) => project.tasks.find(t => t.id === id);
+      el.taskContainer.querySelectorAll('.t-title').forEach(i => i.addEventListener('input', e => { getTask(e.target.dataset.id).title = e.target.value; queueSave(); }));
+      el.taskContainer.querySelectorAll('.t-desc').forEach(i => i.addEventListener('input', e => { getTask(e.target.dataset.id).description = e.target.value; queueSave(); }));
+      el.taskContainer.querySelectorAll('.t-due').forEach(i => i.addEventListener('input', e => { getTask(e.target.dataset.id).dueDate = e.target.value; queueSave(); }));
+      el.taskContainer.querySelectorAll('.t-priority').forEach(i => i.addEventListener('change', e => { getTask(e.target.dataset.id).priority = e.target.value; queueSave(); renderTasks(); }));
+      el.taskContainer.querySelectorAll('.t-complete').forEach(i => i.addEventListener('change', e => toggleComplete(e.target.dataset.id)));
+      el.taskContainer.querySelectorAll('.t-recurring').forEach(i => i.addEventListener('change', e => { getTask(e.target.dataset.id).recurring = e.target.value; queueSave(); }));
+      el.taskContainer.querySelectorAll('.t-qty').forEach(i => i.addEventListener('input', e => { getTask(e.target.dataset.id).quantity = Number(e.target.value); queueSave(); renderKpis(); }));
+      el.taskContainer.querySelectorAll('.t-rate').forEach(i => i.addEventListener('input', e => { getTask(e.target.dataset.id).productionRate = Number(e.target.value); queueSave(); renderKpis(); }));
+      el.taskContainer.querySelectorAll('.t-tags').forEach(i => i.addEventListener('change', e => {
+        const task = getTask(e.target.dataset.id);
+        task.tags = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+        queueSave();
+        renderTasks();
+      }));
+      el.taskContainer.querySelectorAll('.delete-task').forEach(i => i.addEventListener('click', e => deleteTask(e.currentTarget.dataset.id)));
+      el.taskContainer.querySelectorAll('.add-subtask').forEach(i => i.addEventListener('click', e => {
+        const task = getTask(e.currentTarget.dataset.id);
+        const title = prompt('Subtask title');
+        if (!title) return;
+        task.subtasks.push({ id: crypto.randomUUID(), title, done: false });
+        queueSave();
+        renderTasks();
+      }));
+      el.taskContainer.querySelectorAll('.t-subtask').forEach(i => i.addEventListener('change', e => {
+        const task = getTask(e.target.dataset.taskId);
+        const st = task.subtasks.find(s => s.id === e.target.dataset.id);
+        if (st) st.done = e.target.checked;
+        queueSave();
+      }));
+    }
+
+    function toggleComplete(taskId) {
+      const task = getSelectedProject().tasks.find(t => t.id === taskId);
+      if (!task) return;
+      task.completed = !task.completed;
+      queueSave();
+      renderTasks();
+      renderKpis();
+    }
+
+    function deleteTask(taskId) {
+      const p = getSelectedProject();
+      p.tasks = p.tasks.filter(t => t.id !== taskId);
+      queueSave();
+      renderTasks();
+      renderProjects();
+      renderKpis();
+    }
+
+    function reorderTask(sourceId, targetId) {
+      if (!sourceId || !targetId || sourceId === targetId) return;
+      const p = getSelectedProject();
+      const tasks = p.tasks;
+      const from = tasks.findIndex(t => t.id === sourceId);
+      const to = tasks.findIndex(t => t.id === targetId);
+      if (from === -1 || to === -1) return;
+      const [moved] = tasks.splice(from, 1);
+      tasks.splice(to, 0, moved);
+      queueSave();
+      renderTasks();
+    }
+
+    function moveTaskToProject(taskId, projectId) {
+      if (!taskId) return;
+      const sourceProject = state.projects.find(p => p.tasks.some(t => t.id === taskId));
+      const targetProject = state.projects.find(p => p.id === projectId);
+      if (!sourceProject || !targetProject) return;
+      const idx = sourceProject.tasks.findIndex(t => t.id === taskId);
+      if (idx < 0) return;
+      const [task] = sourceProject.tasks.splice(idx, 1);
+      targetProject.tasks.unshift(task);
+      queueSave();
+      render();
+    }
+
+    function flashSaved() {
+      const old = el.saveBtn.textContent;
+      el.saveBtn.textContent = 'Saved ✓';
+      setTimeout(() => el.saveBtn.textContent = old, 900);
+    }
+
+    function escapeHtml(str = '') {
+      return str
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function applyFiltersToUI() {
+      el.statusFilter.value = state.filters.status;
+      el.priorityFilter.value = state.filters.priority;
+      el.dueFilter.value = state.filters.dueBefore;
+    }
+  </script>
+</body>
+</html>
