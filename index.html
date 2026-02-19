@@ -136,6 +136,34 @@
       gap: 10px;
     }
 
+    .quickstart {
+      background: linear-gradient(145deg, var(--surface-alt), var(--surface));
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .quickstart ol {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .quickstart code {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px 7px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      color: var(--text);
+    }
+
     .field { display: grid; gap: 6px; }
     .field label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
     .field input, .field select, .field textarea {
@@ -181,8 +209,14 @@
     .main {
       padding: 24px;
       display: grid;
-      grid-template-rows: auto auto 1fr;
+      grid-template-rows: auto auto;
       gap: 16px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr .7fr;
+      gap: 14px;
     }
 
     .card {
@@ -201,6 +235,39 @@
 
     .kpi { padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-alt); }
     .kpi strong { display: block; font-size: 1.1rem; margin-top: 4px; }
+
+    .run-panel {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-alt);
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .run-panel p { margin: 0; color: var(--muted); font-size: 13px; }
+
+    .cmd {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 10px;
+      padding: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+    }
+
+    .task-controls { display: grid; grid-template-columns: 1fr 180px; gap: 10px; width: 100%; }
+    .file-pill { position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; }
+    .file-pill input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .progress-wrap { display: grid; gap: 8px; margin-top: 10px; }
+    .progress-meta { font-size: 12px; color: var(--muted); }
+    .progress-track { height: 10px; border-radius: 999px; background: var(--surface-alt); border: 1px solid var(--border); overflow: hidden; }
+    .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary), #22d3ee); transition: width .2s ease; }
 
     .task-table { width: 100%; border-collapse: collapse; }
     .task-table th, .task-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
@@ -245,6 +312,8 @@
       .layout { grid-template-columns: 1fr; }
       .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
       .kpis { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+      .hero { grid-template-columns: 1fr; }
+      .task-controls { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -290,21 +359,70 @@
           <input type="date" id="dueFilter" />
         </div>
       </section>
+
+      <section class="quickstart textual">
+        <h3 style="margin:0;">Quick start</h3>
+        <ol>
+          <li>Open this folder in your terminal.</li>
+          <li>Run <code>python3 -m http.server 4173</code>.</li>
+          <li>Open <code>http://localhost:4173</code> in your browser.</li>
+        </ol>
+      </section>
     </aside>
 
     <main class="main">
+      <section class="hero">
+        <div class="card">
+          <div class="header-row">
+            <div>
+              <h2 id="projectTitle" style="margin:0;">Estimate Backlog</h2>
+              <p id="projectDescription" style="margin:4px 0 0; color:var(--muted);">Track scopes, takeoffs, assemblies, and production rates.</p>
+            </div>
+            <div class="toolbar">
+              <button class="action-btn" id="newTaskBtn">+ New Task</button>
+              <button class="action-btn" id="saveBtn">Save</button>
+            </div>
+          </div>
+          <div class="kpis" id="kpiGrid"></div>
+        </div>
+        <aside class="run-panel">
+          <h3 style="margin:0;">Run in 10 seconds</h3>
+          <p>Use a tiny local server so drag/drop and storage work consistently.</p>
+          <div class="cmd">
+            <span id="runCommand">python3 -m http.server 4173</span>
+            <button class="icon-btn" id="copyRunCmd" title="Copy command">📋</button>
+          </div>
+          <p>Then open <strong>http://localhost:4173</strong></p>
+        </aside>
+      </section>
+
       <section class="card">
-        <div class="header-row">
-          <div>
-            <h2 id="projectTitle" style="margin:0;">Estimate Backlog</h2>
-            <p id="projectDescription" style="margin:4px 0 0; color:var(--muted);">Track scopes, takeoffs, assemblies, and production rates.</p>
+        <div class="header-row" style="align-items:flex-end;">
+          <div class="task-controls">
+            <div class="field" style="margin:0;">
+              <label>Search tasks</label>
+              <input id="searchInput" placeholder="Search title, description, or tags..." />
+            </div>
+            <div class="field" style="margin:0;">
+              <label>Sort by</label>
+              <select id="sortTasks">
+                <option value="manual">Manual (drag order)</option>
+                <option value="dueAsc">Due date (soonest)</option>
+                <option value="priorityDesc">Priority (high first)</option>
+                <option value="titleAsc">Title (A-Z)</option>
+              </select>
+            </div>
           </div>
           <div class="toolbar">
-            <button class="action-btn" id="newTaskBtn">+ New Task</button>
-            <button class="action-btn" id="saveBtn">Save</button>
+            <button class="action-btn" id="clearCompletedBtn">Clear Completed</button>
+            <button class="action-btn" id="exportBtn">Export JSON</button>
+            <label class="action-btn file-pill">Import JSON<input type="file" id="importInput" accept="application/json" /></label>
           </div>
         </div>
-        <div class="kpis" id="kpiGrid"></div>
+        <div class="progress-wrap">
+          <div class="progress-meta" id="progressText">Progress: 0/0 complete</div>
+          <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        </div>
       </section>
 
       <section class="card" id="taskContainer"></section>
@@ -320,7 +438,7 @@
     const defaultState = {
       sidebarCollapsed: false,
       selectedProjectId: 'p1',
-      filters: { status: 'all', priority: 'all', dueBefore: '' },
+      filters: { status: 'all', priority: 'all', dueBefore: '', search: '', sort: 'manual' },
       projects: [
         {
           id: 'p1',
@@ -364,7 +482,16 @@
       statusFilter: document.getElementById('statusFilter'),
       priorityFilter: document.getElementById('priorityFilter'),
       dueFilter: document.getElementById('dueFilter'),
-      kpiGrid: document.getElementById('kpiGrid')
+      searchInput: document.getElementById('searchInput'),
+      sortTasks: document.getElementById('sortTasks'),
+      kpiGrid: document.getElementById('kpiGrid'),
+      copyRunCmd: document.getElementById('copyRunCmd'),
+      runCommand: document.getElementById('runCommand'),
+      clearCompletedBtn: document.getElementById('clearCompletedBtn'),
+      exportBtn: document.getElementById('exportBtn'),
+      importInput: document.getElementById('importInput'),
+      progressText: document.getElementById('progressText'),
+      progressFill: document.getElementById('progressFill')
     };
 
     init();
@@ -433,6 +560,12 @@
       el.statusFilter.addEventListener('change', (e) => { state.filters.status = e.target.value; queueSave(); renderTasks(); });
       el.priorityFilter.addEventListener('change', (e) => { state.filters.priority = e.target.value; queueSave(); renderTasks(); });
       el.dueFilter.addEventListener('change', (e) => { state.filters.dueBefore = e.target.value; queueSave(); renderTasks(); });
+      el.searchInput.addEventListener('input', (e) => { state.filters.search = e.target.value; queueSave(); renderTasks(); });
+      el.sortTasks.addEventListener('change', (e) => { state.filters.sort = e.target.value; queueSave(); renderTasks(); });
+      el.copyRunCmd.addEventListener('click', copyRunCommand);
+      el.clearCompletedBtn.addEventListener('click', clearCompletedTasks);
+      el.exportBtn.addEventListener('click', exportState);
+      el.importInput.addEventListener('change', importStateFromFile);
 
       document.addEventListener('keydown', (e) => {
         const mod = e.metaKey || e.ctrlKey;
@@ -481,17 +614,34 @@
       queueSave();
       renderTasks();
       renderKpis();
+      renderProgress();
     }
 
     function filteredTasks(project) {
-      return project.tasks.filter((task) => {
+      const filtered = project.tasks.filter((task) => {
         const f = state.filters;
         if (f.status === 'active' && task.completed) return false;
         if (f.status === 'completed' && !task.completed) return false;
         if (f.priority !== 'all' && task.priority !== f.priority) return false;
         if (f.dueBefore && task.dueDate && task.dueDate > f.dueBefore) return false;
+        const q = (f.search || '').trim().toLowerCase();
+        if (q) {
+          const hay = [task.title, task.description, (task.tags || []).join(' ')].join(' ').toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
         return true;
       });
+
+      const rank = { high: 3, medium: 2, low: 1 };
+      if (state.filters.sort === 'dueAsc') {
+        filtered.sort((a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
+      } else if (state.filters.sort === 'priorityDesc') {
+        filtered.sort((a, b) => (rank[b.priority] || 0) - (rank[a.priority] || 0));
+      } else if (state.filters.sort === 'titleAsc') {
+        filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      }
+
+      return filtered;
     }
 
     function render() {
@@ -499,6 +649,16 @@
       renderProjects();
       renderTasks();
       renderKpis();
+      renderProgress();
+    }
+
+    function renderProgress() {
+      const project = getSelectedProject();
+      const total = project?.tasks.length || 0;
+      const done = project?.tasks.filter(t => t.completed).length || 0;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      el.progressText.textContent = `Progress: ${done}/${total} complete (${pct}%)`;
+      el.progressFill.style.width = `${pct}%`;
     }
 
     function renderProjects() {
@@ -652,6 +812,7 @@
       queueSave();
       renderTasks();
       renderKpis();
+      renderProgress();
     }
 
     function deleteTask(taskId) {
@@ -661,6 +822,7 @@
       renderTasks();
       renderProjects();
       renderKpis();
+      renderProgress();
     }
 
     function reorderTask(sourceId, targetId) {
@@ -689,10 +851,57 @@
       render();
     }
 
+    function clearCompletedTasks() {
+      const p = getSelectedProject();
+      if (!p) return;
+      p.tasks = p.tasks.filter(t => !t.completed);
+      queueSave();
+      render();
+    }
+
+    function exportState() {
+      const payload = JSON.stringify(state, null, 2);
+      const blob = new Blob([payload], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `estimating-engine-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function importStateFromFile(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        if (!parsed || !Array.isArray(parsed.projects)) throw new Error('Invalid file');
+        state = { ...structuredClone(defaultState), ...parsed, filters: { ...defaultState.filters, ...(parsed.filters || {}) } };
+        saveNow();
+        render();
+      } catch {
+        alert('Could not import JSON file.');
+      } finally {
+        e.target.value = '';
+      }
+    }
+
     function flashSaved() {
       const old = el.saveBtn.textContent;
       el.saveBtn.textContent = 'Saved ✓';
       setTimeout(() => el.saveBtn.textContent = old, 900);
+    }
+
+    async function copyRunCommand() {
+      const old = el.copyRunCmd.textContent;
+      try {
+        await navigator.clipboard.writeText(el.runCommand.textContent);
+        el.copyRunCmd.textContent = '✓';
+      } catch {
+        el.copyRunCmd.textContent = '!';
+      }
+      setTimeout(() => (el.copyRunCmd.textContent = old), 900);
     }
 
     function escapeHtml(str = '') {
@@ -708,6 +917,8 @@
       el.statusFilter.value = state.filters.status;
       el.priorityFilter.value = state.filters.priority;
       el.dueFilter.value = state.filters.dueBefore;
+      el.searchInput.value = state.filters.search || '';
+      el.sortTasks.value = state.filters.sort || 'manual';
     }
   </script>
 </body>
