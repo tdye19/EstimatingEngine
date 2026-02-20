@@ -1,0 +1,13 @@
+.git
+.env
+.env.local
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.db
+*.sqlite3
+node_modules
+apex/frontend/node_modules
+apex/frontend/dist
+uploads/
