@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - upload_data:/app/uploads
+      - db_data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/apex.db
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-apex-dev-secret-key}
+      - UPLOAD_DIR=/app/uploads
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  upload_data:
+  db_data:
+  ollama_data:

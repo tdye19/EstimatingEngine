@@ -1,0 +1,151 @@
+"""Spec parsing tools for Agent 2."""
+
+import re
+import logging
+
+logger = logging.getLogger("apex.tools.spec")
+
+# CSI Division ranges
+DIVISION_RANGES = {
+    "03": (30000, 39999),
+    "04": (40000, 49999),
+    "05": (50000, 59999),
+    "06": (60000, 69999),
+    "07": (70000, 79999),
+    "08": (80000, 89999),
+    "09": (90000, 99999),
+    "10": (100000, 109999),
+    "11": (110000, 119999),
+    "12": (120000, 129999),
+    "13": (130000, 139999),
+    "14": (140000, 149999),
+    "21": (210000, 219999),
+    "22": (220000, 229999),
+    "23": (230000, 239999),
+    "26": (260000, 269999),
+    "27": (270000, 279999),
+    "28": (280000, 289999),
+    "31": (310000, 319999),
+    "32": (320000, 329999),
+    "33": (330000, 339999),
+}
+
+
+def section_extractor_tool(text: str, division_range: str = None) -> list[dict]:
+    """Extract CSI MasterFormat sections from raw text.
+
+    Looks for patterns like 'SECTION 03 30 00' or '03 30 00 - Cast-in-Place Concrete'.
+    Returns list of dicts: section_number, title, content, division_number.
+    """
+    sections = []
+
+    # Pattern: SECTION XX XX XX or XX XX XX - Title
+    pattern = r'(?:SECTION\s+)?(\d{2})\s+(\d{2})\s+(\d{2})(?:\s*[-–—]\s*(.+?))?(?:\n|$)'
+    matches = list(re.finditer(pattern, text, re.IGNORECASE | re.MULTILINE))
+
+    for i, match in enumerate(matches):
+        div = match.group(1)
+        sec_num = f"{match.group(1)} {match.group(2)} {match.group(3)}"
+        title = match.group(4).strip() if match.group(4) else f"Section {sec_num}"
+
+        if division_range and div != division_range:
+            continue
+
+        # Extract content between this section and the next
+        start = match.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else min(start + 5000, len(text))
+        content = text[start:end].strip()
+
+        sections.append({
+            "section_number": sec_num,
+            "division_number": div,
+            "title": title,
+            "content": content[:3000],
+        })
+
+    return sections
+
+
+def division_mapper_tool(section_number: str) -> dict:
+    """Map a section number to its CSI division."""
+    parts = section_number.strip().split()
+    if parts:
+        div = parts[0].zfill(2)
+        from apex.backend.utils.csi_masterformat import get_division_name
+        return {
+            "division_number": div,
+            "division_name": get_division_name(div),
+            "section_number": section_number.strip(),
+        }
+    return {"division_number": "00", "division_name": "Unknown", "section_number": section_number}
+
+
+def keyword_tagger_tool(text: str) -> list[str]:
+    """Extract relevant construction keywords from text."""
+    keyword_patterns = [
+        r'\b(concrete|reinforcing|rebar|formwork|cast-in-place|precast)\b',
+        r'\b(steel|structural|framing|decking|joist|fabrication)\b',
+        r'\b(masonry|brick|block|mortar|grout)\b',
+        r'\b(waterproofing|insulation|roofing|membrane|flashing|sealant)\b',
+        r'\b(drywall|gypsum|plaster|ceiling|tile|paint|coating|flooring|carpet)\b',
+        r'\b(door|window|hardware|glazing|storefront|curtain\s*wall)\b',
+        r'\b(electrical|lighting|switchboard|panel|conduit|wiring)\b',
+        r'\b(plumbing|piping|fixture|valve|drain|hvac|ductwork)\b',
+        r'\b(excavation|grading|backfill|compaction|earthwork)\b',
+        r'\b(fire\s*stop|firestopping|fire\s*protection|sprinkler)\b',
+        r'\b(demolition|abatement|hazmat)\b',
+        r'\b(submittal|shop\s*drawing|mock-up|sample|testing)\b',
+    ]
+    keywords = set()
+    text_lower = text.lower()
+    for pattern in keyword_patterns:
+        for m in re.finditer(pattern, text_lower):
+            keywords.add(m.group(0).strip())
+    return sorted(keywords)
+
+
+def parse_section_parts(content: str) -> dict:
+    """Parse a spec section into Part 1 (General), Part 2 (Products), Part 3 (Execution)."""
+    result = {
+        "work_description": "",
+        "materials_referenced": [],
+        "execution_requirements": "",
+        "submittal_requirements": "",
+    }
+
+    # Try to split on PART headers
+    parts = re.split(r'(?i)PART\s+(\d)', content)
+
+    full_text = content
+
+    # Extract work description (Part 1 / General)
+    part1_match = re.search(r'(?i)PART\s+1.*?(?=PART\s+2|$)', content, re.DOTALL)
+    if part1_match:
+        part1 = part1_match.group(0)
+        result["work_description"] = part1[:1500].strip()
+
+        # Extract submittal requirements
+        sub_match = re.search(r'(?i)SUBMITTALS?(.*?)(?=\n\s*\d+\.\d+|\nPART|$)', part1, re.DOTALL)
+        if sub_match:
+            result["submittal_requirements"] = sub_match.group(1).strip()[:500]
+
+    # Extract materials (Part 2 / Products)
+    part2_match = re.search(r'(?i)PART\s+2.*?(?=PART\s+3|$)', content, re.DOTALL)
+    if part2_match:
+        part2 = part2_match.group(0)
+        materials = re.findall(r'(?i)(?:ASTM|AISI|ACI|ANSI|AWS)\s+[A-Z]?\d+', part2)
+        materials += re.findall(r'(?i)(?:manufacturer|product):\s*(.+?)(?:\n|$)', part2)
+        result["materials_referenced"] = list(set(m.strip() for m in materials))[:20]
+
+    # Extract execution requirements (Part 3)
+    part3_match = re.search(r'(?i)PART\s+3.*', content, re.DOTALL)
+    if part3_match:
+        result["execution_requirements"] = part3_match.group(0)[:1500].strip()
+
+    # If no PART structure found, do best-effort extraction
+    if not part1_match and not part2_match:
+        result["work_description"] = content[:1500].strip()
+        materials = re.findall(r'(?i)(?:ASTM|AISI|ACI|ANSI|AWS)\s+[A-Z]?\d+', content)
+        result["materials_referenced"] = list(set(m.strip() for m in materials))[:20]
+
+    return result
