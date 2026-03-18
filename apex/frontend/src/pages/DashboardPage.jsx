@@ -34,8 +34,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     listProjects()
-      .then(setProjects)
-      .catch(() => {})
+      .then(data => setProjects(Array.isArray(data) ? data : data.projects || []))
+      .catch(() => setProjects([]))
       .finally(() => setLoading(false));
   }, []);
 
