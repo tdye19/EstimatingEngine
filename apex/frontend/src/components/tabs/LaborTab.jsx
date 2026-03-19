@@ -12,7 +12,7 @@ export default function LaborTab({ projectId }) {
 
   useEffect(() => {
     getLaborEstimates(projectId)
-      .then((response) => setItems(response.data || []))
+      .then((data) => setItems(data || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [projectId]);

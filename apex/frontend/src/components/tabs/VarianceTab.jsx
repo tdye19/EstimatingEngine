@@ -26,7 +26,7 @@ export default function VarianceTab({ projectId }) {
   const load = () => {
     setLoading(true);
     getVariance(projectId)
-      .then((response) => setData(response.data))
+      .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));
   };

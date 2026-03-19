@@ -15,7 +15,7 @@ export default function AgentLogsTab({ projectId }) {
 
   useEffect(() => {
     getAgentLogs(projectId)
-      .then((response) => setLogs(response.data || []))
+      .then((data) => setLogs(data || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [projectId]);
