@@ -17,21 +17,30 @@ from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.utils.auth import hash_password
+from apex.backend.models.base import Base
 
 logger = logging.getLogger("apex.seed")
 
 now = datetime.now(timezone.utc)
 
 
-def seed_if_empty():
+def seed_if_empty(force: bool = False):
     db = SessionLocal()
     try:
-        if db.query(Organization).count() > 0:
+        if force:
+            logger.info("Force flag set — dropping and recreating all tables...")
+            from apex.backend.db.database import engine
+            Base.metadata.drop_all(engine)
+            Base.metadata.create_all(engine)
+            logger.info("Tables reset. Seeding fresh data...")
+            _seed(db)
+            logger.info("Database seeding complete.")
+        elif db.query(Organization).count() > 0:
             logger.info("Database already seeded, skipping.")
-            return
-        logger.info("Seeding database with sample data...")
-        _seed(db)
-        logger.info("Database seeding complete.")
+        else:
+            logger.info("Seeding database with sample data...")
+            _seed(db)
+            logger.info("Database seeding complete.")
     finally:
         db.close()
 
