@@ -1,7 +1,15 @@
-FROM node:20-alpine
+# Stage 1: build
+FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --no-audit 2>/dev/null || npm install --no-audit
+RUN npm ci --no-audit
 COPY . .
-EXPOSE 3000
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]
+RUN npm run build
+
+# Stage 2: serve with Nginx, proxying /api to the backend
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+EXPOSE 80
+# envsubst replaces $BACKEND_URL at container startup
+CMD ["/bin/sh", "-c", "envsubst '$BACKEND_URL' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
