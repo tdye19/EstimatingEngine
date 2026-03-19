@@ -38,7 +38,7 @@ export default function ProjectDetailPage() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    getProject(id).then(setProject).catch(() => {});
+    getProject(id).then((response) => setProject(response.data)).catch(() => {});
   }, [id]);
 
   const handleRun = async () => {
@@ -60,8 +60,8 @@ export default function ProjectDetailPage() {
     setUploading(true);
     setRunMsg('');
     try {
-      await uploadDocument(id, file);
-      setRunMsg(`Document "${file.name}" uploaded successfully.`);
+      const response = await uploadDocument(id, file);
+      setRunMsg(response.message || `Document "${file.name}" uploaded successfully.`);
     } catch (err) {
       setRunMsg(`Upload error: ${err.message}`);
     } finally {
