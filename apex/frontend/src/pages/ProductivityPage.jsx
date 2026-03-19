@@ -12,7 +12,7 @@ export default function ProductivityPage() {
 
   useEffect(() => {
     getProductivityLibrary()
-      .then(setData)
+      .then((response) => setData(response.data || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -40,7 +40,7 @@ export default function ProductivityPage() {
     setSaving(true);
     try {
       const updated = await updateProductivityRate(r.csi_code, { productivity_rate: rate });
-      setData((prev) => prev.map((item) => (item.id === r.id ? { ...item, ...updated } : item)));
+      setData((prev) => prev.map((item) => (item.id === r.id ? { ...item, ...(updated.data || {}) } : item)));
       cancelEdit();
     } catch {
       // leave edit open on error

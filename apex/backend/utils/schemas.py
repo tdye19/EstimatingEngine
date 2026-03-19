@@ -224,9 +224,13 @@ class EstimateOut(BaseModel):
     total_material_cost: float
     total_subcontractor_cost: float
     gc_markup_pct: float
+    gc_markup_amount: float
     overhead_pct: float
+    overhead_amount: float
     profit_pct: float
+    profit_amount: float
     contingency_pct: float
+    contingency_amount: float
     total_bid_amount: float
     exclusions: Optional[list] = None
     assumptions: Optional[list] = None
