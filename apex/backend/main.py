@@ -24,8 +24,10 @@ async def lifespan(app: FastAPI):
     init_db()
 
     # Run seeder if DB is empty
-    from apex.backend.db.seed import seed_if_empty
-    seed_if_empty()
+import sys
+from apex.backend.db.seed import seed_if_empty
+
+seed_if_empty(force="--force-seed" in sys.argv)
 
     # Ensure upload directory exists
     os.makedirs(os.getenv("UPLOAD_DIR", "./uploads"), exist_ok=True)
