@@ -27,7 +27,13 @@ async function request(path, options = {}) {
   }
 
   if (res.status === 204) return null;
-  return res.json();
+  const json = await res.json();
+  // Unwrap APIResponse envelope { success, message, data, error } used by all
+  // endpoints except /auth/login (which returns TokenResponse directly).
+  if (json !== null && typeof json === 'object' && 'success' in json) {
+    return json.data !== undefined ? json.data : null;
+  }
+  return json;
 }
 
 // ── Auth ──────────────────────────────────────────────

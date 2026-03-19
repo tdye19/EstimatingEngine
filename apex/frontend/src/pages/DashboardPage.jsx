@@ -43,7 +43,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     listProjects()
-      .then((response) => setProjects(response.data || []))
+      .then((data) => setProjects(data || []))
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
   }, []);
@@ -70,11 +70,11 @@ export default function DashboardPage() {
     setSaving(true);
     setFormError('');
     try {
-      const response = await createProject({
+      const newProject = await createProject({
         ...form,
         square_footage: form.square_footage ? Number(form.square_footage) : undefined,
       });
-      setProjects((prev) => [response.data, ...prev]);
+      setProjects((prev) => [newProject, ...prev]);
       closeModal();
     } catch (err) {
       setFormError(err.message);

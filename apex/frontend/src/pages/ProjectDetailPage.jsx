@@ -38,15 +38,15 @@ export default function ProjectDetailPage() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    getProject(id).then((response) => setProject(response.data)).catch(() => {});
+    getProject(id).then(setProject).catch(() => {});
   }, [id]);
 
   const handleRun = async () => {
     setRunning(true);
     setRunMsg('');
     try {
-      const res = await runAgents(id);
-      setRunMsg(res.message || 'Agent pipeline started');
+      await runAgents(id);
+      setRunMsg('Agent pipeline started');
     } catch (err) {
       setRunMsg(`Error: ${err.message}`);
     } finally {
@@ -60,8 +60,8 @@ export default function ProjectDetailPage() {
     setUploading(true);
     setRunMsg('');
     try {
-      const response = await uploadDocument(id, file);
-      setRunMsg(response.message || `Document "${file.name}" uploaded successfully.`);
+      await uploadDocument(id, file);
+      setRunMsg(`Document "${file.name}" uploaded successfully.`);
     } catch (err) {
       setRunMsg(`Upload error: ${err.message}`);
     } finally {

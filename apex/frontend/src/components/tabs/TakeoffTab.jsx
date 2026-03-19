@@ -11,7 +11,7 @@ export default function TakeoffTab({ projectId }) {
 
   useEffect(() => {
     getTakeoff(projectId)
-      .then((response) => setItems(response.data || []))
+      .then((data) => setItems(data || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [projectId]);
@@ -35,7 +35,7 @@ export default function TakeoffTab({ projectId }) {
         quantity: qty,
         manual_override: true,
       });
-      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, ...(updated.data || {}) } : i)));
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, ...updated } : i)));
       cancelEdit();
     } catch {
       // leave edit open on error
