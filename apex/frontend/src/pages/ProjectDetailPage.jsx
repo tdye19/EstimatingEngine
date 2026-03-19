@@ -1,16 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, NavLink, Routes, Route, Navigate } from 'react-router-dom';
-import { getProject, runAgents } from '../api';
+import { getProject, runAgents, uploadDocument } from '../api';
 import {
   ArrowLeft,
   Play,
-  FileText,
   AlertTriangle,
   Ruler,
   HardHat,
   Calculator,
   TrendingUp,
   Activity,
+  Upload,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -34,6 +34,8 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState(null);
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     getProject(id).then(setProject).catch(() => {});
@@ -49,6 +51,22 @@ export default function ProjectDetailPage() {
       setRunMsg(`Error: ${err.message}`);
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setRunMsg('');
+    try {
+      await uploadDocument(id, file);
+      setRunMsg(`Document "${file.name}" uploaded successfully.`);
+    } catch (err) {
+      setRunMsg(`Upload error: ${err.message}`);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -74,10 +92,27 @@ export default function ProjectDetailPage() {
           </div>
         </div>
 
-        <button onClick={handleRun} disabled={running} className="btn-primary flex items-center gap-2">
-          <Play className="h-4 w-4" />
-          {running ? 'Running...' : 'Run Agent Pipeline'}
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            {uploading ? 'Uploading...' : 'Upload Document'}
+          </button>
+          <button onClick={handleRun} disabled={running} className="btn-primary flex items-center gap-2">
+            <Play className="h-4 w-4" />
+            {running ? 'Running...' : 'Run Agent Pipeline'}
+          </button>
+        </div>
       </div>
 
       {runMsg && (

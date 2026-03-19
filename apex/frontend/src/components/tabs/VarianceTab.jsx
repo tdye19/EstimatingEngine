@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { getVariance } from '../../api';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { getVariance, uploadActuals } from '../../api';
+import { TrendingUp, TrendingDown, Minus, Upload } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -19,22 +19,65 @@ function fmt$(val) {
 export default function VarianceTab({ projectId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
+  const fileInputRef = useRef(null);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
     getVariance(projectId)
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [projectId]);
+  };
+
+  useEffect(load, [projectId]);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadMsg('');
+    try {
+      await uploadActuals(projectId, file);
+      setUploadMsg('Actuals uploaded successfully. Refreshing...');
+      load();
+    } catch (err) {
+      setUploadMsg(`Upload error: ${err.message}`);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
 
   if (loading) return <div className="text-gray-400 py-8 text-center">Loading variance data...</div>;
+
   if (!data || !(data.items || data).length) {
-    return <div className="text-gray-400 py-8 text-center">No actuals data for this project. Upload field actuals to see the IMPROVE analysis.</div>;
+    return (
+      <div className="text-center py-16">
+        <p className="text-gray-400 mb-4">No actuals data for this project. Upload field actuals to see the IMPROVE analysis.</p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="btn-primary flex items-center gap-2 mx-auto"
+        >
+          <Upload className="h-4 w-4" />
+          {uploading ? 'Uploading...' : 'Upload Actuals CSV'}
+        </button>
+        {uploadMsg && <p className="mt-3 text-sm text-apex-700">{uploadMsg}</p>}
+      </div>
+    );
   }
 
   const items = data.items || data;
 
-  // Chart data
   const chartData = items.slice(0, 12).map((item) => ({
     name: item.csi_code,
     variance: item.variance_pct || 0,
@@ -47,6 +90,26 @@ export default function VarianceTab({ projectId }) {
 
   return (
     <div className="space-y-6">
+      {/* Upload button */}
+      <div className="flex justify-end">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="btn-secondary flex items-center gap-2 text-sm"
+        >
+          <Upload className="h-4 w-4" />
+          {uploading ? 'Uploading...' : 'Upload Actuals CSV'}
+        </button>
+      </div>
+      {uploadMsg && <p className="text-sm text-apex-700">{uploadMsg}</p>}
+
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <SummaryCard label="Estimated Cost" value={fmt$(totalEstimated)} />
