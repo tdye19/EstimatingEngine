@@ -1,0 +1,28 @@
+# ── APEX Frontend ────────────────────────────────────────────────────────────
+# Build context: repo root  (Railway root directory = /)
+# Stage 1: build Vite app
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+COPY apex/frontend/package.json apex/frontend/package-lock.json* ./
+RUN npm ci --no-audit
+
+COPY apex/frontend/ .
+
+# VITE_API_URL must be set at build time (Railway build env var)
+# e.g. https://apex-backend.up.railway.app/api
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
+RUN npm run build
+
+# Stage 2: serve with nginx
+FROM nginx:alpine
+
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY apex/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

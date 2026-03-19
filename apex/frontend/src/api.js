@@ -1,8 +1,11 @@
 /**
- * Thin API wrapper — all calls go through the Vite proxy to /api.
+ * Thin API wrapper.
+ * Dev: calls go through the Vite proxy to /api (→ localhost:8000).
+ * Production: VITE_API_URL build env var points directly at the backend
+ *   e.g. https://apex-backend.up.railway.app/api
  */
 
-const BASE = '/api';
+const BASE = import.meta.env.VITE_API_URL || '/api';
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('apex_token');
