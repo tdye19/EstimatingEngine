@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from apex.backend.db.database import init_db
@@ -57,6 +57,13 @@ app.include_router(projects.router)
 app.include_router(reports.router)
 app.include_router(productivity.router)
 
+FRONTEND_DIST_DIR = os.path.abspath(
+    os.getenv(
+        "FRONTEND_DIST_DIR",
+        os.path.join(os.path.dirname(__file__), "..", "frontend_dist"),
+    )
+)
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -75,3 +82,16 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy", "service": "apex-backend", "version": "1.0.0"}
+
+
+if os.path.isdir(FRONTEND_DIST_DIR):
+    assets_dir = os.path.join(FRONTEND_DIST_DIR, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        requested_path = os.path.join(FRONTEND_DIST_DIR, full_path)
+        if full_path and os.path.isfile(requested_path):
+            return FileResponse(requested_path)
+        return FileResponse(os.path.join(FRONTEND_DIST_DIR, "index.html"))

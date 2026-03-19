@@ -14,7 +14,7 @@ export default function GapReportTab({ projectId }) {
 
   useEffect(() => {
     getGapReport(projectId)
-      .then(setReport)
+      .then((response) => setReport(response.data))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [projectId]);

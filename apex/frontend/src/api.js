@@ -67,6 +67,9 @@ export const uploadDocument = (projectId, file) => {
   });
 };
 
+export const getDocumentDownloadUrl = (projectId, documentId) =>
+  `${BASE}/projects/${projectId}/documents/${documentId}/download`;
+
 // ── Agent Pipeline ────────────────────────────────────
 export const runAgents = (projectId) =>
   request(`/projects/${projectId}/run-agents`, { method: 'POST' });

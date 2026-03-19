@@ -26,7 +26,7 @@ export default function EstimateTab({ projectId }) {
 
   useEffect(() => {
     getEstimate(projectId)
-      .then(setEst)
+      .then((response) => setEst(response.data))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [projectId]);

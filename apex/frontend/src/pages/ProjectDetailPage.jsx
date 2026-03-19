@@ -11,6 +11,10 @@ import {
   TrendingUp,
   Activity,
   Upload,
+  Files,
+  Pencil,
+  X,
+  Save,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -19,8 +23,11 @@ import LaborTab from '../components/tabs/LaborTab';
 import EstimateTab from '../components/tabs/EstimateTab';
 import VarianceTab from '../components/tabs/VarianceTab';
 import AgentLogsTab from '../components/tabs/AgentLogsTab';
+import DocumentsTab from '../components/tabs/DocumentsTab';
+import { updateProject } from '../api';
 
 const TABS = [
+  { path: 'documents', label: 'Documents', icon: Files },
   { path: 'gap-report', label: 'Gap Report', icon: AlertTriangle },
   { path: 'takeoff', label: 'Takeoff', icon: Ruler },
   { path: 'labor', label: 'Labor', icon: HardHat },
@@ -35,10 +42,18 @@ export default function ProjectDetailPage() {
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
   const fileInputRef = useRef(null);
 
+  const loadProject = () => {
+    getProject(id).then((response) => setProject(response.data)).catch(() => {});
+  };
+
   useEffect(() => {
-    getProject(id).then(setProject).catch(() => {});
+    loadProject();
   }, [id]);
 
   const handleRun = async () => {
@@ -60,8 +75,9 @@ export default function ProjectDetailPage() {
     setUploading(true);
     setRunMsg('');
     try {
-      await uploadDocument(id, file);
-      setRunMsg(`Document "${file.name}" uploaded successfully.`);
+      const response = await uploadDocument(id, file);
+      setRunMsg(response.message || `Document "${file.name}" uploaded successfully.`);
+      setDocumentsRefreshKey((key) => key + 1);
     } catch (err) {
       setRunMsg(`Upload error: ${err.message}`);
     } finally {
@@ -73,6 +89,42 @@ export default function ProjectDetailPage() {
   if (!project) {
     return <div className="p-8 text-gray-400">Loading project...</div>;
   }
+
+  const openEditModal = () => {
+    setEditForm({
+      name: project.name || '',
+      project_type: project.project_type || 'commercial',
+      status: project.status || 'draft',
+      location: project.location || '',
+      square_footage: project.square_footage ?? '',
+      estimated_value: project.estimated_value ?? '',
+      bid_date: project.bid_date || '',
+      description: project.description || '',
+    });
+    setShowEditModal(true);
+  };
+
+  const updateField = (key, value) => setEditForm((current) => ({ ...current, [key]: value }));
+
+  const handleSaveProject = async (event) => {
+    event.preventDefault();
+    setSavingProject(true);
+    setRunMsg('');
+    try {
+      const response = await updateProject(id, {
+        ...editForm,
+        square_footage: editForm.square_footage === '' ? null : Number(editForm.square_footage),
+        estimated_value: editForm.estimated_value === '' ? null : Number(editForm.estimated_value),
+      });
+      setProject(response.data);
+      setRunMsg(response.message || 'Project updated');
+      setShowEditModal(false);
+    } catch (err) {
+      setRunMsg(`Update error: ${err.message}`);
+    } finally {
+      setSavingProject(false);
+    }
+  };
 
   return (
     <div className="p-8">
@@ -93,6 +145,10 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button onClick={openEditModal} className="btn-secondary flex items-center gap-2">
+            <Pencil className="h-4 w-4" />
+            Edit Project
+          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -141,14 +197,97 @@ export default function ProjectDetailPage() {
 
       {/* Tab content */}
       <Routes>
+        <Route
+          path="documents"
+          element={
+            <DocumentsTab
+              projectId={id}
+              refreshKey={documentsRefreshKey}
+              onUploaded={() => setDocumentsRefreshKey((key) => key + 1)}
+            />
+          }
+        />
         <Route path="gap-report" element={<GapReportTab projectId={id} />} />
         <Route path="takeoff" element={<TakeoffTab projectId={id} />} />
         <Route path="labor" element={<LaborTab projectId={id} />} />
         <Route path="estimate" element={<EstimateTab projectId={id} />} />
         <Route path="variance" element={<VarianceTab projectId={id} />} />
         <Route path="agents" element={<AgentLogsTab projectId={id} />} />
-        <Route index element={<Navigate to="gap-report" replace />} />
+        <Route index element={<Navigate to="documents" replace />} />
       </Routes>
+
+      {showEditModal && editForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setShowEditModal(false)}>
+          <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Edit Project</h2>
+                <p className="text-sm text-gray-500">Update project details and estimating status.</p>
+              </div>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProject} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Project Name</label>
+                  <input className="input w-full" value={editForm.name} onChange={(e) => updateField('name', e.target.value)} required />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Project Type</label>
+                  <select className="input w-full" value={editForm.project_type} onChange={(e) => updateField('project_type', e.target.value)}>
+                    <option value="commercial">Commercial</option>
+                    <option value="healthcare">Healthcare</option>
+                    <option value="industrial">Industrial</option>
+                    <option value="residential">Residential</option>
+                    <option value="education">Education</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Status</label>
+                  <select className="input w-full" value={editForm.status} onChange={(e) => updateField('status', e.target.value)}>
+                    <option value="draft">Draft</option>
+                    <option value="estimating">Estimating</option>
+                    <option value="bid_submitted">Bid Submitted</option>
+                    <option value="completed">Completed</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Location</label>
+                  <input className="input w-full" value={editForm.location} onChange={(e) => updateField('location', e.target.value)} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Bid Date</label>
+                  <input className="input w-full" type="date" value={editForm.bid_date} onChange={(e) => updateField('bid_date', e.target.value)} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Square Footage</label>
+                  <input className="input w-full" type="number" value={editForm.square_footage} onChange={(e) => updateField('square_footage', e.target.value)} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Estimated Value</label>
+                  <input className="input w-full" type="number" value={editForm.estimated_value} onChange={(e) => updateField('estimated_value', e.target.value)} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
+                  <textarea className="input w-full" rows={4} value={editForm.description} onChange={(e) => updateField('description', e.target.value)} />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowEditModal(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={savingProject} className="btn-primary flex items-center gap-2">
+                  <Save className="h-4 w-4" />
+                  {savingProject ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

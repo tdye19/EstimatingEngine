@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 const STATUS_COLORS = {
+  draft: 'bg-purple-100 text-purple-800',
   estimating: 'bg-blue-100 text-blue-800',
   bid_submitted: 'bg-yellow-100 text-yellow-800',
   completed: 'bg-green-100 text-green-800',
@@ -43,7 +44,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     listProjects()
-      .then(data => setProjects(Array.isArray(data) ? data : data.projects || []))
+      .then((response) => setProjects(response.data || []))
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
   }, []);
@@ -70,11 +71,11 @@ export default function DashboardPage() {
     setSaving(true);
     setFormError('');
     try {
-      const newProject = await createProject({
+      const response = await createProject({
         ...form,
         square_footage: form.square_footage ? Number(form.square_footage) : undefined,
       });
-      setProjects((prev) => [newProject, ...prev]);
+      setProjects((prev) => [response.data, ...prev]);
       closeModal();
     } catch (err) {
       setFormError(err.message);

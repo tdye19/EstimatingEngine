@@ -5,6 +5,7 @@ import uuid
 import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
 from apex.backend.models.project import Project
@@ -145,6 +146,25 @@ def list_documents(project_id: int, db: Session = Depends(get_db)):
     return APIResponse(
         success=True,
         data=[DocumentOut.model_validate(d).model_dump(mode="json") for d in docs],
+    )
+
+
+@router.get("/{project_id}/documents/{document_id}/download")
+def download_document(project_id: int, document_id: int, db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(
+        Document.id == document_id,
+        Document.project_id == project_id,
+        Document.is_deleted == False,  # noqa: E712
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=404, detail="Document file is missing on disk")
+
+    return FileResponse(
+        path=doc.file_path,
+        filename=doc.filename,
+        media_type="application/octet-stream",
     )
 
 
