@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listProjects } from '../api';
+import { listProjects, createProject } from '../api';
 import {
   FolderKanban,
   Building2,
@@ -8,6 +8,7 @@ import {
   Clock,
   ArrowRight,
   Plus,
+  X,
 } from 'lucide-react';
 
 const STATUS_COLORS = {
@@ -17,20 +18,28 @@ const STATUS_COLORS = {
   archived: 'bg-gray-100 text-gray-800',
 };
 
-const TYPE_ICONS = {
-  healthcare: Building2,
-  industrial: Building2,
-  commercial: Building2,
-};
-
 function fmt$(val) {
   if (!val) return '$0';
   return '$' + Number(val).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
+const EMPTY_FORM = {
+  name: '',
+  project_number: '',
+  project_type: 'commercial',
+  location: '',
+  square_footage: '',
+  bid_date: '',
+  description: '',
+};
+
 export default function DashboardPage() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     listProjects()
@@ -47,6 +56,38 @@ export default function DashboardPage() {
     totalValue: projects.reduce((s, p) => s + (p.estimated_value || 0), 0),
   };
 
+  const openModal = () => {
+    setForm(EMPTY_FORM);
+    setFormError('');
+    setShowModal(true);
+  };
+
+  const closeModal = () => setShowModal(false);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) { setFormError('Project name is required.'); return; }
+    setSaving(true);
+    setFormError('');
+    try {
+      const newProject = await createProject({
+        ...form,
+        square_footage: form.square_footage ? Number(form.square_footage) : undefined,
+      });
+      setProjects((prev) => [newProject, ...prev]);
+      closeModal();
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = (key) => ({
+    value: form[key],
+    onChange: (e) => setForm((f) => ({ ...f, [key]: e.target.value })),
+  });
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
@@ -54,6 +95,10 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold">Project Dashboard</h1>
           <p className="text-gray-500 text-sm mt-1">Manage your estimating pipeline</p>
         </div>
+        <button onClick={openModal} className="btn-primary flex items-center gap-2">
+          <Plus className="h-4 w-4" />
+          New Project
+        </button>
       </div>
 
       {/* Stats row */}
@@ -113,6 +158,68 @@ export default function DashboardPage() {
               )}
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* New Project Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closeModal}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold">New Project</h2>
+              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Project Name *</label>
+                  <input className="input w-full" placeholder="e.g. Riverside Medical Center" required {...field('name')} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Project Number</label>
+                  <input className="input w-full" placeholder="e.g. PRJ-2025-001" {...field('project_number')} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <select className="input w-full" {...field('project_type')}>
+                    <option value="commercial">Commercial</option>
+                    <option value="healthcare">Healthcare</option>
+                    <option value="industrial">Industrial</option>
+                    <option value="residential">Residential</option>
+                    <option value="education">Education</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <input className="input w-full" placeholder="City, State" {...field('location')} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Square Footage</label>
+                  <input className="input w-full" type="number" placeholder="e.g. 45000" {...field('square_footage')} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bid Date</label>
+                  <input className="input w-full" type="date" {...field('bid_date')} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea className="input w-full" rows={3} placeholder="Brief project description..." {...field('description')} />
+                </div>
+              </div>
+
+              {formError && <p className="text-sm text-red-600">{formError}</p>}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={closeModal} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={saving} className="btn-primary">
+                  {saving ? 'Creating...' : 'Create Project'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

@@ -111,3 +111,9 @@ export const getProductivityLibrary = (params) => {
   const qs = new URLSearchParams(params).toString();
   return request(`/productivity-library${qs ? `?${qs}` : ''}`);
 };
+
+export const updateProductivityRate = (csiCode, data) =>
+  request(`/productivity-library/${csiCode}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });

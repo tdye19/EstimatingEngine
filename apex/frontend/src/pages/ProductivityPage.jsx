@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { getProductivityLibrary } from '../api';
-import { Library, Search } from 'lucide-react';
+import { getProductivityLibrary, updateProductivityRate } from '../api';
+import { Library, Search, Pencil, Check, X } from 'lucide-react';
 
 export default function ProductivityPage() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editRate, setEditRate] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     getProductivityLibrary()
@@ -20,6 +23,31 @@ export default function ProductivityPage() {
       r.work_type?.toLowerCase().includes(search.toLowerCase()) ||
       r.crew_type?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const startEdit = (r) => {
+    setEditId(r.id);
+    setEditRate(String(r.productivity_rate));
+  };
+
+  const cancelEdit = () => {
+    setEditId(null);
+    setEditRate('');
+  };
+
+  const saveEdit = async (r) => {
+    const rate = parseFloat(editRate);
+    if (isNaN(rate)) return;
+    setSaving(true);
+    try {
+      const updated = await updateProductivityRate(r.csi_code, { productivity_rate: rate });
+      setData((prev) => prev.map((item) => (item.id === r.id ? { ...item, ...updated } : item)));
+      cancelEdit();
+    } catch {
+      // leave edit open on error
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="p-8">
@@ -58,28 +86,68 @@ export default function ProductivityPage() {
                 <th className="px-4 py-3">Unit</th>
                 <th className="px-4 py-3">Source</th>
                 <th className="px-4 py-3 text-right">Confidence</th>
+                <th className="px-4 py-3 w-16"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map((r) => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-xs">{r.csi_code}</td>
-                  <td className="px-4 py-3">{r.work_type}</td>
-                  <td className="px-4 py-3 text-gray-600">{r.crew_type}</td>
-                  <td className="px-4 py-3 text-right font-medium">{r.productivity_rate}</td>
-                  <td className="px-4 py-3 text-gray-500">{r.unit_of_measure}</td>
-                  <td className="px-4 py-3">
-                    {r.is_actual ? (
-                      <span className="badge-success">Actual</span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">{r.source_project || 'Baseline'}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <ConfidenceBar value={r.confidence_score} />
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((r) => {
+                const isEditing = editId === r.id;
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono text-xs">{r.csi_code}</td>
+                    <td className="px-4 py-3">{r.work_type}</td>
+                    <td className="px-4 py-3 text-gray-600">{r.crew_type}</td>
+                    <td className="px-4 py-3 text-right font-medium">
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editRate}
+                          onChange={(e) => setEditRate(e.target.value)}
+                          className="input w-24 text-right"
+                          autoFocus
+                        />
+                      ) : (
+                        r.productivity_rate
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">{r.unit_of_measure}</td>
+                    <td className="px-4 py-3">
+                      {r.is_actual ? (
+                        <span className="badge-success">Actual</span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">{r.source_project || 'Baseline'}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <ConfidenceBar value={r.confidence_score} />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {isEditing ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => saveEdit(r)}
+                            disabled={saving}
+                            className="text-green-600 hover:text-green-800"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                          <button onClick={cancelEdit} className="text-gray-400 hover:text-gray-600">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => startEdit(r)}
+                          className="text-gray-300 hover:text-apex-600 transition-colors"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {filtered.length === 0 && (
