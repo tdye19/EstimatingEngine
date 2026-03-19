@@ -6,14 +6,10 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem('apex_token'));
   const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem('apex_user');
-    const [user, setUser] = useState(() => {
-  try {
-    const stored = localStorage.getItem('apex_user');
-    return stored && stored !== 'undefined' ? JSON.parse(stored) : null;
-  } catch { return null; }
-});
-    return stored ? JSON.parse(stored) : null;
+    try {
+      const stored = localStorage.getItem('apex_user');
+      return stored && stored !== 'undefined' ? JSON.parse(stored) : null;
+    } catch { return null; }
   });
 
   const handleLogin = useCallback(async (email, password) => {
