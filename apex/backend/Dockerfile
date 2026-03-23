@@ -9,7 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy backend source into the correct package path so apex.backend.* imports work
+COPY . /app/apex/backend/
+
+# Create the apex namespace package marker
+RUN echo "" > /app/apex/__init__.py
 
 RUN mkdir -p /app/uploads /app/data
 

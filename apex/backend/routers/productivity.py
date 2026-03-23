@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
 from apex.backend.models.productivity_history import ProductivityHistory
+from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import (
     ProductivityHistoryOut, ProductivityUpdate, APIResponse,
 )
 
-router = APIRouter(prefix="/api/productivity-library", tags=["productivity"])
+router = APIRouter(prefix="/api/productivity-library", tags=["productivity"], dependencies=[Depends(require_auth)])
 
 
 @router.get("", response_model=APIResponse)

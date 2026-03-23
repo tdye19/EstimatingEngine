@@ -117,7 +117,7 @@ def run_improve_agent(db: Session, project_id: int) -> dict:
     # Calculate overall accuracy score
     total_est = sum(v.get("estimated_cost", 0) for v in variances)
     total_act = sum(v.get("actual_cost", 0) for v in variances)
-    accuracy = (1 - abs(total_act - total_est) / total_est * 1) * 100 if total_est > 0 else 0
+    accuracy = (1 - abs(total_act - total_est) / total_est) * 100 if total_est > 0 else 0
     accuracy = max(0, min(100, accuracy))
 
     return {

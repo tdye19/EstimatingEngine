@@ -9,13 +9,14 @@ from apex.backend.models.estimate import Estimate
 from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.labor_estimate import LaborEstimate
+from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import (
     GapReportOut, TakeoffItemOut, TakeoffItemUpdate, EstimateOut,
     VarianceReportOut, ProjectActualOut, AgentRunLogOut, LaborEstimateOut,
     APIResponse,
 )
 
-router = APIRouter(prefix="/api/projects", tags=["reports"])
+router = APIRouter(prefix="/api/projects", tags=["reports"], dependencies=[Depends(require_auth)])
 
 
 @router.get("/{project_id}/gap-report", response_model=APIResponse)
