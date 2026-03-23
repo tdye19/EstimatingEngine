@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, Minus, Upload } from 'lucide-react';
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -137,12 +138,14 @@ export default function VarianceTab({ projectId }) {
             <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} />
             <Tooltip formatter={(v) => `${v.toFixed(1)}%`} />
             <ReferenceLine y={0} stroke="#666" />
-            <Bar
-              dataKey="variance"
-              fill="#3b82f6"
-              radius={[4, 4, 0, 0]}
-              label={false}
-            />
+            <Bar dataKey="variance" radius={[4, 4, 0, 0]} label={false}>
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.variance > 0 ? '#ef4444' : '#10b981'}
+                />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
