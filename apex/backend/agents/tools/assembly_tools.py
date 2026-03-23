@@ -1,6 +1,5 @@
 """Estimate assembly tools for Agent 6."""
 
-import re
 import logging
 
 logger = logging.getLogger("apex.tools.assembly")

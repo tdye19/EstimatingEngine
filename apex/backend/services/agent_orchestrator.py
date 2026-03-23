@@ -1,6 +1,5 @@
 """Agent orchestration service — manages the pipeline of all 7 agents."""
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session

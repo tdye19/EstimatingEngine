@@ -11,11 +11,12 @@ from apex.backend.models.project import Project
 from apex.backend.models.document import Document
 from apex.backend.models.project_actual import ProjectActual
 from apex.backend.services.agent_orchestrator import AgentOrchestrator
+from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut, DocumentOut, APIResponse,
 )
 
-router = APIRouter(prefix="/api/projects", tags=["projects"])
+router = APIRouter(prefix="/api/projects", tags=["projects"], dependencies=[Depends(require_auth)])
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
 

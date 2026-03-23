@@ -50,4 +50,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         )
 
     token = create_access_token(data={"sub": user.id, "email": user.email})
-    return TokenResponse(access_token=token)
+    return TokenResponse(
+        access_token=token,
+        user=UserOut.model_validate(user),
+    )

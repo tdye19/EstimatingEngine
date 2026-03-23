@@ -17,7 +17,7 @@ from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.utils.auth import hash_password
-from apex.backend.models.base import Base
+from apex.backend.db.database import Base
 
 logger = logging.getLogger("apex.seed")
 

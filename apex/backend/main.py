@@ -6,8 +6,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-
 from apex.backend.db.database import init_db
 from apex.backend.routers import auth, projects, reports, productivity
 
@@ -24,10 +22,9 @@ async def lifespan(app: FastAPI):
     init_db()
 
     # Run seeder if DB is empty
-import sys
-from apex.backend.db.seed import seed_if_empty
-
-seed_if_empty(force="--force-seed" in sys.argv)
+    import sys
+    from apex.backend.db.seed import seed_if_empty
+    seed_if_empty(force="--force-seed" in sys.argv)
 
     # Ensure upload directory exists
     os.makedirs(os.getenv("UPLOAD_DIR", "./uploads"), exist_ok=True)
