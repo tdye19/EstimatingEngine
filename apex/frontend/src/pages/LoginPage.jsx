@@ -6,8 +6,8 @@ import { Zap } from 'lucide-react';
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('estimator@summitbuilders.com');
-  const [password, setPassword] = useState('estimate123');
+  const [email, setEmail] = useState(import.meta.env.DEV ? 'estimator@summitbuilders.com' : '');
+  const [password, setPassword] = useState(import.meta.env.DEV ? 'estimate123' : '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -67,9 +67,11 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
 
-          <p className="text-xs text-gray-400 text-center">
-            Demo: estimator@summitbuilders.com / estimate123
-          </p>
+          {import.meta.env.DEV && (
+            <p className="text-xs text-gray-400 text-center">
+              Demo: estimator@summitbuilders.com / estimate123
+            </p>
+          )}
         </form>
       </div>
     </div>

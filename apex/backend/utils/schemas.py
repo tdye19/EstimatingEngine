@@ -62,7 +62,7 @@ class TokenResponse(BaseModel):
 # --- Project ---
 class ProjectCreate(BaseModel):
     name: str
-    project_number: str
+    project_number: Optional[str] = None
     project_type: str = "commercial"
     description: Optional[str] = None
     location: Optional[str] = None

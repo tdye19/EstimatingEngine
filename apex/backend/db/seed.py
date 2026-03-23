@@ -312,6 +312,9 @@ def _seed(db):
         (takeoff_items[19], "09 91 00", "Painting", "Painting Crew", 250, 520000, 4, 58.00),
     ]
 
+    # Build productivity unit lookup by (csi_code, work_type)
+    prod_unit_by_key = {(csi, wtype): unit for csi, wtype, crew, rate, unit, src, is_act, conf, cnt in prod_data}
+
     labor_items = []
     for ti, csi, wtype, crew, rate, qty, crew_size, hr_rate in labor_data:
         hours = qty / rate
@@ -320,6 +323,7 @@ def _seed(db):
         le = LaborEstimate(
             project_id=p1.id, takeoff_item_id=ti.id, csi_code=csi,
             work_type=wtype, crew_type=crew, productivity_rate=rate,
+            productivity_unit=prod_unit_by_key.get((csi, wtype)),
             quantity=qty, labor_hours=round(hours, 2), crew_size=crew_size,
             crew_days=round(hours / 8, 2), hourly_rate=hr_rate,
             total_labor_cost=round(cost, 2),
@@ -379,11 +383,14 @@ def _seed(db):
     db.commit()
     db.refresh(estimate)
 
-    # Estimate line items
-    mat_prices_list = [3.50, 3.50, 0.85, 165, 165, 2800, 3.25, 1.50, 1.85, 185/100,
-                       8.50, 2.25, 650, 425, 0.65, 0.65, 6.50, 6.50, 2.15, 0.45]
-    for i, (le, ti) in enumerate(zip(labor_items, takeoff_items)):
-        mat_cost = mat_prices_list[i] * ti.quantity
+    # Estimate line items — look up material unit price by CSI code.
+    # TPO roofing (07 50 00) is priced per SQ (100 SF) in material_data; divide by 100 to get per-SF rate.
+    mat_price_by_csi = {
+        csi: (unit_cost / 100 if unit == "SQ" else unit_cost)
+        for csi, desc, unit_cost, unit, src in material_data
+    }
+    for le, ti in zip(labor_items, takeoff_items):
+        mat_cost = mat_price_by_csi.get(ti.csi_code, 0) * ti.quantity
         equip_cost = le.total_labor_cost * 0.07
         total = le.total_labor_cost + mat_cost + equip_cost
         db.add(EstimateLineItem(

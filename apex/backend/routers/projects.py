@@ -4,12 +4,14 @@ import os
 import uuid
 import csv
 import io
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Response
 from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
 from apex.backend.models.project import Project
 from apex.backend.models.document import Document
 from apex.backend.models.project_actual import ProjectActual
+from apex.backend.models.user import User
 from apex.backend.services.agent_orchestrator import AgentOrchestrator
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import (
@@ -21,21 +23,36 @@ router = APIRouter(prefix="/api/projects", tags=["projects"], dependencies=[Depe
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
 
 
+def _generate_project_number(db: Session) -> str:
+    year = datetime.now().year
+    prefix = f"PRJ-{year}-"
+    count = db.query(Project).filter(Project.project_number.like(f"{prefix}%")).count()
+    return f"{prefix}{count + 1:03d}"
+
+
 @router.post("", response_model=APIResponse)
-def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
-    existing = db.query(Project).filter(Project.project_number == data.project_number).first()
+def create_project(
+    data: ProjectCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    project_number = data.project_number or _generate_project_number(db)
+
+    existing = db.query(Project).filter(Project.project_number == project_number).first()
     if existing:
         raise HTTPException(status_code=400, detail="Project number already exists")
 
     project = Project(
         name=data.name,
-        project_number=data.project_number,
+        project_number=project_number,
         project_type=data.project_type,
         description=data.description,
         location=data.location,
         square_footage=data.square_footage,
         estimated_value=data.estimated_value,
         bid_date=data.bid_date,
+        owner_id=user.id,
+        organization_id=user.organization_id,
     )
     db.add(project)
     db.commit()
@@ -147,6 +164,30 @@ def list_documents(project_id: int, db: Session = Depends(get_db)):
         success=True,
         data=[DocumentOut.model_validate(d).model_dump(mode="json") for d in docs],
     )
+
+
+@router.delete("/{project_id}", status_code=204)
+def delete_project(project_id: int, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(
+        Project.id == project_id, Project.is_deleted == False  # noqa: E712
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    project.is_deleted = True
+    db.commit()
+
+
+@router.delete("/{project_id}/documents/{doc_id}", status_code=204)
+def delete_document(project_id: int, doc_id: int, db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(
+        Document.id == doc_id,
+        Document.project_id == project_id,
+        Document.is_deleted == False,  # noqa: E712
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    doc.is_deleted = True
+    db.commit()
 
 
 def _run_pipeline(project_id: int):
