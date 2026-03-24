@@ -4,7 +4,9 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./apex.db")
+_db_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_default_db = f"sqlite:///{os.path.join(_db_dir, 'apex.db')}"
+DATABASE_URL = os.getenv("DATABASE_URL", _default_db)
 
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
