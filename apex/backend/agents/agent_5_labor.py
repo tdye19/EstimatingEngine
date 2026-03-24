@@ -8,6 +8,7 @@ import logging
 from sqlalchemy.orm import Session
 from apex.backend.models.takeoff_item import TakeoffItem
 from apex.backend.models.labor_estimate import LaborEstimate
+from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.agents.tools.labor_tools import (
     productivity_lookup_tool,
     crew_config_tool,
@@ -91,10 +92,10 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
 
     db.commit()
 
-    return {
+    return validate_agent_output(5, {
         "estimates_created": estimates_created,
         "total_labor_cost": round(total_labor_cost, 2),
         "total_labor_hours": round(total_labor_hours, 2),
         "items_processed": len(takeoff_items),
         "results": item_results,
-    }
+    })

@@ -289,6 +289,24 @@ class ProductivityUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+# --- Pipeline Status ---
+class AgentStepStatus(BaseModel):
+    agent_number: int
+    agent_name: str
+    status: str  # pending / running / completed / failed / skipped
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    error_message: Optional[str] = None
+    output_summary: Optional[str] = None
+
+
+class PipelineStatusOut(BaseModel):
+    project_id: int
+    agents: list[AgentStepStatus]
+    overall: str  # pending / running / completed / failed
+
+
 # --- Agent Run Log ---
 class AgentRunLogOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

@@ -9,6 +9,7 @@ import logging
 from sqlalchemy.orm import Session
 from apex.backend.models.document import Document
 from apex.backend.models.spec_section import SpecSection
+from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.agents.tools.spec_tools import (
     regex_parse_spec_sections,
     section_extractor_tool,
@@ -149,9 +150,9 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     overall_parse_method = "llm" if "llm" in run_parse_methods else "regex"
     logger.info(f"Agent 2 complete: {total_sections} sections parsed via {overall_parse_method}")
 
-    return {
+    return validate_agent_output(2, {
         "sections_parsed": total_sections,
         "documents_processed": len(all_docs),
         "parse_method": overall_parse_method,
         "results": doc_results,
-    }
+    })

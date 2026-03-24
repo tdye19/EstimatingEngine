@@ -7,6 +7,7 @@ import logging
 from sqlalchemy.orm import Session
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.takeoff_item import TakeoffItem
+from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.agents.tools.takeoff_tools import (
     quantity_calculator_tool,
     drawing_reference_linker_tool,
@@ -81,8 +82,8 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
 
     db.commit()
 
-    return {
+    return validate_agent_output(4, {
         "items_created": items_created,
         "sections_processed": len(sections),
         "results": section_results,
-    }
+    })
