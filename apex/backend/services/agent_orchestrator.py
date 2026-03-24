@@ -129,6 +129,35 @@ class AgentOrchestrator:
 
         return results
 
+    def run_single_agent(self, agent_number: int) -> dict:
+        """Run a single agent by number (1-7)."""
+        AGENT_MAP = {
+            1: ("Document Ingestion Agent", "apex.backend.agents.agent_1_ingestion", "run_ingestion_agent"),
+            2: ("Spec Parser Agent", "apex.backend.agents.agent_2_spec_parser", "run_spec_parser_agent"),
+            3: ("Scope Gap Analysis Agent", "apex.backend.agents.agent_3_gap_analysis", "run_gap_analysis_agent"),
+            4: ("Quantity Takeoff Agent", "apex.backend.agents.agent_4_takeoff", "run_takeoff_agent"),
+            5: ("Labor Productivity Agent", "apex.backend.agents.agent_5_labor", "run_labor_agent"),
+            6: ("Estimate Assembly Agent", "apex.backend.agents.agent_6_assembly", "run_assembly_agent"),
+            7: ("IMPROVE Feedback Agent", "apex.backend.agents.agent_7_improve", "run_improve_agent"),
+        }
+        if agent_number not in AGENT_MAP:
+            raise ValueError(f"Invalid agent_number {agent_number}: must be 1-7")
+
+        agent_name, module_path, fn_name = AGENT_MAP[agent_number]
+        import importlib
+        module = importlib.import_module(module_path)
+        agent_fn = getattr(module, fn_name)
+
+        log = self._log_start(agent_name, agent_number)
+        try:
+            result = agent_fn(self.db, self.project_id)
+            self._log_complete(log, str(result.get(list(result.keys())[0], "")) if result else "Done", output_data=result)
+            return {"agent_number": agent_number, "agent_name": agent_name, "output": result, "duration_seconds": log.duration_seconds}
+        except Exception as e:
+            self._log_error(log, str(e))
+            logger.error(f"Agent {agent_number} failed: {e}")
+            raise
+
     def run_improve_agent(self) -> dict:
         """Run Agent 7 independently after actuals upload."""
         from apex.backend.agents.agent_7_improve import run_improve_agent

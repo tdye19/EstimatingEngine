@@ -222,6 +222,33 @@ def run_agents(
     )
 
 
+@router.post("/{project_id}/agents/{agent_number}/run", response_model=APIResponse)
+def run_single_agent(
+    project_id: int,
+    agent_number: int,
+    db: Session = Depends(get_db),
+):
+    if agent_number < 1 or agent_number > 7:
+        raise HTTPException(status_code=400, detail="agent_number must be between 1 and 7")
+    project = db.query(Project).filter(
+        Project.id == project_id, Project.is_deleted == False  # noqa: E712
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        orchestrator = AgentOrchestrator(db, project_id)
+        result = orchestrator.run_single_agent(agent_number)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent {agent_number} failed: {str(e)}")
+    return APIResponse(
+        success=True,
+        message=f"Agent {agent_number} completed",
+        data=result,
+    )
+
+
 @router.post("/{project_id}/actuals", response_model=APIResponse)
 async def upload_actuals(
     project_id: int,

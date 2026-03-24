@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { listDocuments, uploadDocument } from '../../api';
-import { FileText, Upload, Clock, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { listDocuments, uploadDocument, deleteDocument } from '../../api';
+import { FileText, Upload, Clock, CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react';
 
 const STATUS_CONFIG = {
   pending:    { icon: Clock,         color: 'text-gray-400',  label: 'Pending' },
@@ -21,6 +21,7 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded }) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -45,6 +46,19 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded }) {
     } finally {
       setUploading(false);
       e.target.value = '';
+    }
+  };
+
+  const handleDelete = async (docId, filename) => {
+    if (!window.confirm('Are you sure? This can be undone by an admin.')) return;
+    setDeletingId(docId);
+    try {
+      await deleteDocument(projectId, docId);
+      setDocs((prev) => prev.filter((d) => d.id !== docId));
+    } catch (err) {
+      setUploadMsg(`Delete failed: ${err.message}`);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -95,6 +109,7 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded }) {
                 <th className="px-4 py-3 text-right">Pages</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Uploaded</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -119,6 +134,16 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded }) {
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-400">
                       {new Date(doc.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => handleDelete(doc.id, doc.filename)}
+                        disabled={deletingId === doc.id}
+                        className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                        title="Delete document"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </td>
                   </tr>
                 );

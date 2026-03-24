@@ -73,9 +73,19 @@ export const uploadDocument = (projectId, file) => {
   });
 };
 
+// ── Delete ────────────────────────────────────────────
+export const deleteProject = (id) =>
+  request(`/projects/${id}`, { method: 'DELETE' });
+
+export const deleteDocument = (projectId, docId) =>
+  request(`/projects/${projectId}/documents/${docId}`, { method: 'DELETE' });
+
 // ── Agent Pipeline ────────────────────────────────────
 export const runAgents = (projectId) =>
   request(`/projects/${projectId}/run-agents`, { method: 'POST' });
+
+export const runAgent = (projectId, agentNumber) =>
+  request(`/projects/${projectId}/agents/${agentNumber}/run`, { method: 'POST' });
 
 export const getAgentLogs = (projectId) =>
   request(`/projects/${projectId}/agent-logs`);

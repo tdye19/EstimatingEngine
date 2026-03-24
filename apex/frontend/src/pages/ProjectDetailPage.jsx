@@ -26,6 +26,7 @@ import VarianceTab from '../components/tabs/VarianceTab';
 import AgentLogsTab from '../components/tabs/AgentLogsTab';
 import DocumentsTab from '../components/tabs/DocumentsTab';
 import SpecSectionsTab from '../components/tabs/SpecSectionsTab';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const TABS = [
   { path: 'documents', label: 'Documents', icon: Files },
@@ -48,6 +49,12 @@ export default function ProjectDetailPage() {
   const [savingProject, setSavingProject] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
+  const [specRefreshKey, setSpecRefreshKey] = useState(0);
+  const [gapRefreshKey, setGapRefreshKey] = useState(0);
+  const [takeoffRefreshKey, setTakeoffRefreshKey] = useState(0);
+  const [laborRefreshKey, setLaborRefreshKey] = useState(0);
+  const [estimateRefreshKey, setEstimateRefreshKey] = useState(0);
+  const [varianceRefreshKey, setVarianceRefreshKey] = useState(0);
   const fileInputRef = useRef(null);
 
   const loadProject = () => {
@@ -86,6 +93,20 @@ export default function ProjectDetailPage() {
       setUploading(false);
       e.target.value = '';
     }
+  };
+
+  const handleAgentComplete = (agentNumber) => {
+    // Refresh the relevant tab data after an agent re-run
+    const refreshMap = {
+      1: () => setDocumentsRefreshKey((k) => k + 1),
+      2: () => setSpecRefreshKey((k) => k + 1),
+      3: () => setGapRefreshKey((k) => k + 1),
+      4: () => setTakeoffRefreshKey((k) => k + 1),
+      5: () => setLaborRefreshKey((k) => k + 1),
+      6: () => setEstimateRefreshKey((k) => k + 1),
+      7: () => setVarianceRefreshKey((k) => k + 1),
+    };
+    refreshMap[agentNumber]?.();
   };
 
   if (!project) {
@@ -201,20 +222,22 @@ export default function ProjectDetailPage() {
         <Route
           path="documents"
           element={
-            <DocumentsTab
-              projectId={id}
-              refreshKey={documentsRefreshKey}
-              onUploaded={() => setDocumentsRefreshKey((key) => key + 1)}
-            />
+            <ErrorBoundary key="documents">
+              <DocumentsTab
+                projectId={id}
+                refreshKey={documentsRefreshKey}
+                onUploaded={() => setDocumentsRefreshKey((key) => key + 1)}
+              />
+            </ErrorBoundary>
           }
         />
-        <Route path="spec-sections" element={<SpecSectionsTab projectId={id} />} />
-        <Route path="gap-report" element={<GapReportTab projectId={id} />} />
-        <Route path="takeoff" element={<TakeoffTab projectId={id} />} />
-        <Route path="labor" element={<LaborTab projectId={id} />} />
-        <Route path="estimate" element={<EstimateTab projectId={id} project={project} />} />
-        <Route path="variance" element={<VarianceTab projectId={id} />} />
-        <Route path="agents" element={<AgentLogsTab projectId={id} />} />
+        <Route path="spec-sections" element={<ErrorBoundary key="spec-sections"><SpecSectionsTab projectId={id} refreshKey={specRefreshKey} /></ErrorBoundary>} />
+        <Route path="gap-report" element={<ErrorBoundary key="gap-report"><GapReportTab projectId={id} refreshKey={gapRefreshKey} /></ErrorBoundary>} />
+        <Route path="takeoff" element={<ErrorBoundary key="takeoff"><TakeoffTab projectId={id} refreshKey={takeoffRefreshKey} /></ErrorBoundary>} />
+        <Route path="labor" element={<ErrorBoundary key="labor"><LaborTab projectId={id} refreshKey={laborRefreshKey} /></ErrorBoundary>} />
+        <Route path="estimate" element={<ErrorBoundary key="estimate"><EstimateTab projectId={id} project={project} refreshKey={estimateRefreshKey} /></ErrorBoundary>} />
+        <Route path="variance" element={<ErrorBoundary key="variance"><VarianceTab projectId={id} refreshKey={varianceRefreshKey} /></ErrorBoundary>} />
+        <Route path="agents" element={<ErrorBoundary key="agents"><AgentLogsTab projectId={id} onAgentComplete={handleAgentComplete} /></ErrorBoundary>} />
         <Route index element={<Navigate to="documents" replace />} />
       </Routes>
 
