@@ -15,6 +15,7 @@ import {
   Pencil,
   X,
   Save,
+  BookOpen,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -24,9 +25,11 @@ import EstimateTab from '../components/tabs/EstimateTab';
 import VarianceTab from '../components/tabs/VarianceTab';
 import AgentLogsTab from '../components/tabs/AgentLogsTab';
 import DocumentsTab from '../components/tabs/DocumentsTab';
+import SpecSectionsTab from '../components/tabs/SpecSectionsTab';
 
 const TABS = [
   { path: 'documents', label: 'Documents', icon: Files },
+  { path: 'spec-sections', label: 'Spec Sections', icon: BookOpen },
   { path: 'gap-report', label: 'Gap Report', icon: AlertTriangle },
   { path: 'takeoff', label: 'Takeoff', icon: Ruler },
   { path: 'labor', label: 'Labor', icon: HardHat },
@@ -205,10 +208,11 @@ export default function ProjectDetailPage() {
             />
           }
         />
+        <Route path="spec-sections" element={<SpecSectionsTab projectId={id} />} />
         <Route path="gap-report" element={<GapReportTab projectId={id} />} />
         <Route path="takeoff" element={<TakeoffTab projectId={id} />} />
         <Route path="labor" element={<LaborTab projectId={id} />} />
-        <Route path="estimate" element={<EstimateTab projectId={id} />} />
+        <Route path="estimate" element={<EstimateTab projectId={id} project={project} />} />
         <Route path="variance" element={<VarianceTab projectId={id} />} />
         <Route path="agents" element={<AgentLogsTab projectId={id} />} />
         <Route index element={<Navigate to="documents" replace />} />
