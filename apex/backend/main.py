@@ -6,6 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+
+# Load .env before anything else so env vars are available during import
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
 from apex.backend.db.database import init_db
 from apex.backend.routers import auth, projects, reports, productivity
 from apex.backend.routers import exports
@@ -29,6 +34,14 @@ async def lifespan(app: FastAPI):
 
     # Ensure upload directory exists
     os.makedirs(os.getenv("UPLOAD_DIR", "./uploads"), exist_ok=True)
+
+    # Log active LLM provider
+    try:
+        from apex.backend.services.llm_provider import get_llm_provider
+        provider = get_llm_provider()
+        logger.info(f"LLM provider: {provider.provider_name} | model: {provider.model_name}")
+    except Exception as e:
+        logger.warning(f"LLM provider not configured: {e}")
 
     logger.info("APEX Platform ready.")
     yield
@@ -76,3 +89,24 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy", "service": "apex-backend", "version": "1.0.0"}
+
+
+@app.get("/api/health/llm")
+async def llm_health_check():
+    """Check LLM provider availability. No auth required."""
+    try:
+        from apex.backend.services.llm_provider import get_llm_provider
+        provider = get_llm_provider()
+        available = await provider.health_check()
+        return {
+            "provider": provider.provider_name,
+            "model": provider.model_name,
+            "available": available,
+        }
+    except Exception as e:
+        return {
+            "provider": os.getenv("LLM_PROVIDER", "ollama"),
+            "model": "unknown",
+            "available": False,
+            "error": str(e),
+        }

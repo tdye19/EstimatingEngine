@@ -7,6 +7,7 @@ import {
   LogOut,
   Zap,
 } from 'lucide-react';
+import LLMStatus from './LLMStatus';
 
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -54,7 +55,8 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-gray-700">
+        <div className="p-4 space-y-3 border-t border-gray-700">
+          <LLMStatus />
           <div className="flex items-center justify-between">
             <div className="text-sm">
               <p className="font-medium text-gray-200">{user?.full_name}</p>
