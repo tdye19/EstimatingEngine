@@ -42,7 +42,7 @@ class AgentOrchestrator:
         return log
 
     def _log_complete(self, log: AgentRunLog, summary: str, tokens: int = 0, output_data: dict = None):
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         log.status = "completed"
         log.completed_at = now
         log.duration_seconds = (now - log.started_at).total_seconds() if log.started_at else 0
@@ -52,7 +52,7 @@ class AgentOrchestrator:
         self.db.commit()
 
     def _log_error(self, log: AgentRunLog, error_msg: str):
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         log.status = "failed"
         log.completed_at = now
         log.duration_seconds = (now - log.started_at).total_seconds() if log.started_at else 0
