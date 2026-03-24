@@ -112,6 +112,44 @@ export const uploadActuals = (projectId, file) => {
   });
 };
 
+// ── Spec Sections ─────────────────────────────────────
+export const getSpecSections = (projectId) =>
+  request(`/projects/${projectId}/spec-sections`);
+
+// ── Exports (blob downloads) ──────────────────────────
+async function downloadBlob(path, filename) {
+  const token = localStorage.getItem('apex_token');
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE}${path}`, { headers });
+  if (res.status === 401) {
+    localStorage.removeItem('apex_token');
+    window.location.href = '/login';
+    return;
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Download failed');
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export const exportEstimatePdf = (projectId, projectNumber) =>
+  downloadBlob(`/exports/projects/${projectId}/estimate/pdf`, `${projectNumber}_estimate.pdf`);
+
+export const exportEstimateXlsx = (projectId, projectNumber) =>
+  downloadBlob(`/exports/projects/${projectId}/estimate/xlsx`, `${projectNumber}_estimate.xlsx`);
+
 // ── Productivity Library ──────────────────────────────
 export const getProductivityLibrary = (params) => {
   const qs = new URLSearchParams(params).toString();

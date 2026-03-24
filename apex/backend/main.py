@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from apex.backend.db.database import init_db
 from apex.backend.routers import auth, projects, reports, productivity
+from apex.backend.routers import exports
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,6 +56,7 @@ app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(reports.router)
 app.include_router(productivity.router)
+app.include_router(exports.router)
 
 
 @app.exception_handler(Exception)

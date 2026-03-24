@@ -9,14 +9,39 @@ from apex.backend.models.estimate import Estimate
 from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.labor_estimate import LaborEstimate
+from apex.backend.models.spec_section import SpecSection
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import (
     GapReportOut, TakeoffItemOut, TakeoffItemUpdate, EstimateOut,
     VarianceReportOut, ProjectActualOut, AgentRunLogOut, LaborEstimateOut,
-    APIResponse,
+    SpecSectionOut, APIResponse,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["reports"], dependencies=[Depends(require_auth)])
+
+
+@router.get("/{project_id}/spec-sections", response_model=APIResponse)
+def get_spec_sections(project_id: int, db: Session = Depends(get_db)):
+    sections = db.query(SpecSection).filter(
+        SpecSection.project_id == project_id,
+        SpecSection.is_deleted == False,  # noqa: E712
+    ).order_by(SpecSection.section_number).all()
+
+    def _truncate(text, limit=500):
+        if not text:
+            return None
+        return text[:limit] + "…" if len(text) > limit else text
+
+    data = []
+    for s in sections:
+        item = SpecSectionOut.model_validate(s).model_dump(mode="json")
+        # Replace work_description with truncated version for list view
+        item["content"] = _truncate(s.work_description)
+        item["page_reference"] = None  # not stored in model
+        item["status"] = "parsed"
+        data.append(item)
+
+    return APIResponse(success=True, data=data)
 
 
 @router.get("/{project_id}/gap-report", response_model=APIResponse)

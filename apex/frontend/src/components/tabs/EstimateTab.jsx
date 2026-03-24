@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getEstimate } from '../../api';
-import { Calculator, DollarSign } from 'lucide-react';
+import { getEstimate, exportEstimatePdf, exportEstimateXlsx } from '../../api';
+import { Calculator, DollarSign, FileDown, FileSpreadsheet } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -20,9 +20,10 @@ function fmt$(val) {
 
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-export default function EstimateTab({ projectId }) {
+export default function EstimateTab({ projectId, project }) {
   const [est, setEst] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState('');
 
   useEffect(() => {
     getEstimate(projectId)
@@ -30,6 +31,19 @@ export default function EstimateTab({ projectId }) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [projectId]);
+
+  const handleExport = async (type) => {
+    setExporting(type);
+    try {
+      const num = project?.project_number || `PRJ-${projectId}`;
+      if (type === 'pdf') await exportEstimatePdf(projectId, num);
+      else await exportEstimateXlsx(projectId, num);
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setExporting('');
+    }
+  };
 
   if (loading) return <div className="text-gray-400 py-8 text-center">Loading estimate...</div>;
   if (!est) return <div className="text-gray-400 py-8 text-center">No estimate available.</div>;
@@ -57,6 +71,26 @@ export default function EstimateTab({ projectId }) {
 
   return (
     <div className="space-y-6">
+      {/* Export buttons */}
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={() => handleExport('pdf')}
+          disabled={!!exporting}
+          className="btn-secondary flex items-center gap-2 text-sm"
+        >
+          <FileDown className="h-4 w-4" />
+          {exporting === 'pdf' ? 'Generating…' : 'Export PDF'}
+        </button>
+        <button
+          onClick={() => handleExport('xlsx')}
+          disabled={!!exporting}
+          className="btn-secondary flex items-center gap-2 text-sm"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          {exporting === 'xlsx' ? 'Generating…' : 'Export Excel'}
+        </button>
+      </div>
+
       {/* Big number */}
       <div className="card bg-gradient-to-r from-apex-600 to-apex-800 text-white">
         <div className="flex items-center justify-between">
