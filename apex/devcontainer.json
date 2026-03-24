@@ -1,0 +1,31 @@
+{
+  "name": "APEX Platform",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+  },
+  "forwardedPorts": [3000, 8000],
+  "portsAttributes": {
+    "3000": { "label": "APEX Frontend", "onAutoForward": "openBrowser" },
+    "8000": { "label": "APEX API", "onAutoForward": "silent" }
+  },
+  "postCreateCommand": "cd apex/backend && pip install -r requirements.txt --break-system-packages && cd ../frontend && npm install",
+  "postStartCommand": "cd /workspaces/EstimatingEngine && python -m uvicorn apex.backend.main:app --reload --port 8000 & cd apex/frontend && npm run dev &",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python"
+      }
+    }
+  },
+  "secrets": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Anthropic API key for Claude LLM integration"
+    }
+  }
+}
