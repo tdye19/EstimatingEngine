@@ -1,27 +1,73 @@
 """Agent 2: Spec Parser Agent.
 
 Parses CSI MasterFormat Division specs into structured scope items.
+Uses LLM parsing when a provider is available; falls back to regex.
 """
 
+import asyncio
 import logging
 from sqlalchemy.orm import Session
 from apex.backend.models.document import Document
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.agents.tools.spec_tools import (
+    regex_parse_spec_sections,
     section_extractor_tool,
     division_mapper_tool,
     keyword_tagger_tool,
     parse_section_parts,
+    llm_parse_spec_sections,
 )
 
 logger = logging.getLogger("apex.agent.spec_parser")
 
 
+def _run_async(coro):
+    """Run an async coroutine from a synchronous context."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Running inside an existing event loop (e.g. Jupyter / some test runners)
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
+
+def _parse_document(doc_text: str, use_llm: bool, provider) -> tuple[list[dict], str]:
+    """Return (extracted_sections, parse_method) for a single document."""
+    if use_llm and provider is not None:
+        try:
+            sections = _run_async(llm_parse_spec_sections(doc_text, provider))
+            return sections, "llm"
+        except Exception as e:
+            logger.warning(f"LLM parse failed, falling back to regex: {e}")
+
+    return regex_parse_spec_sections(doc_text), "regex"
+
+
 def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     """Parse all spec documents for a project into structured sections.
 
-    Returns dict with sections_parsed count and details.
+    Uses LLM-first parsing with regex fallback.
+    Returns dict with sections_parsed count, parse_method, and per-doc details.
     """
+    # Resolve LLM provider once for this run
+    provider = None
+    llm_available = False
+    try:
+        from apex.backend.services.llm_provider import get_llm_provider
+        provider = get_llm_provider()
+        llm_available = _run_async(provider.health_check())
+        if llm_available:
+            logger.info(f"LLM provider '{provider.provider_name}' is available — using LLM parsing")
+        else:
+            logger.info(f"LLM provider '{provider.provider_name}' is not reachable — using regex fallback")
+    except Exception as e:
+        logger.warning(f"Could not initialise LLM provider ({e}), using regex fallback")
+
     # Get all completed spec documents
     documents = db.query(Document).filter(
         Document.project_id == project_id,
@@ -41,14 +87,15 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     all_docs = documents + general_docs
     total_sections = 0
     doc_results = []
+    run_parse_methods: list[str] = []
 
     for doc in all_docs:
         if not doc.raw_text:
             continue
 
         try:
-            # Extract CSI sections from raw text
-            extracted = section_extractor_tool(doc.raw_text)
+            extracted, parse_method = _parse_document(doc.raw_text, llm_available, provider)
+            run_parse_methods.append(parse_method)
 
             sections_created = 0
             for section_data in extracted:
@@ -84,6 +131,7 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
                 "document_id": doc.id,
                 "filename": doc.filename,
                 "sections_found": sections_created,
+                "parse_method": parse_method,
                 "status": "success",
             })
 
@@ -97,8 +145,13 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
                 "error": str(e),
             })
 
+    # Overall parse method: "llm" if any doc used LLM, else "regex"
+    overall_parse_method = "llm" if "llm" in run_parse_methods else "regex"
+    logger.info(f"Agent 2 complete: {total_sections} sections parsed via {overall_parse_method}")
+
     return {
         "sections_parsed": total_sections,
         "documents_processed": len(all_docs),
+        "parse_method": overall_parse_method,
         "results": doc_results,
     }

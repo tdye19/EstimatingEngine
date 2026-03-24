@@ -31,10 +31,89 @@ DIVISION_RANGES = {
 }
 
 
+def chunk_document(text: str, max_words: int = 3000) -> list[str]:
+    """Split document into chunks on paragraph boundaries, not mid-sentence."""
+    paragraphs = re.split(r'\n\s*\n', text)
+    chunks = []
+    current_chunk: list[str] = []
+    current_word_count = 0
+
+    for para in paragraphs:
+        word_count = len(para.split())
+        if current_word_count + word_count > max_words and current_chunk:
+            chunks.append("\n\n".join(current_chunk))
+            current_chunk = [para]
+            current_word_count = word_count
+        else:
+            current_chunk.append(para)
+            current_word_count += word_count
+
+    if current_chunk:
+        chunks.append("\n\n".join(current_chunk))
+
+    return chunks if chunks else [text]
+
+
+async def llm_parse_spec_sections(document_text: str, provider) -> list[dict]:
+    """Use LLM to extract CSI MasterFormat sections from spec text.
+
+    Returns list of dicts: {section_number, division_number, title, content}.
+    Sends full text to Anthropic (200K context); chunks for Ollama (small context).
+    Raises an exception on parse failure — caller should fall back to regex.
+    """
+    from apex.backend.agents.tools.spec_prompts import (
+        SPEC_PARSER_SYSTEM_PROMPT,
+        SPEC_PARSER_USER_PROMPT,
+        parse_and_validate_llm_sections,
+    )
+
+    if provider.provider_name == "anthropic":
+        chunks = [document_text]
+    else:
+        chunks = chunk_document(document_text, max_words=3000)
+
+    all_sections: dict[str, dict] = {}  # keyed by section_number for deduplication
+
+    for chunk in chunks:
+        user_prompt = SPEC_PARSER_USER_PROMPT.format(document_text=chunk)
+        response = await provider.complete(
+            system_prompt=SPEC_PARSER_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.0,
+            max_tokens=4096,
+        )
+        sections = parse_and_validate_llm_sections(response.content)
+
+        for s in sections:
+            key = s["section_number"]
+            if key not in all_sections:
+                all_sections[key] = s
+
+    # Normalize to dict shape compatible with the agent's existing code
+    result = []
+    for s in all_sections.values():
+        result.append({
+            "section_number": s["section_number"],
+            "division_number": s["division"],
+            "title": s["title"],
+            "content": s["content"],
+        })
+
+    return result
+
+
 def section_extractor_tool(text: str, division_range: str = None) -> list[dict]:
     """Extract CSI MasterFormat sections from raw text.
 
-    Looks for patterns like 'SECTION 03 30 00' or '03 30 00 - Cast-in-Place Concrete'.
+    Delegates to regex_parse_spec_sections. Kept for backwards compatibility.
+    """
+    return regex_parse_spec_sections(text, division_range=division_range)
+
+
+def regex_parse_spec_sections(text: str, division_range: str = None) -> list[dict]:
+    """Extract CSI MasterFormat sections using regex (original rule-based logic).
+
+    Preserved as the fallback path when LLM is unavailable or fails.
     Returns list of dicts: section_number, title, content, division_number.
     """
     sections = []

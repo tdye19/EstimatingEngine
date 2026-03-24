@@ -9,6 +9,27 @@ const STATUS_ICON = {
   pending:   { icon: Clock,        color: 'text-gray-400' },
 };
 
+/** Returns "llm" | "regex" | null from a log's output_data */
+function getParseMethod(log) {
+  return log?.output_data?.parse_method ?? null;
+}
+
+function ParseMethodBadge({ method }) {
+  if (!method) return null;
+  if (method === 'llm') {
+    return (
+      <span className="ml-2 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+        LLM
+      </span>
+    );
+  }
+  return (
+    <span className="ml-2 bg-gray-100 text-gray-600 text-xs font-medium px-2 py-0.5 rounded-full">
+      Regex
+    </span>
+  );
+}
+
 export default function AgentLogsTab({ projectId, onAgentComplete }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +81,7 @@ export default function AgentLogsTab({ projectId, onAgentComplete }) {
             const Icon = st.icon;
             const isRunning = rerunning[log.agent_number];
             const msg = rerunMsg[log.agent_number];
+            const parseMethod = getParseMethod(log);
             return (
               <div key={log.id} className="flex items-start gap-4">
                 {/* Timeline connector */}
@@ -74,9 +96,10 @@ export default function AgentLogsTab({ projectId, onAgentComplete }) {
 
                 <div className="flex-1 pb-4">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex items-center flex-wrap">
                       <span className="text-xs text-gray-400 font-mono mr-2">#{log.agent_number}</span>
                       <span className="font-medium">{log.agent_name}</span>
+                      <ParseMethodBadge method={parseMethod} />
                     </div>
                     <div className="flex items-center gap-4 text-xs text-gray-400">
                       {log.duration_seconds && (
@@ -133,10 +156,14 @@ export default function AgentLogsTab({ projectId, onAgentComplete }) {
           <tbody className="divide-y divide-gray-100">
             {sorted.map((log) => {
               const isRunning = rerunning[log.agent_number];
+              const parseMethod = getParseMethod(log);
               return (
                 <tr key={log.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 font-mono text-xs">{log.agent_number}</td>
-                  <td className="px-4 py-2 font-medium">{log.agent_name}</td>
+                  <td className="px-4 py-2 font-medium">
+                    {log.agent_name}
+                    <ParseMethodBadge method={parseMethod} />
+                  </td>
                   <td className="px-4 py-2">
                     <StatusBadge status={isRunning ? 'running' : log.status} />
                   </td>

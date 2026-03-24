@@ -1,0 +1,89 @@
+"""Prompt templates for Agent 2's LLM-powered CSI spec parsing."""
+
+import json
+import re
+
+
+SPEC_PARSER_SYSTEM_PROMPT = """You are a construction specification parser specializing in CSI MasterFormat 2016.
+
+Your task: Extract all specification sections from the provided construction document text. For each section found, identify:
+
+1. **section_number** — The CSI MasterFormat section number (format: XX XX XX, e.g., "03 30 00" for Cast-in-Place Concrete)
+2. **title** — The section title as written in the document
+3. **division** — The 2-digit CSI division number (first two digits, e.g., "03" for Concrete)
+4. **content** — The full text content of that section (all paragraphs, articles, and sub-articles)
+5. **page_reference** — Page number(s) where this section appears, if identifiable from the text
+
+Rules:
+- Only extract sections that have a valid CSI MasterFormat number
+- Include ALL content under each section — articles, sub-articles, paragraphs, notes, and referenced standards
+- If a section spans multiple pages, capture all content
+- Do not invent sections that don't exist in the document
+- If the document references a section but doesn't include its content, note it with content: "Referenced but not included"
+- Preserve technical terminology, product names, and specification language exactly as written
+
+Respond ONLY with a JSON array. No markdown, no explanation, no preamble. Example format:
+[
+  {
+    "section_number": "03 30 00",
+    "title": "Cast-in-Place Concrete",
+    "division": "03",
+    "content": "PART 1 - GENERAL\\n1.1 SUMMARY\\nA. This section includes...",
+    "page_reference": "45-52"
+  }
+]
+
+If no valid CSI sections are found in the text, respond with an empty array: []"""
+
+
+SPEC_PARSER_USER_PROMPT = """Parse the following construction specification document text and extract all CSI MasterFormat sections as JSON.
+
+DOCUMENT TEXT:
+---
+{document_text}
+---
+
+Return ONLY the JSON array of sections found."""
+
+
+def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
+    """Parse LLM response into validated section dicts.
+
+    Raises ValueError if response is not valid JSON or sections are malformed.
+    """
+    # Strip any markdown code fences the LLM might add despite instructions
+    cleaned = raw_response.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r'^```(?:json)?\n?', '', cleaned)
+        cleaned = re.sub(r'\n?```$', '', cleaned)
+
+    sections = json.loads(cleaned)  # Raises JSONDecodeError if invalid
+
+    if not isinstance(sections, list):
+        raise ValueError(f"Expected JSON array, got {type(sections).__name__}")
+
+    validated = []
+
+    for s in sections:
+        # Required fields check
+        if not all(k in s for k in ("section_number", "title", "division", "content")):
+            continue  # Skip malformed entries
+
+        # Normalize section number to "XX XX XX" format
+        raw_num = str(s["section_number"]).strip()
+        digits = re.sub(r'\D', '', raw_num)
+        if len(digits) != 6:
+            continue  # Skip invalid section numbers
+        num = f"{digits[:2]} {digits[2:4]} {digits[4:6]}"
+
+        division = str(s.get("division", digits[:2])).strip().zfill(2)
+
+        validated.append({
+            "section_number": num,
+            "title": str(s["title"]).strip(),
+            "division": division,
+            "content": str(s["content"]),
+            "page_reference": str(s.get("page_reference", "")),
+        })
+
+    return validated
