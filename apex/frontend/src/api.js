@@ -90,6 +90,22 @@ export const runAgent = (projectId, agentNumber) =>
 export const getAgentLogs = (projectId) =>
   request(`/projects/${projectId}/agent-logs`);
 
+export const runPipeline = (projectId, documentId = null) => {
+  const qs = documentId ? `?document_id=${documentId}` : '';
+  return request(`/projects/${projectId}/pipeline/run${qs}`, { method: 'POST' });
+};
+
+export const getPipelineStatus = (projectId) =>
+  fetch(`${BASE}/projects/${projectId}/pipeline/status`, {
+    headers: (() => {
+      const token = localStorage.getItem('apex_token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    })(),
+  }).then((res) => {
+    if (!res.ok) throw new Error('Failed to fetch pipeline status');
+    return res.json();
+  });
+
 // ── Reports ───────────────────────────────────────────
 export const getGapReport = (projectId) =>
   request(`/projects/${projectId}/gap-report`);

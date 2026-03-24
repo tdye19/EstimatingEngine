@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.gap_report import GapReport, GapReportItem
 from apex.backend.utils.csi_masterformat import MASTER_SCOPE_CHECKLIST
+from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.agents.tools.gap_tools import (
     checklist_compare_tool,
     gap_scorer_tool,
@@ -90,7 +91,7 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
 
     db.commit()
 
-    return {
+    return validate_agent_output(3, {
         "total_gaps": scores["total_gaps"],
         "critical_count": scores["critical_count"],
         "moderate_count": scores["moderate_count"],
@@ -98,4 +99,4 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
         "overall_score": scores["overall_score"],
         "report_id": report.id,
         "sections_analyzed": len(parsed_sections),
-    }
+    })

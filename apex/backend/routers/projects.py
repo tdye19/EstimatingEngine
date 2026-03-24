@@ -16,6 +16,7 @@ from apex.backend.services.agent_orchestrator import AgentOrchestrator
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut, DocumentOut, APIResponse,
+    PipelineStatusOut, AgentStepStatus,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["projects"], dependencies=[Depends(require_auth)])
@@ -190,13 +191,13 @@ def delete_document(project_id: int, doc_id: int, db: Session = Depends(get_db))
     db.commit()
 
 
-def _run_pipeline(project_id: int):
+def _run_pipeline(project_id: int, document_id: int = None):
     """Background task to run agent pipeline."""
     from apex.backend.db.database import SessionLocal
     db = SessionLocal()
     try:
         orchestrator = AgentOrchestrator(db, project_id)
-        orchestrator.run_pipeline()
+        orchestrator.run_pipeline(document_id=document_id)
     finally:
         db.close()
 
@@ -219,6 +220,76 @@ def run_agents(
         success=True,
         message="Agent pipeline started",
         data={"project_id": project_id, "status": "running"},
+    )
+
+
+@router.post("/{project_id}/pipeline/run", response_model=APIResponse)
+def pipeline_run(
+    project_id: int,
+    background_tasks: BackgroundTasks,
+    document_id: int = None,
+    db: Session = Depends(get_db),
+):
+    """Start the agent pipeline in the background.
+
+    Accepts an optional *document_id* query param; defaults to the latest
+    uploaded document for the project.
+    """
+    project = db.query(Project).filter(
+        Project.id == project_id, Project.is_deleted == False  # noqa: E712
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Resolve document_id if not provided
+    if document_id is None:
+        latest_doc = (
+            db.query(Document)
+            .filter(Document.project_id == project_id, Document.is_deleted == False)  # noqa: E712
+            .order_by(Document.id.desc())
+            .first()
+        )
+        if latest_doc:
+            document_id = latest_doc.id
+
+    background_tasks.add_task(_run_pipeline, project_id, document_id)
+
+    return APIResponse(
+        success=True,
+        message="Pipeline started",
+        data={"status": "started", "project_id": project_id, "document_id": document_id},
+    )
+
+
+@router.get("/{project_id}/pipeline/status", response_model=PipelineStatusOut)
+def pipeline_status(project_id: int, db: Session = Depends(get_db)):
+    """Return the current pipeline status for each agent (1-6)."""
+    project = db.query(Project).filter(
+        Project.id == project_id, Project.is_deleted == False  # noqa: E712
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    orchestrator = AgentOrchestrator(db, project_id)
+    statuses = orchestrator.get_pipeline_status()
+
+    # Derive overall status
+    status_values = [s["status"] for s in statuses]
+    if any(s == "running" for s in status_values):
+        overall = "running"
+    elif any(s == "failed" for s in status_values):
+        overall = "failed"
+    elif all(s == "completed" for s in status_values):
+        overall = "completed"
+    elif all(s == "pending" for s in status_values):
+        overall = "pending"
+    else:
+        overall = "running"
+
+    return PipelineStatusOut(
+        project_id=project_id,
+        agents=[AgentStepStatus(**s) for s in statuses],
+        overall=overall,
     )
 
 

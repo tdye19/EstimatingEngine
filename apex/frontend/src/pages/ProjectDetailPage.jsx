@@ -27,6 +27,7 @@ import AgentLogsTab from '../components/tabs/AgentLogsTab';
 import DocumentsTab from '../components/tabs/DocumentsTab';
 import SpecSectionsTab from '../components/tabs/SpecSectionsTab';
 import ErrorBoundary from '../components/ErrorBoundary';
+import PipelineStatus from '../components/PipelineStatus';
 
 const TABS = [
   { path: 'documents', label: 'Documents', icon: Files },
@@ -93,6 +94,16 @@ export default function ProjectDetailPage() {
       setUploading(false);
       e.target.value = '';
     }
+  };
+
+  const refreshAllTabs = () => {
+    setDocumentsRefreshKey((k) => k + 1);
+    setSpecRefreshKey((k) => k + 1);
+    setGapRefreshKey((k) => k + 1);
+    setTakeoffRefreshKey((k) => k + 1);
+    setLaborRefreshKey((k) => k + 1);
+    setEstimateRefreshKey((k) => k + 1);
+    setVarianceRefreshKey((k) => k + 1);
   };
 
   const handleAgentComplete = (agentNumber) => {
@@ -197,6 +208,9 @@ export default function ProjectDetailPage() {
         <div className="mb-4 bg-apex-50 text-apex-800 text-sm p-3 rounded-lg">{runMsg}</div>
       )}
 
+      {/* Pipeline status bar — shown above tabs once a pipeline has run */}
+      <PipelineStatus projectId={id} onComplete={refreshAllTabs} />
+
       {/* Tabs nav */}
       <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
         {TABS.map(({ path, label, icon: Icon }) => (
@@ -227,6 +241,7 @@ export default function ProjectDetailPage() {
                 projectId={id}
                 refreshKey={documentsRefreshKey}
                 onUploaded={() => setDocumentsRefreshKey((key) => key + 1)}
+                onPipelineComplete={refreshAllTabs}
               />
             </ErrorBoundary>
           }

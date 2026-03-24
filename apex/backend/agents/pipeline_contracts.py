@@ -1,0 +1,172 @@
+"""Pipeline data contracts — Pydantic models for each agent's validated output.
+
+Each agent validates its return dict against these contracts before returning.
+If validation fails, a ContractViolation is raised with the agent name and details.
+"""
+
+from __future__ import annotations
+from typing import Optional
+from pydantic import BaseModel, Field, field_validator
+
+
+class ContractViolation(Exception):
+    """Raised when an agent's output fails contract validation."""
+
+    def __init__(self, agent_name: str, detail: str):
+        self.agent_name = agent_name
+        self.detail = detail
+        super().__init__(f"Contract violation in {agent_name}: {detail}")
+
+
+# ---------------------------------------------------------------------------
+# Agent 1 — Document Ingestion
+# ---------------------------------------------------------------------------
+
+class Agent1DocResult(BaseModel):
+    document_id: int
+    filename: str
+    status: str
+    classification: Optional[str] = None
+    pages: Optional[int] = None
+    chars: Optional[int] = None
+    error: Optional[str] = None
+
+
+class Agent1Output(BaseModel):
+    documents_processed: int = Field(ge=0)
+    total_documents: int = Field(ge=0)
+    results: list[Agent1DocResult] = []
+
+
+# ---------------------------------------------------------------------------
+# Agent 2 — Spec Parser
+# ---------------------------------------------------------------------------
+
+class Agent2DocResult(BaseModel):
+    document_id: int
+    filename: str
+    sections_found: int = Field(ge=0)
+    parse_method: str
+    status: str
+    error: Optional[str] = None
+
+
+class Agent2Output(BaseModel):
+    sections_parsed: int = Field(ge=0)
+    documents_processed: int = Field(ge=0)
+    parse_method: str
+    results: list[Agent2DocResult] = []
+
+
+# ---------------------------------------------------------------------------
+# Agent 3 — Gap Analysis
+# ---------------------------------------------------------------------------
+
+class Agent3Output(BaseModel):
+    total_gaps: int = Field(ge=0)
+    critical_count: int = Field(ge=0)
+    moderate_count: int = Field(ge=0)
+    watch_count: int = Field(ge=0)
+    overall_score: Optional[float] = None
+    report_id: int
+    sections_analyzed: int = Field(ge=0)
+
+
+# ---------------------------------------------------------------------------
+# Agent 4 — Quantity Takeoff
+# ---------------------------------------------------------------------------
+
+class Agent4SectionResult(BaseModel):
+    section_id: int
+    section_number: str
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    confidence: Optional[float] = None
+    drawings: Optional[list] = None
+    error: Optional[str] = None
+
+
+class Agent4Output(BaseModel):
+    items_created: int = Field(ge=0)
+    sections_processed: int = Field(ge=0)
+    results: list[Agent4SectionResult] = []
+
+
+# ---------------------------------------------------------------------------
+# Agent 5 — Labor Productivity
+# ---------------------------------------------------------------------------
+
+class Agent5ItemResult(BaseModel):
+    takeoff_item_id: int
+    csi_code: str
+    quantity: Optional[float] = None
+    rate: Optional[float] = None
+    crew_type: Optional[str] = None
+    labor_hours: Optional[float] = None
+    labor_cost: Optional[float] = None
+    confidence: Optional[float] = None
+    error: Optional[str] = None
+
+
+class Agent5Output(BaseModel):
+    estimates_created: int = Field(ge=0)
+    total_labor_cost: float = Field(ge=0)
+    total_labor_hours: float = Field(ge=0)
+    items_processed: int = Field(ge=0)
+    results: list[Agent5ItemResult] = []
+
+
+# ---------------------------------------------------------------------------
+# Agent 6 — Estimate Assembly
+# ---------------------------------------------------------------------------
+
+class Agent6Output(BaseModel):
+    estimate_id: int
+    version: int = Field(ge=1)
+    total_direct_cost: float = Field(ge=0)
+    total_bid_amount: float = Field(ge=0)
+    line_items_count: int = Field(ge=0)
+    divisions_covered: list[str] = []
+    bid_bond_required: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Validation helpers — called by each agent before returning
+# ---------------------------------------------------------------------------
+
+_CONTRACT_MAP: dict[int, type[BaseModel]] = {
+    1: Agent1Output,
+    2: Agent2Output,
+    3: Agent3Output,
+    4: Agent4Output,
+    5: Agent5Output,
+    6: Agent6Output,
+}
+
+AGENT_NAMES = {
+    1: "Document Ingestion Agent",
+    2: "Spec Parser Agent",
+    3: "Scope Gap Analysis Agent",
+    4: "Quantity Takeoff Agent",
+    5: "Labor Productivity Agent",
+    6: "Estimate Assembly Agent",
+}
+
+
+def validate_agent_output(agent_number: int, output: dict) -> dict:
+    """Validate *output* dict against the contract for *agent_number*.
+
+    Returns the original dict unchanged if valid.
+    Raises ContractViolation if validation fails.
+    """
+    contract_cls = _CONTRACT_MAP.get(agent_number)
+    if contract_cls is None:
+        return output  # no contract for agent 7
+
+    agent_name = AGENT_NAMES.get(agent_number, f"Agent {agent_number}")
+    try:
+        contract_cls.model_validate(output)
+    except Exception as exc:
+        raise ContractViolation(agent_name, str(exc)) from exc
+
+    return output

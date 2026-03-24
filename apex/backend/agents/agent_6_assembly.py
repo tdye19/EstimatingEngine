@@ -10,6 +10,7 @@ from apex.backend.models.material_price import MaterialPrice
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.estimate import Estimate, EstimateLineItem
 from apex.backend.models.project import Project
+from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.agents.tools.assembly_tools import (
     cost_rollup_tool,
     markup_applier_tool,
@@ -158,7 +159,7 @@ def run_assembly_agent(db: Session, project_id: int) -> dict:
 
     db.commit()
 
-    return {
+    return validate_agent_output(6, {
         "estimate_id": estimate.id,
         "version": estimate.version,
         "total_direct_cost": estimate.total_direct_cost,
@@ -166,4 +167,4 @@ def run_assembly_agent(db: Session, project_id: int) -> dict:
         "line_items_count": len(line_items_data),
         "divisions_covered": list(rollup["by_division"].keys()),
         "bid_bond_required": bool(bid_bond),
-    }
+    })

@@ -12,6 +12,7 @@ from apex.backend.agents.tools.document_tools import (
     docx_reader_tool,
     file_classifier_tool,
 )
+from apex.backend.agents.pipeline_contracts import validate_agent_output
 
 logger = logging.getLogger("apex.agent.ingestion")
 
@@ -101,8 +102,8 @@ def run_ingestion_agent(db: Session, project_id: int) -> dict:
                 "error": str(e),
             })
 
-    return {
+    return validate_agent_output(1, {
         "documents_processed": processed,
         "total_documents": len(documents),
         "results": results,
-    }
+    })
