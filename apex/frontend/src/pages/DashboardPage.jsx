@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listProjects, createProject } from '../api';
+import { listProjects, createProject, deleteProject } from '../api';
 import {
   FolderKanban,
-  Building2,
   DollarSign,
   Clock,
   ArrowRight,
   Plus,
   X,
+  Trash2,
 } from 'lucide-react';
 
 const STATUS_COLORS = {
@@ -40,6 +40,7 @@ export default function DashboardPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     listProjects()
@@ -83,6 +84,20 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDelete = async (e, projectId) => {
+    e.preventDefault();
+    if (!window.confirm('Are you sure? This can be undone by an admin.')) return;
+    setDeletingId(projectId);
+    try {
+      await deleteProject(projectId);
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const field = (key) => ({
     value: form[key],
     onChange: (e) => setForm((f) => ({ ...f, [key]: e.target.value })),
@@ -117,7 +132,7 @@ export default function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {projects.map((p) => (
-            <Link key={p.id} to={`/projects/${p.id}`} className="card hover:shadow-md transition-shadow group">
+            <Link key={p.id} to={`/projects/${p.id}`} className="card hover:shadow-md transition-shadow group relative">
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <span className="text-xs font-mono text-gray-400">{p.project_number}</span>
@@ -125,9 +140,19 @@ export default function DashboardPage() {
                     {p.name}
                   </h3>
                 </div>
-                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap ${STATUS_COLORS[p.status] || 'bg-gray-100 text-gray-800'}`}>
-                  {p.status?.replace('_', ' ')}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap ${STATUS_COLORS[p.status] || 'bg-gray-100 text-gray-800'}`}>
+                    {p.status?.replace('_', ' ')}
+                  </span>
+                  <button
+                    onClick={(e) => handleDelete(e, p.id)}
+                    disabled={deletingId === p.id}
+                    className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                    title="Delete project"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
               <p className="text-sm text-gray-500 mb-4 line-clamp-2">{p.description}</p>
