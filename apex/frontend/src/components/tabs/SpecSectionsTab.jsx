@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import { getSpecSections } from '../../api';
 import { ChevronDown, ChevronRight, BookOpen } from 'lucide-react';
 
@@ -113,9 +113,8 @@ export default function SpecSectionsTab({ projectId }) {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {grouped[div].map((s) => (
-                <>
+                <Fragment key={s.id}>
                   <tr
-                    key={s.id}
                     className="hover:bg-gray-50 cursor-pointer"
                     onClick={() => toggleExpand(s.id)}
                   >
@@ -174,7 +173,7 @@ export default function SpecSectionsTab({ projectId }) {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
