@@ -1,0 +1,116 @@
+SAMPLE OFFICE BUILDING
+Project No.: TEST-2026-001
+Location: 500 Main Street, Anytown, USA
+Owner: Test Development Corp
+Bid Date: June 1, 2026
+
+PROJECT DESCRIPTION
+New two-story office building, approximately 10,000 square feet. Scope includes
+cast-in-place concrete foundations, structural steel framing, and interior finishes.
+
+================================================================================
+SECTION 03 30 00 - CAST-IN-PLACE CONCRETE
+================================================================================
+
+PART 1 - GENERAL
+
+1.1 SUMMARY
+A. Cast-in-place concrete for foundations, slab-on-grade, and columns.
+
+1.2 QUALITY ASSURANCE
+A. Concrete compressive strength: 3,000 PSI minimum at 28 days.
+B. Reinforcing steel: ASTM A615, Grade 60, deformed bars.
+
+PART 2 - PRODUCTS
+
+2.1 CONCRETE MIX
+A. Normal-weight concrete, unit weight 145 pcf.
+B. Maximum w/c ratio: 0.50.
+
+PART 3 - EXECUTION
+
+3.1 QUANTITIES
+A. Spread footings and grade beams: 120 CY, 3,000 PSI.
+B. Slab-on-grade: 200 CY at 4-inch thickness over compacted fill.
+C. Columns (4 each, 12-inch square): 15 CY, 4,000 PSI.
+Total concrete: 335 CY.
+
+3.2 FORMWORK AND PLACEMENT
+A. All formwork per ACI 347. Strip after minimum 70% design strength achieved.
+B. Cure all flatwork minimum 7 days with curing compound or wet burlap.
+
+================================================================================
+SECTION 05 12 00 - STRUCTURAL STEEL FRAMING
+================================================================================
+
+PART 1 - GENERAL
+
+1.1 SUMMARY
+A. Structural steel wide-flange columns, beams, and girders for two-story frame.
+
+1.2 SUBMITTALS
+A. Shop drawings by licensed structural engineer.
+B. Mill certifications for all sections.
+
+PART 2 - PRODUCTS
+
+2.1 STEEL MATERIALS
+A. Wide-flange shapes: ASTM A992, Grade 50.
+B. Bolts: ASTM A325 high-strength.
+C. Welding electrodes: AWS E70XX per D1.1.
+
+PART 3 - EXECUTION
+
+3.1 QUANTITIES
+A. Columns (8 each, W8x31): approximately 12 tons.
+B. Floor and roof beams and girders: approximately 18 tons.
+C. Miscellaneous steel (angles, plates, connections): 3 tons.
+Total structural steel: 33 tons.
+
+3.2 ERECTION
+A. All work by AISC-certified fabricator and erector.
+B. Final plumb within L/500 of member length.
+
+================================================================================
+SECTION 09 91 00 - PAINTING
+================================================================================
+
+PART 1 - GENERAL
+
+1.1 SUMMARY
+A. Interior painting of gypsum board walls, ceilings, and miscellaneous metals.
+
+1.2 QUALITY ASSURANCE
+A. Applicator: minimum 3 years' experience with specified products.
+B. Comply with all local VOC regulations.
+
+PART 2 - PRODUCTS
+
+2.1 PAINT SYSTEMS
+A. Interior primer: latex-based, alkali-resistant.
+B. Interior finish, walls: two coats semi-gloss latex.
+C. Interior finish, ceilings: two coats flat latex.
+D. Metal primer: rust-inhibiting alkyd primer, one coat.
+
+PART 3 - EXECUTION
+
+3.1 QUANTITIES
+A. Gypsum board walls: 18,000 SF, prime plus two finish coats.
+B. Exposed ceilings: 10,000 SF, one prime plus two finish coats.
+C. Door frames and miscellaneous metals: 60 frames plus miscellaneous items.
+
+3.2 SURFACE PREPARATION
+A. All surfaces clean, dry, and free of contamination before application.
+B. Sand and fill all fastener dimples and joints before priming.
+
+================================================================================
+END OF SPECIFICATIONS
+================================================================================
+
+NOTE FOR GAP ANALYSIS:
+The following standard CSI divisions are intentionally omitted from this
+abbreviated specification and should be flagged during gap analysis:
+- Division 07 (Thermal and Moisture Protection — roofing not included)
+- Division 08 (Openings — no door or window specs provided)
+- Division 23 (HVAC — mechanical systems not specified)
+- Division 26 (Electrical — electrical systems not specified)
