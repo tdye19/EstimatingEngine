@@ -109,7 +109,7 @@ class OllamaProvider(LLMProvider):
         }
         start = time.monotonic()
         async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = client.post(url, json=payload)
+            resp = await client.post(url, json=payload)
             data = resp.json()
 
         duration_ms = (time.monotonic() - start) * 1000
