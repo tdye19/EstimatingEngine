@@ -203,8 +203,10 @@ class AnthropicProvider(LLMProvider):
 
         if cache_read > 0:
             logger.info("Cache HIT: %d tokens read from cache", cache_read)
-        if cache_creation > 0:
-            logger.info("Cache CREATED: %d tokens cached", cache_creation)
+        elif cache_creation > 0:
+            logger.info("Cache CREATED: %d tokens written to cache", cache_creation)
+        else:
+            logger.info("Cache MISS: no cache interaction (model=%s)", self._model)
 
         return LLMResponse(
             content=content,
