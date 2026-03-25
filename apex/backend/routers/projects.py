@@ -529,7 +529,7 @@ def pipeline_status(project_id: int, db: Session = Depends(get_db)):
         overall = "running"
     elif any(s == "failed" for s in status_values):
         overall = "failed"
-    elif all(s == "completed" for s in status_values):
+    elif all(s in ("completed", "skipped") for s in status_values):
         overall = "completed"
     elif all(s == "pending" for s in status_values):
         overall = "pending"
