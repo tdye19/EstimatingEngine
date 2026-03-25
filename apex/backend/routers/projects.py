@@ -307,6 +307,14 @@ async def chunked_upload_complete(
     shutil.rmtree(session["temp_dir"], ignore_errors=True)
     _upload_sessions.pop(upload_id, None)
 
+    # Auto-trigger pipeline after chunked upload completes
+    background_tasks.add_task(
+        _run_pipeline,
+        project_id=project_id,
+        document_id=doc.id,
+        pipeline_mode=None,  # auto-detected from file type
+    )
+
     return APIResponse(
         success=True,
         message="Document uploaded",
