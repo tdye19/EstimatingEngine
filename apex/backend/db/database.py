@@ -1,7 +1,8 @@
 """Database engine and session configuration."""
 
+import logging
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 _db_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,6 +15,8 @@ if DATABASE_URL.startswith("sqlite"):
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+logger = logging.getLogger("apex.db")
 
 
 class Base(DeclarativeBase):
@@ -28,6 +31,39 @@ def get_db():
         db.close()
 
 
+def _ensure_sprint6_columns():
+    """Add Sprint 6 columns to estimates table if they don't exist.
+
+    Base.metadata.create_all() creates missing tables but does NOT add
+    columns to existing tables. This guard runs ALTER TABLE when needed
+    so existing databases survive the Sprint 6 upgrade without manual SQL.
+
+    # TODO: Replace with Alembic migrations.
+    """
+    if not DATABASE_URL.startswith("sqlite"):
+        # Postgres / other engines should use proper Alembic migrations.
+        return
+
+    new_columns = {
+        "executive_summary": "TEXT",
+        "variance_report_json": "TEXT",
+    }
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("PRAGMA table_info(estimates)"))
+            existing_columns = {row[1] for row in result}
+
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing_columns:
+                    conn.execute(
+                        text(f"ALTER TABLE estimates ADD COLUMN {col_name} {col_type}")
+                    )
+                    conn.commit()
+                    logger.info("DB migration: added estimates.%s (%s)", col_name, col_type)
+    except Exception as exc:
+        logger.warning("DB migration check failed (non-fatal): %s", exc)
+
+
 def init_db():
     from apex.backend.models import (  # noqa: F401
         user, organization, project, document, spec_section,
@@ -36,3 +72,4 @@ def init_db():
         token_usage,
     )
     Base.metadata.create_all(bind=engine)
+    _ensure_sprint6_columns()

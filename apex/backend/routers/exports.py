@@ -98,6 +98,15 @@ def export_estimate_pdf(
     story.append(Paragraph(meta_text, style_meta))
     story.append(Spacer(1, 16))
 
+    # ── Executive Summary ──
+    if estimate.executive_summary and estimate.executive_summary.strip():
+        story.append(Paragraph("Executive Summary", style_section))
+        for para in estimate.executive_summary.split("\n\n"):
+            if para.strip():
+                story.append(Paragraph(para.strip(), styles["Normal"]))
+                story.append(Spacer(1, 4))
+        story.append(Spacer(1, 12))
+
     # ── Line Items Table ──
     story.append(Paragraph("Estimate Line Items", style_section))
 

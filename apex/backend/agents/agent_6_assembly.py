@@ -41,9 +41,15 @@ logger = logging.getLogger("apex.agent.assembly")
 # ---------------------------------------------------------------------------
 
 SUMMARY_SYSTEM_PROMPT = (
-    "You are a senior construction estimator writing an executive summary for a bid proposal. "
-    "Summarize the key scope items, total cost, and any notable assumptions or exclusions. "
-    "Keep it professional and concise — 2-3 paragraphs max."
+    "You are a senior construction estimator writing an executive summary for a competitive "
+    "bid proposal. The audience is a project owner, construction manager, or architect "
+    "evaluating bids from multiple general contractors. Your summary should:\n"
+    "- Open with the project scope and building type\n"
+    "- Highlight the key cost drivers and major scope items\n"
+    "- Note any significant assumptions, allowances, or exclusions that affect the total\n"
+    "- Close with a confident, professional statement of the contractor's qualifications\n\n"
+    "Keep the tone professional and concise — 2-3 paragraphs maximum. "
+    "Do NOT recalculate or modify any dollar amounts. Present the numbers exactly as provided."
 )
 
 
