@@ -54,13 +54,17 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
 
     Uses LLM-first parsing with regex fallback.
     Returns dict with sections_parsed count, parse_method, and per-doc details.
+
+    Uses Gemini 2.5 Flash for cost optimization — 10x cheaper than Sonnet for
+    structured extraction. Upgrade to Sonnet via AGENT_2_PROVIDER=anthropic if
+    parsing quality degrades on complex specs.
     """
-    # Resolve LLM provider once for this run
+    # Resolve LLM provider once for this run (Agent 2 routes to Gemini 2.5 Flash)
     provider = None
     llm_available = False
     try:
         from apex.backend.services.llm_provider import get_llm_provider
-        provider = get_llm_provider()
+        provider = get_llm_provider(agent_number=2)
         llm_available = _run_async(provider.health_check())
         if llm_available:
             logger.info(f"LLM provider '{provider.provider_name}' is available — using LLM parsing")
