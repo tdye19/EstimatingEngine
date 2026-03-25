@@ -19,9 +19,19 @@ Pipeline modes
     Agent 7  separate (run via run_improve_agent after actuals upload)
 
 Skipped agents are logged with the reason stored in output_summary.
+
+WebSocket events
+----------------
+During run_pipeline() the orchestrator pushes real-time status updates to all
+connected WebSocket clients via ws_manager.broadcast_sync().  Events:
+
+  "pipeline_update"   — before & after each agent (status change)
+  "pipeline_complete" — pipeline finished successfully
+  "pipeline_error"    — pipeline stopped due to a failure
 """
 
 import logging
+import uuid
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from apex.backend.models.agent_run_log import AgentRunLog
@@ -122,11 +132,46 @@ class AgentOrchestrator:
         pipeline_mode.
         """
         from apex.backend.agents.pipeline_contracts import ContractViolation
+        from apex.backend.services.ws_manager import ws_manager
 
+        pipeline_id = str(uuid.uuid4())
+        pipeline_start = datetime.now(timezone.utc)
         results: dict[str, dict] = {}
         pipeline_agents = [1, 2, 3, 4, 5, 6]
         failed_at: int | None = None
         effective_mode = pipeline_mode
+
+        # In-memory agent status table used for WS broadcasts.
+        # Uses agent_number / agent_name to stay consistent with the REST API.
+        ws_status: dict[int, dict] = {}
+        for num in pipeline_agents:
+            ws_status[num] = {
+                "agent_number":   num,
+                "agent_name":     AGENT_DEFINITIONS[num][0],
+                "status":         "pending",
+                "started_at":     None,
+                "duration_ms":    None,
+                "error_message":  None,
+                "output_summary": None,
+            }
+        skipped_agents: list[int] = []
+
+        def _elapsed_ms() -> int:
+            return int((datetime.now(timezone.utc) - pipeline_start).total_seconds() * 1000)
+
+        def _broadcast(overall: str, current_agent: int | None = None) -> None:
+            ws_manager.broadcast_sync(self.project_id, {
+                "type":               "pipeline_update",
+                "project_id":         self.project_id,
+                "pipeline_id":        pipeline_id,
+                "pipeline_mode":      effective_mode,
+                "status":             overall,
+                "current_agent":      current_agent,
+                "current_agent_name": ws_status[current_agent]["agent_name"] if current_agent else None,
+                "agents":             list(ws_status.values()),
+                "skipped_agents":     skipped_agents,
+                "total_elapsed_ms":   _elapsed_ms(),
+            })
 
         for agent_num in pipeline_agents:
             agent_name, module_path, fn_name = AGENT_DEFINITIONS[agent_num]
@@ -139,6 +184,8 @@ class AgentOrchestrator:
                 skip_reason = f"Agent {failed_at} failed"
                 self._log_skipped(agent_name, agent_num, reason=skip_reason)
                 results[key] = {"status": "skipped", "skipped_because": skip_reason}
+                ws_status[agent_num]["status"] = "skipped"
+                skipped_agents.append(agent_num)
                 continue
 
             # -----------------------------------------------------------------
@@ -153,6 +200,9 @@ class AgentOrchestrator:
                     logger.info(f"Skipping Agent 2 — {skip_reason}")
                     self._log_skipped(agent_name, agent_num, reason=skip_reason)
                     results[key] = {"status": "skipped", "skipped_because": skip_reason}
+                    ws_status[agent_num]["status"] = "skipped"
+                    skipped_agents.append(agent_num)
+                    _broadcast("running")
                     continue
 
                 if agent_num == 4:
@@ -167,11 +217,21 @@ class AgentOrchestrator:
                         logger.info(f"Skipping Agent 4 — {skip_reason}")
                         self._log_skipped(agent_name, agent_num, reason=skip_reason)
                         results[key] = {"status": "skipped", "skipped_because": skip_reason}
+                        ws_status[agent_num]["status"] = "skipped"
+                        skipped_agents.append(agent_num)
+                        _broadcast("running")
                         continue
 
             # -----------------------------------------------------------------
             # Run the agent
             # -----------------------------------------------------------------
+            agent_start_time = datetime.now(timezone.utc)
+            ws_status[agent_num].update({
+                "status":     "running",
+                "started_at": agent_start_time.isoformat(),
+            })
+            _broadcast("running", agent_num)
+
             log = self._log_start(agent_name, agent_num)
             try:
                 import importlib
@@ -200,12 +260,26 @@ class AgentOrchestrator:
                 self._log_complete(log, summary, output_data=result)
                 results[key] = result
 
+                duration_ms = int(
+                    (datetime.now(timezone.utc) - agent_start_time).total_seconds() * 1000
+                )
+                ws_status[agent_num].update({
+                    "status":      "completed",
+                    "duration_ms": duration_ms,
+                })
+                _broadcast("running")
+
             except ContractViolation as exc:
                 error_msg = f"Contract violation: {exc.detail}"
                 self._log_error(log, error_msg)
                 logger.error(f"Agent {agent_num} contract violation: {exc.detail}")
                 results[key] = {"error": error_msg, "status": "failed"}
                 failed_at = agent_num
+                ws_status[agent_num].update({
+                    "status":        "failed",
+                    "error_message": error_msg,
+                })
+                _broadcast("running", agent_num)
 
             except Exception as exc:
                 error_msg = str(exc)
@@ -213,6 +287,11 @@ class AgentOrchestrator:
                 logger.error(f"Agent {agent_num} failed: {exc}")
                 results[key] = {"error": error_msg, "status": "failed"}
                 failed_at = agent_num
+                ws_status[agent_num].update({
+                    "status":        "failed",
+                    "error_message": error_msg,
+                })
+                _broadcast("running", agent_num)
 
         # Update project status
         project = self.db.query(Project).filter(Project.id == self.project_id).first()
@@ -220,10 +299,38 @@ class AgentOrchestrator:
             project.status = "estimating" if failed_at is None else project.status
             self.db.commit()
 
-        results["pipeline_status"] = (
+        pipeline_final_status = (
             "completed" if failed_at is None else f"stopped_at_agent_{failed_at}"
         )
+        results["pipeline_status"] = pipeline_final_status
         results["pipeline_mode"] = effective_mode
+
+        # Final WebSocket event
+        from apex.backend.services.ws_manager import ws_manager as _ws
+        if failed_at is None:
+            _ws.broadcast_sync(self.project_id, {
+                "type":             "pipeline_complete",
+                "project_id":       self.project_id,
+                "pipeline_id":      pipeline_id,
+                "pipeline_mode":    effective_mode,
+                "status":           "completed",
+                "agents":           list(ws_status.values()),
+                "skipped_agents":   skipped_agents,
+                "total_elapsed_ms": _elapsed_ms(),
+            })
+        else:
+            _ws.broadcast_sync(self.project_id, {
+                "type":             "pipeline_error",
+                "project_id":       self.project_id,
+                "pipeline_id":      pipeline_id,
+                "pipeline_mode":    effective_mode,
+                "status":           "failed",
+                "failed_at_agent":  failed_at,
+                "agents":           list(ws_status.values()),
+                "skipped_agents":   skipped_agents,
+                "total_elapsed_ms": _elapsed_ms(),
+            })
+
         return results
 
     # ------------------------------------------------------------------

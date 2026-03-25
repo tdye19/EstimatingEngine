@@ -1,5 +1,6 @@
 """APEX Platform — FastAPI Application Entry Point."""
 
+import asyncio
 import os
 import logging
 from contextlib import asynccontextmanager
@@ -16,6 +17,8 @@ from apex.backend.routers import auth, projects, reports, productivity
 from apex.backend.routers import exports
 from apex.backend.routers import token_usage as token_usage_router
 from apex.backend.routers import test_pipeline as test_pipeline_router
+from apex.backend.routers import websocket as ws_router
+from apex.backend.services.ws_manager import ws_manager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +30,9 @@ logger = logging.getLogger("apex")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting APEX Platform...")
+    # Register the running event loop so the sync orchestrator thread can
+    # schedule WebSocket broadcasts via asyncio.run_coroutine_threadsafe.
+    ws_manager.set_loop(asyncio.get_running_loop())
     init_db()
 
     # Run seeder if DB is empty
@@ -77,6 +83,7 @@ app.include_router(reports.router)
 app.include_router(productivity.router)
 app.include_router(exports.router)
 app.include_router(token_usage_router.router)
+app.include_router(ws_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
 if os.getenv("APEX_DEV_MODE", "").lower() in ("true", "1", "yes"):
