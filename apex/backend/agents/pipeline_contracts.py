@@ -5,7 +5,7 @@ If validation fails, a ContractViolation is raised with the agent name and detai
 """
 
 from __future__ import annotations
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -137,6 +137,50 @@ class Agent6Output(BaseModel):
     line_items_count: int = Field(ge=0)
     divisions_covered: list[str] = []
     bid_bond_required: bool = False
+    executive_summary: Optional[str] = None
+    summary_method: Optional[str] = None   # "llm" or "template"
+    summary_tokens_used: Optional[int] = None
+
+
+# ---------------------------------------------------------------------------
+# Agent 7 — IMPROVE Feedback
+# ---------------------------------------------------------------------------
+
+class Agent7VarianceItem(BaseModel):
+    """Single line-item variance as returned by the LLM (Pydantic-validated)."""
+
+    line_item: str
+    estimated_rate: float
+    historical_actual_rate: float
+    variance_pct: float
+    likely_cause: str
+    recommendation: str
+    confidence: Literal["high", "medium", "low"]
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def _norm_confidence(cls, v: str) -> str:
+        return str(v).lower().strip()
+
+    @field_validator("estimated_rate", "historical_actual_rate", "variance_pct", mode="before")
+    @classmethod
+    def _to_float(cls, v) -> float:
+        if isinstance(v, (int, float)):
+            return float(v)
+        return float(str(v).replace(",", "").strip())
+
+
+class Agent7Output(BaseModel):
+    actuals_processed: int = Field(ge=0)
+    variances_calculated: int = Field(ge=0)
+    productivity_updates: int = Field(ge=0)
+    accuracy_score: float
+    total_estimated_cost: float
+    total_actual_cost: float
+    overall_variance_pct: float
+    variance_method: Optional[str] = None   # "llm" or "statistical"
+    variance_tokens_used: Optional[int] = None
+    variance_items: list[Agent7VarianceItem] = []
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +194,7 @@ _CONTRACT_MAP: dict[int, type[BaseModel]] = {
     4: Agent4Output,
     5: Agent5Output,
     6: Agent6Output,
+    7: Agent7Output,
 }
 
 AGENT_NAMES = {
@@ -159,6 +204,7 @@ AGENT_NAMES = {
     4: "Quantity Takeoff Agent",
     5: "Labor Productivity Agent",
     6: "Estimate Assembly Agent",
+    7: "IMPROVE Feedback Agent",
 }
 
 
@@ -170,7 +216,7 @@ def validate_agent_output(agent_number: int, output: dict) -> dict:
     """
     contract_cls = _CONTRACT_MAP.get(agent_number)
     if contract_cls is None:
-        return output  # no contract for agent 7
+        return output
 
     agent_name = AGENT_NAMES.get(agent_number, f"Agent {agent_number}")
     try:
