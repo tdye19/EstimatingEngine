@@ -65,7 +65,7 @@ class AgentOrchestrator:
             agent_name=agent_name,
             agent_number=agent_number,
             status="running",
-            started_at=datetime.(datetime.now(timezone.utc)),
+            started_at=datetime.now(timezone.utc),
         )
         self.db.add(log)
         self.db.commit()
@@ -76,7 +76,7 @@ class AgentOrchestrator:
         now = datetime.now(timezone.utc)
         log.status = "completed"
         log.completed_at = now
-        log.duration_seconds = (datetime.now(timezone.utc)).total_seconds() if log.started_at else 0
+        log.duration_seconds = (datetime.now(timezone.utc) - log.started_at).total_seconds() if log.started_at else 0
         log.tokens_used = tokens
         log.output_summary = summary
         log.output_data = output_data
@@ -86,7 +86,7 @@ class AgentOrchestrator:
         now = datetime.now(timezone.utc)
         log.status = "failed"
         log.completed_at = now
-        log.duration_seconds = (datetime.now(timezone.utc)).total_seconds() if log.started_at else 0
+        log.duration_seconds = (datetime.now(timezone.utc) - log.started_at).total_seconds() if log.started_at else 0
         log.error_message = error_msg
         self.db.commit()
 
