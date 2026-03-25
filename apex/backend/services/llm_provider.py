@@ -32,6 +32,8 @@ class LLMResponse:
     input_tokens: int       # Token usage (0 if unavailable)
     output_tokens: int      # Token usage (0 if unavailable)
     duration_ms: float      # Wall clock time for the call
+    cache_creation_input_tokens: int = 0  # Anthropic: tokens written to cache
+    cache_read_input_tokens: int = 0      # Anthropic: tokens read from cache
 
 
 # ---------------------------------------------------------------------------
@@ -168,13 +170,20 @@ class AnthropicProvider(LLMProvider):
         headers = {
             "x-api-key": self._api_key,
             "anthropic-version": "2023-06-01",
+            "anthropic-beta": "prompt-caching-2024-07-31",
             "content-type": "application/json",
         }
         payload = {
             "model": self._model,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "system": system_prompt,
+            "system": [
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             "messages": [
                 {"role": "user", "content": user_prompt},
             ],
@@ -189,6 +198,14 @@ class AnthropicProvider(LLMProvider):
         content = data["content"][0]["text"]
         usage = data.get("usage", {})
 
+        cache_creation = usage.get("cache_creation_input_tokens", 0)
+        cache_read = usage.get("cache_read_input_tokens", 0)
+
+        if cache_read > 0:
+            logger.info("Cache HIT: %d tokens read from cache", cache_read)
+        if cache_creation > 0:
+            logger.info("Cache CREATED: %d tokens cached", cache_creation)
+
         return LLMResponse(
             content=content,
             model=self._model,
@@ -196,6 +213,8 @@ class AnthropicProvider(LLMProvider):
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
             duration_ms=duration_ms,
+            cache_creation_input_tokens=cache_creation,
+            cache_read_input_tokens=cache_read,
         )
 
     async def health_check(self) -> bool:

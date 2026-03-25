@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getProjectTokenUsage, getTokenUsageSummary } from '../../api';
-import { DollarSign, Zap, RefreshCw } from 'lucide-react';
+import { DollarSign, Zap, RefreshCw, Database } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -96,7 +96,7 @@ export default function CostTrackingTab({ projectId, refreshKey }) {
   return (
     <div className="space-y-6">
       {/* ── Total cost hero ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-apex-200 bg-apex-50 p-5 sm:col-span-1">
           <div className="flex items-center gap-3">
             <DollarSign className="h-8 w-8 text-apex-600" />
@@ -139,6 +139,23 @@ export default function CostTrackingTab({ projectId, refreshKey }) {
               </p>
               <p className="text-xs text-gray-400 mt-0.5">
                 {byProvider.map((p) => p.provider).join(', ') || '—'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-green-200 bg-green-50 p-5">
+          <div className="flex items-center gap-3">
+            <Database className="h-6 w-6 text-green-600" />
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-green-600">
+                Cache Savings
+              </p>
+              <p className="text-2xl font-bold text-green-700">
+                {fmtCost(summary?.cache_savings ?? 0)}
+              </p>
+              <p className="text-xs text-green-500 mt-0.5">
+                {fmtTokens(summary?.total_cache_read_tokens ?? 0)} tokens from cache
               </p>
             </div>
           </div>
@@ -237,6 +254,9 @@ export default function CostTrackingTab({ projectId, refreshKey }) {
                     Cost
                   </th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Cache
+                  </th>
+                  <th className="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Time
                   </th>
                 </tr>
@@ -263,6 +283,15 @@ export default function CostTrackingTab({ projectId, refreshKey }) {
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-gray-700 tabular-nums">
                       {fmtCost(r.estimated_cost)}
+                    </td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">
+                      {r.cache_read_tokens > 0 ? (
+                        <span className="text-green-600 font-medium">
+                          HIT ({fmtTokens(r.cache_read_tokens)})
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">MISS</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                       {r.created_at

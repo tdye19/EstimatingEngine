@@ -227,10 +227,13 @@ async def _llm_labor_match(
         )
         matches = _parse_llm_labor_response(response.content)
         logger.info(f"Agent 5 LLM: parsed {len(matches)} validated matches")
-        return matches, response.input_tokens, response.output_tokens
+        return (
+            matches, response.input_tokens, response.output_tokens,
+            response.cache_creation_input_tokens, response.cache_read_input_tokens,
+        )
     except Exception as exc:
         logger.error(f"Agent 5 LLM: call failed — {exc}")
-        return None, 0, 0
+        return None, 0, 0, 0, 0
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +431,7 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
         prod_by_id = {rec.id: rec for rec in all_productivity}
         items_by_id = {item.id: item for item in takeoff_items}
 
-        llm_matches, _in_tok, _out_tok = _run_async(
+        llm_matches, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
             _llm_labor_match(takeoff_items, all_productivity, provider)
         )
         tokens_used = _in_tok + _out_tok
@@ -442,6 +445,8 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
                 model=provider.model_name,
                 input_tokens=_in_tok,
                 output_tokens=_out_tok,
+                cache_creation_tokens=_cache_create,
+                cache_read_tokens=_cache_read,
             )
             labor_method = "llm"
             matched_item_ids: set[int] = set()

@@ -192,10 +192,13 @@ async def _llm_variance_analysis(
         )
         items = _parse_llm_improve_response(response.content)
         logger.info(f"Agent 7 LLM: parsed {len(items)} validated variance items")
-        return items, response.input_tokens, response.output_tokens
+        return (
+            items, response.input_tokens, response.output_tokens,
+            response.cache_creation_input_tokens, response.cache_read_input_tokens,
+        )
     except Exception as exc:
         logger.error(f"Agent 7 LLM: call failed — {exc}")
-        return None, 0, 0
+        return None, 0, 0, 0, 0
 
 
 # ---------------------------------------------------------------------------
@@ -387,7 +390,7 @@ def run_improve_agent(db: Session, project_id: int) -> dict:
                 f"Agent 7: LLM provider '{provider.provider_name}/{provider.model_name}' "
                 "is available — generating LLM variance analysis"
             )
-            llm_items, _in_tok, _out_tok = _run_async(
+            llm_items, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
                 _llm_variance_analysis(variances, actual_items, estimate_items, provider)
             )
             variance_tokens_used = _in_tok + _out_tok
@@ -400,6 +403,8 @@ def run_improve_agent(db: Session, project_id: int) -> dict:
                     model=provider.model_name,
                     input_tokens=_in_tok,
                     output_tokens=_out_tok,
+                    cache_creation_tokens=_cache_create,
+                    cache_read_tokens=_cache_read,
                 )
                 variance_items = llm_items
                 variance_method = "llm"

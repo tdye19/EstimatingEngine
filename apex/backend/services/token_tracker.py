@@ -20,6 +20,8 @@ def log_token_usage(
     input_tokens: int,
     output_tokens: int,
     estimate_id: int | None = None,
+    cache_creation_tokens: int = 0,
+    cache_read_tokens: int = 0,
 ) -> TokenUsage:
     """Create and persist a TokenUsage record for one LLM call.
 
@@ -32,11 +34,13 @@ def log_token_usage(
         input_tokens: Prompt token count from LLMResponse.input_tokens.
         output_tokens: Completion token count from LLMResponse.output_tokens.
         estimate_id:  Optional FK to the estimate being assembled (Agent 6).
+        cache_creation_tokens: Tokens written to Anthropic prompt cache.
+        cache_read_tokens:     Tokens read from Anthropic prompt cache.
 
     Returns:
         The persisted TokenUsage record.
     """
-    cost = calculate_cost(model, input_tokens, output_tokens)
+    cost = calculate_cost(model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens)
     record = TokenUsage(
         project_id=project_id,
         estimate_id=estimate_id,
@@ -45,14 +49,16 @@ def log_token_usage(
         model=model,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        cache_creation_tokens=cache_creation_tokens,
+        cache_read_tokens=cache_read_tokens,
         estimated_cost=cost,
     )
     db.add(record)
     db.commit()
     logger.debug(
         "Token usage logged: project=%d agent=%d provider=%s model=%s "
-        "in=%d out=%d cost=$%.6f",
+        "in=%d out=%d cache_create=%d cache_read=%d cost=$%.6f",
         project_id, agent_number, provider, model,
-        input_tokens, output_tokens, cost,
+        input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cost,
     )
     return record
