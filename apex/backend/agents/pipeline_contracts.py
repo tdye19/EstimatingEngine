@@ -77,12 +77,13 @@ class Agent3Output(BaseModel):
 # ---------------------------------------------------------------------------
 
 class Agent4SectionResult(BaseModel):
-    section_id: int
+    section_id: Optional[int] = None   # None for gap-derived items with no matching section
     section_number: str
     quantity: Optional[float] = None
     unit: Optional[str] = None
     confidence: Optional[float] = None
     drawings: Optional[list] = None
+    source: Optional[str] = None       # "specified" or "estimated" (LLM path only)
     error: Optional[str] = None
 
 
@@ -90,6 +91,8 @@ class Agent4Output(BaseModel):
     items_created: int = Field(ge=0)
     sections_processed: int = Field(ge=0)
     results: list[Agent4SectionResult] = []
+    takeoff_method: Optional[str] = None   # "llm" or "regex"
+    tokens_used: Optional[int] = None      # Total LLM tokens consumed (0 for regex path)
 
 
 # ---------------------------------------------------------------------------
