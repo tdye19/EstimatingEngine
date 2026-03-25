@@ -58,7 +58,8 @@ async def llm_parse_spec_sections(document_text: str, provider) -> list[dict]:
     """Use LLM to extract CSI MasterFormat sections from spec text.
 
     Returns list of dicts: {section_number, division_number, title, content}.
-    Sends full text to Anthropic (200K context); chunks for Ollama (small context).
+    Sends full text to Anthropic (200K context) and Gemini (1M context);
+    chunks for Ollama (small context).
     Raises an exception on parse failure — caller should fall back to regex.
     """
     from apex.backend.agents.tools.spec_prompts import (
@@ -67,7 +68,7 @@ async def llm_parse_spec_sections(document_text: str, provider) -> list[dict]:
         parse_and_validate_llm_sections,
     )
 
-    if provider.provider_name == "anthropic":
+    if provider.provider_name in ("anthropic", "gemini"):
         chunks = [document_text]
     else:
         chunks = chunk_document(document_text, max_words=3000)

@@ -46,16 +46,31 @@ DOCUMENT TEXT:
 Return ONLY the JSON array of sections found."""
 
 
+def _clean_llm_json_response(raw_response: str) -> str:
+    """Strip markdown code fences from an LLM response and return raw JSON.
+
+    Gemini 2.5 Flash sometimes wraps JSON in ```json ... ``` blocks even when
+    instructed not to, and may prepend an introductory sentence. This function
+    extracts the JSON array from anywhere in the response.
+    """
+    cleaned = raw_response.strip()
+    # Prefer extracting from a fenced code block (handles Gemini's style)
+    code_block = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?```', cleaned)
+    if code_block:
+        return code_block.group(1).strip()
+    # Fallback: strip leading/trailing fences if present
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r'^```(?:json)?\n?', '', cleaned)
+        cleaned = re.sub(r'\n?```$', '', cleaned)
+    return cleaned
+
+
 def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
     """Parse LLM response into validated section dicts.
 
     Raises ValueError if response is not valid JSON or sections are malformed.
     """
-    # Strip any markdown code fences the LLM might add despite instructions
-    cleaned = raw_response.strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r'^```(?:json)?\n?', '', cleaned)
-        cleaned = re.sub(r'\n?```$', '', cleaned)
+    cleaned = _clean_llm_json_response(raw_response)
 
     sections = json.loads(cleaned)  # Raises JSONDecodeError if invalid
 
