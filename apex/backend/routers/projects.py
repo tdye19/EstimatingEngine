@@ -15,7 +15,7 @@ from apex.backend.models.project import Project
 from apex.backend.models.document import Document
 from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.user import User
-from apex.backend.services.agent_orchestrator import AgentOrchestrator
+from apex.backend.services.crew_orchestrator import get_orchestrator
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut, DocumentOut, APIResponse,
@@ -382,7 +382,7 @@ def _run_pipeline(project_id: int, document_id: int = None, pipeline_mode: str =
     try:
         if pipeline_mode is None:
             pipeline_mode = _detect_pipeline_mode(db, project_id, document_id)
-        orchestrator = AgentOrchestrator(db, project_id)
+        orchestrator = get_orchestrator(db, project_id)
         orchestrator.run_pipeline(document_id=document_id, pipeline_mode=pipeline_mode)
     finally:
         db.close()
@@ -468,7 +468,7 @@ def pipeline_status(project_id: int, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    orchestrator = AgentOrchestrator(db, project_id)
+    orchestrator = get_orchestrator(db, project_id)
     statuses = orchestrator.get_pipeline_status()
 
     # Derive overall status
@@ -505,7 +505,7 @@ def run_single_agent(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     try:
-        orchestrator = AgentOrchestrator(db, project_id)
+        orchestrator = get_orchestrator(db, project_id)
         result = orchestrator.run_single_agent(agent_number)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -558,7 +558,7 @@ async def upload_actuals(
         from apex.backend.db.database import SessionLocal
         session = SessionLocal()
         try:
-            orchestrator = AgentOrchestrator(session, pid)
+            orchestrator = get_orchestrator(session, pid)
             orchestrator.run_improve_agent()
         finally:
             session.close()
