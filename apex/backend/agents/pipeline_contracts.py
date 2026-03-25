@@ -108,6 +108,10 @@ class Agent5ItemResult(BaseModel):
     labor_hours: Optional[float] = None
     labor_cost: Optional[float] = None
     confidence: Optional[float] = None
+    # LLM-path fields (absent on DB fallback path)
+    match_confidence: Optional[str] = None        # "exact", "similar", or "estimated"
+    matched_productivity_id: Optional[int] = None
+    notes: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -117,6 +121,8 @@ class Agent5Output(BaseModel):
     total_labor_hours: float = Field(ge=0)
     items_processed: int = Field(ge=0)
     results: list[Agent5ItemResult] = []
+    labor_method: Optional[str] = None    # "llm" or "db"
+    tokens_used: Optional[int] = None     # total LLM tokens consumed (0 for DB path)
 
 
 # ---------------------------------------------------------------------------
