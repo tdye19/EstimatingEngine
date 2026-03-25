@@ -350,13 +350,40 @@ def delete_document(project_id: int, doc_id: int, db: Session = Depends(get_db))
     db.commit()
 
 
-def _run_pipeline(project_id: int, document_id: int = None):
-    """Background task to run agent pipeline."""
+def _detect_pipeline_mode(db: Session, project_id: int, document_id: int = None) -> str:
+    """Auto-detect pipeline mode from pending document file types.
+
+    Returns "winest_import" if any pending document is a native .est file.
+    For .xlsx WinEst exports the mode is determined by Agent 1 during
+    processing (it signals back via output["pipeline_mode"]).
+    """
+    query = db.query(Document).filter(
+        Document.project_id == project_id,
+        Document.is_deleted == False,  # noqa: E712
+        Document.processing_status == "pending",
+    )
+    if document_id is not None:
+        query = query.filter(Document.id == document_id)
+
+    for doc in query.all():
+        if doc.file_type == "est":
+            return "winest_import"
+    return "spec"
+
+
+def _run_pipeline(project_id: int, document_id: int = None, pipeline_mode: str = None):
+    """Background task to run the agent pipeline.
+
+    If *pipeline_mode* is not supplied it is auto-detected from the pending
+    document's file type (.est → "winest_import", everything else → "spec").
+    """
     from apex.backend.db.database import SessionLocal
     db = SessionLocal()
     try:
+        if pipeline_mode is None:
+            pipeline_mode = _detect_pipeline_mode(db, project_id, document_id)
         orchestrator = AgentOrchestrator(db, project_id)
-        orchestrator.run_pipeline(document_id=document_id)
+        orchestrator.run_pipeline(document_id=document_id, pipeline_mode=pipeline_mode)
     finally:
         db.close()
 
@@ -387,12 +414,15 @@ def pipeline_run(
     project_id: int,
     background_tasks: BackgroundTasks,
     document_id: int = None,
+    pipeline_mode: str = None,
     db: Session = Depends(get_db),
 ):
     """Start the agent pipeline in the background.
 
-    Accepts an optional *document_id* query param; defaults to the latest
-    uploaded document for the project.
+    Query params:
+      document_id   — specific document to process (defaults to latest upload)
+      pipeline_mode — "spec" | "winest_import" (auto-detected if omitted;
+                      .est files always trigger "winest_import")
     """
     project = db.query(Project).filter(
         Project.id == project_id, Project.is_deleted == False  # noqa: E712
@@ -411,12 +441,21 @@ def pipeline_run(
         if latest_doc:
             document_id = latest_doc.id
 
-    background_tasks.add_task(_run_pipeline, project_id, document_id)
+    # Auto-detect mode if caller didn't specify
+    if pipeline_mode is None:
+        pipeline_mode = _detect_pipeline_mode(db, project_id, document_id)
+
+    background_tasks.add_task(_run_pipeline, project_id, document_id, pipeline_mode)
 
     return APIResponse(
         success=True,
         message="Pipeline started",
-        data={"status": "started", "project_id": project_id, "document_id": document_id},
+        data={
+            "status":        "started",
+            "project_id":    project_id,
+            "document_id":   document_id,
+            "pipeline_mode": pipeline_mode,
+        },
     )
 
 

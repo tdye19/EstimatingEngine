@@ -30,12 +30,15 @@ class Agent1DocResult(BaseModel):
     pages: Optional[int] = None
     chars: Optional[int] = None
     error: Optional[str] = None
+    winest_format: Optional[str] = None   # "est_native" | "xlsx_format1" | "xlsx_format2" | None
 
 
 class Agent1Output(BaseModel):
     documents_processed: int = Field(ge=0)
     total_documents: int = Field(ge=0)
     results: list[Agent1DocResult] = []
+    pipeline_mode: Optional[str] = None         # "spec" or "winest_import"
+    winest_line_items: Optional[list] = None     # populated when pipeline_mode == "winest_import"
 
 
 # ---------------------------------------------------------------------------

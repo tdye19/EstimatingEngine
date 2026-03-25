@@ -1,4 +1,25 @@
-"""Agent orchestration service — manages the pipeline of all 7 agents."""
+"""Agent orchestration service — manages the pipeline of all 7 agents.
+
+Pipeline modes
+--------------
+"spec" (default)
+    Normal flow: Agent 1 → 2 → 3 → 4 → 5 → 6.
+
+"winest_import"
+    WinEst file detected by Agent 1 (or pre-detected by the upload endpoint
+    when the file extension is .est):
+
+    Agent 1  runs  — parses WinEst file, outputs structured line items
+    Agent 2  SKIPPED — no spec document to parse; data is already structured
+    Agent 3  runs  — gap analysis on imported line items
+    Agent 4  SKIPPED if quantities are already present in the import;
+             otherwise runs to fill in missing takeoff quantities
+    Agent 5  runs  — compares imported labor rates against historical data
+    Agent 6  runs  — assembles the estimate
+    Agent 7  separate (run via run_improve_agent after actuals upload)
+
+Skipped agents are logged with the reason stored in output_summary.
+"""
 
 import logging
 from datetime import datetime, timezone
@@ -59,7 +80,8 @@ class AgentOrchestrator:
         log.error_message = error_msg
         self.db.commit()
 
-    def _log_skipped(self, agent_name: str, agent_number: int) -> AgentRunLog:
+    def _log_skipped(self, agent_name: str, agent_number: int, reason: str = "") -> AgentRunLog:
+        """Record a skipped agent.  *reason* is stored in output_summary."""
         log = AgentRunLog(
             project_id=self.project_id,
             agent_name=agent_name,
@@ -67,6 +89,8 @@ class AgentOrchestrator:
             status="skipped",
             started_at=None,
         )
+        if reason:
+            log.output_summary = reason
         self.db.add(log)
         self.db.commit()
         self.db.refresh(log)
@@ -76,29 +100,78 @@ class AgentOrchestrator:
     # Main pipeline
     # ------------------------------------------------------------------
 
-    def run_pipeline(self, document_id: int = None) -> dict:
+    def run_pipeline(self, document_id: int = None, pipeline_mode: str = "spec") -> dict:
         """Run agents 1-6 sequentially.
 
-        Stops the pipeline if any agent fails and marks remaining agents as
-        "skipped". Returns a results dict that always contains keys agent_1
-        through agent_6 with either the agent's output or an error/skipped note.
+        Parameters
+        ----------
+        document_id : int, optional
+            Specific document to process (not used by all agents, but stored
+            for context).
+        pipeline_mode : str
+            "spec"          — standard flow, all agents 1-6 run in order.
+            "winest_import" — WinEst intake flow; Agent 2 is always skipped,
+                              Agent 4 is skipped when quantities are already
+                              present in the imported data.
+
+        After Agent 1 runs its output is inspected: if it reports
+        pipeline_mode='winest_import', the effective mode is upgraded even if
+        the caller passed "spec" (this covers the xlsx auto-detection case).
+
+        Returns a dict with keys agent_1 … agent_6 plus pipeline_status and
+        pipeline_mode.
         """
         from apex.backend.agents.pipeline_contracts import ContractViolation
 
         results: dict[str, dict] = {}
         pipeline_agents = [1, 2, 3, 4, 5, 6]
         failed_at: int | None = None
+        effective_mode = pipeline_mode
 
         for agent_num in pipeline_agents:
             agent_name, module_path, fn_name = AGENT_DEFINITIONS[agent_num]
             key = f"agent_{agent_num}"
 
+            # -----------------------------------------------------------------
+            # Stop-on-failure: mark remaining agents skipped
+            # -----------------------------------------------------------------
             if failed_at is not None:
-                # Mark remaining agents as skipped
-                self._log_skipped(agent_name, agent_num)
-                results[key] = {"status": "skipped", "skipped_because": f"Agent {failed_at} failed"}
+                skip_reason = f"Agent {failed_at} failed"
+                self._log_skipped(agent_name, agent_num, reason=skip_reason)
+                results[key] = {"status": "skipped", "skipped_because": skip_reason}
                 continue
 
+            # -----------------------------------------------------------------
+            # WinEst pipeline skipping rules
+            # -----------------------------------------------------------------
+            if effective_mode == "winest_import":
+                if agent_num == 2:
+                    skip_reason = (
+                        "WinEst import: data already structured — "
+                        "no spec document to parse"
+                    )
+                    logger.info(f"Skipping Agent 2 — {skip_reason}")
+                    self._log_skipped(agent_name, agent_num, reason=skip_reason)
+                    results[key] = {"status": "skipped", "skipped_because": skip_reason}
+                    continue
+
+                if agent_num == 4:
+                    agent1_items = results.get("agent_1", {}).get("winest_line_items") or []
+                    quantities_present = any(
+                        item.get("quantity") is not None for item in agent1_items
+                    )
+                    if quantities_present:
+                        skip_reason = (
+                            "WinEst import: quantities already present in import data"
+                        )
+                        logger.info(f"Skipping Agent 4 — {skip_reason}")
+                        self._log_skipped(agent_name, agent_num, reason=skip_reason)
+                        results[key] = {"status": "skipped", "skipped_because": skip_reason}
+                        continue
+
+            # -----------------------------------------------------------------
+            # Run the agent
+            # -----------------------------------------------------------------
             log = self._log_start(agent_name, agent_num)
             try:
                 import importlib
@@ -106,9 +179,20 @@ class AgentOrchestrator:
                 agent_fn = getattr(module, fn_name)
                 result = agent_fn(self.db, self.project_id)
 
-                # Summarise result for log
-                summary_keys = ("documents_processed", "sections_parsed", "total_gaps",
-                                "items_created", "estimates_created", "estimate_id")
+                # After Agent 1: check if it detected a WinEst import
+                if agent_num == 1 and result.get("pipeline_mode") == "winest_import":
+                    if effective_mode != "winest_import":
+                        logger.info(
+                            "Agent 1 detected WinEst import — "
+                            "switching to winest_import pipeline mode"
+                        )
+                    effective_mode = "winest_import"
+
+                # Summarise result for the log
+                summary_keys = (
+                    "documents_processed", "sections_parsed", "total_gaps",
+                    "items_created", "estimates_created", "estimate_id",
+                )
                 summary = next(
                     (f"{k}={result[k]}" for k in summary_keys if k in result),
                     str(result)[:200],
@@ -136,7 +220,10 @@ class AgentOrchestrator:
             project.status = "estimating" if failed_at is None else project.status
             self.db.commit()
 
-        results["pipeline_status"] = "completed" if failed_at is None else f"stopped_at_agent_{failed_at}"
+        results["pipeline_status"] = (
+            "completed" if failed_at is None else f"stopped_at_agent_{failed_at}"
+        )
+        results["pipeline_mode"] = effective_mode
         return results
 
     # ------------------------------------------------------------------
@@ -178,24 +265,24 @@ class AgentOrchestrator:
 
             if log is None:
                 statuses.append({
-                    "agent_number": agent_num,
-                    "agent_name": agent_name,
-                    "status": "pending",
-                    "started_at": None,
-                    "completed_at": None,
+                    "agent_number":   agent_num,
+                    "agent_name":     agent_name,
+                    "status":         "pending",
+                    "started_at":     None,
+                    "completed_at":   None,
                     "duration_seconds": None,
-                    "error_message": None,
+                    "error_message":  None,
                     "output_summary": None,
                 })
             else:
                 statuses.append({
-                    "agent_number": agent_num,
-                    "agent_name": agent_name,
-                    "status": log.status,
-                    "started_at": log.started_at.isoformat() if log.started_at else None,
-                    "completed_at": log.completed_at.isoformat() if log.completed_at else None,
+                    "agent_number":   agent_num,
+                    "agent_name":     agent_name,
+                    "status":         log.status,
+                    "started_at":     log.started_at.isoformat() if log.started_at else None,
+                    "completed_at":   log.completed_at.isoformat() if log.completed_at else None,
                     "duration_seconds": log.duration_seconds,
-                    "error_message": log.error_message,
+                    "error_message":  log.error_message,
                     "output_summary": log.output_summary,
                 })
 
@@ -221,9 +308,9 @@ class AgentOrchestrator:
             summary = str(result.get(list(result.keys())[0], "")) if result else "Done"
             self._log_complete(log, summary, output_data=result)
             return {
-                "agent_number": agent_number,
-                "agent_name": agent_name,
-                "output": result,
+                "agent_number":     agent_number,
+                "agent_name":       agent_name,
+                "output":           result,
                 "duration_seconds": log.duration_seconds,
             }
         except Exception as exc:
