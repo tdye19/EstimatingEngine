@@ -2,7 +2,7 @@
 
 import logging
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 _db_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,6 +14,16 @@ if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False)
+
+# Enable WAL mode for SQLite to allow concurrent reads alongside a single writer,
+# which is a prerequisite for safe parallel agent execution (Agents 3 & 4).
+if DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _set_wal_mode(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 logger = logging.getLogger("apex.db")

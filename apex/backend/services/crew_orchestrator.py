@@ -59,9 +59,12 @@ dependency (Task 2 — Spec Parser) and are candidates for parallel execution:
         #     manager_llm=ChatOpenAI(model="gpt-4o"),  # required for hierarchical
         # )
 
-    WARNING: Do NOT enable parallel execution until data-isolation tests
-    confirm no race conditions on the shared project tables (takeoff_items,
-    gap_reports, spec_sections).
+    NOTE: DB session isolation with WAL mode has been verified safe.
+    apex/backend/tests/test_parallel_agents.py confirms Agents 3 and 4 can
+    run concurrently in separate threads — each with its own SessionLocal()
+    instance — without deadlock or data corruption when SQLite is in WAL mode
+    (set via database.py engine "connect" event).  Parallel execution is ready
+    to enable; it is kept off by default pending a dedicated parallel-sprint spec.
 """
 
 import importlib
