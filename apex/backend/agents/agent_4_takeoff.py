@@ -18,6 +18,7 @@ from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.takeoff_item import TakeoffItem
 from apex.backend.models.gap_report import GapReport
 from apex.backend.agents.pipeline_contracts import validate_agent_output
+from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.takeoff_tools import (
     quantity_calculator_tool,
     drawing_reference_linker_tool,
@@ -245,8 +246,8 @@ async def _llm_takeoff(
     sections: list,
     gap_items: list,
     provider,
-) -> tuple[list[LLMTakeoffItem] | None, int]:
-    """Send spec + gap context to LLM and return (validated_items, tokens_used)."""
+) -> tuple[list[LLMTakeoffItem] | None, int, int]:
+    """Send spec + gap context to LLM and return (validated_items, input_tokens, output_tokens)."""
     user_prompt = _build_user_prompt(sections, gap_items)
     try:
         response = await provider.complete(
@@ -255,18 +256,18 @@ async def _llm_takeoff(
             temperature=0.1,
             max_tokens=8192,
         )
-        tokens = response.input_tokens + response.output_tokens
         logger.info(
             f"Agent 4 LLM: provider={response.provider} model={response.model} "
             f"input_tokens={response.input_tokens} output_tokens={response.output_tokens} "
-            f"total_tokens={tokens} duration_ms={response.duration_ms:.0f}ms"
+            f"total_tokens={response.input_tokens + response.output_tokens} "
+            f"duration_ms={response.duration_ms:.0f}ms"
         )
         items = _parse_llm_takeoff_response(response.content)
         logger.info(f"Agent 4 LLM: parsed {len(items)} validated takeoff items")
-        return items, tokens
+        return items, response.input_tokens, response.output_tokens
     except Exception as exc:
         logger.error(f"Agent 4 LLM: call failed — {exc}")
-        return None, 0
+        return None, 0, 0
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +320,8 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
     section_results = []
     takeoff_method = "regex"
     tokens_used = 0
+    _in_tok = 0
+    _out_tok = 0
 
     # -----------------------------------------------------------------------
     # Attempt LLM-powered quantity takeoff
@@ -346,9 +349,19 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
         )
 
     if llm_available and provider is not None and sections:
-        llm_items, tokens_used = _run_async(_llm_takeoff(sections, gap_items, provider))
+        llm_items, _in_tok, _out_tok = _run_async(_llm_takeoff(sections, gap_items, provider))
+        tokens_used = _in_tok + _out_tok
 
         if llm_items:
+            log_token_usage(
+                db=db,
+                project_id=project_id,
+                agent_number=4,
+                provider=provider.provider_name,
+                model=provider.model_name,
+                input_tokens=_in_tok,
+                output_tokens=_out_tok,
+            )
             takeoff_method = "llm"
             # Build a lookup so LLM items can be linked back to their SpecSection
             section_by_number = {s.section_number: s for s in sections}

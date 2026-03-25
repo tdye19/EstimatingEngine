@@ -36,6 +36,7 @@ class Estimate(Base, TimestampMixin):
 
     project = relationship("Project", back_populates="estimates")
     line_items = relationship("EstimateLineItem", back_populates="estimate", cascade="all, delete-orphan")
+    token_usage_records = relationship("TokenUsage", back_populates="estimate", foreign_keys="TokenUsage.estimate_id")
 
 
 class EstimateLineItem(Base, TimestampMixin):

@@ -32,3 +32,4 @@ class Project(Base, TimestampMixin):
     estimates = relationship("Estimate", back_populates="project", cascade="all, delete-orphan")
     project_actuals = relationship("ProjectActual", back_populates="project", cascade="all, delete-orphan")
     agent_run_logs = relationship("AgentRunLog", back_populates="project", cascade="all, delete-orphan")
+    token_usage_records = relationship("TokenUsage", back_populates="project", cascade="all, delete-orphan")

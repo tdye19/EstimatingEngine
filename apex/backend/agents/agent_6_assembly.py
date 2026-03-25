@@ -25,6 +25,7 @@ from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.estimate import Estimate, EstimateLineItem
 from apex.backend.models.project import Project
 from apex.backend.agents.pipeline_contracts import validate_agent_output
+from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.assembly_tools import (
     cost_rollup_tool,
     markup_applier_tool,
@@ -132,8 +133,11 @@ async def _llm_generate_summary(
     exclusions: list,
     assumptions,
     provider,
-) -> tuple[str | None, int]:
-    """Call LLM to generate an executive summary.  Returns (text, tokens_used)."""
+) -> tuple[str | None, int, int]:
+    """Call LLM to generate an executive summary.
+
+    Returns (text, input_tokens, output_tokens).
+    """
     user_prompt = _build_summary_user_prompt(
         project, estimate, line_items_data, rollup, exclusions, assumptions
     )
@@ -144,16 +148,16 @@ async def _llm_generate_summary(
             temperature=0.3,
             max_tokens=1024,
         )
-        tokens = response.input_tokens + response.output_tokens
         logger.info(
             f"Agent 6 summary LLM: provider={response.provider} model={response.model} "
             f"input_tokens={response.input_tokens} output_tokens={response.output_tokens} "
-            f"total_tokens={tokens} duration_ms={response.duration_ms:.0f}ms"
+            f"total_tokens={response.input_tokens + response.output_tokens} "
+            f"duration_ms={response.duration_ms:.0f}ms"
         )
-        return response.content.strip(), tokens
+        return response.content.strip(), response.input_tokens, response.output_tokens
     except Exception as exc:
         logger.error(f"Agent 6 summary LLM: call failed — {exc}")
-        return None, 0
+        return None, 0, 0
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +345,8 @@ def run_assembly_agent(db: Session, project_id: int) -> dict:
     executive_summary: str | None = None
     summary_method = "template"
     summary_tokens_used = 0
+    _in_tok = 0
+    _out_tok = 0
 
     try:
         from apex.backend.services.llm_provider import get_llm_provider
@@ -352,12 +358,23 @@ def run_assembly_agent(db: Session, project_id: int) -> dict:
                 f"Agent 6 summary: LLM provider '{provider.provider_name}/{provider.model_name}' "
                 "is available — generating executive summary"
             )
-            llm_text, summary_tokens_used = _run_async(
+            llm_text, _in_tok, _out_tok = _run_async(
                 _llm_generate_summary(
                     project, estimate, line_items_data, rollup, exclusions, assumptions, provider
                 )
             )
+            summary_tokens_used = _in_tok + _out_tok
             if llm_text:
+                log_token_usage(
+                    db=db,
+                    project_id=project_id,
+                    agent_number=6,
+                    provider=provider.provider_name,
+                    model=provider.model_name,
+                    input_tokens=_in_tok,
+                    output_tokens=_out_tok,
+                    estimate_id=estimate.id,
+                )
                 executive_summary = llm_text
                 summary_method = "llm"
                 logger.info(

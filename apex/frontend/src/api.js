@@ -176,6 +176,15 @@ export const exportEstimatePdf = (projectId, projectNumber) =>
 export const exportEstimateXlsx = (projectId, projectNumber) =>
   downloadBlob(`/exports/projects/${projectId}/estimate/xlsx`, `${projectNumber}_estimate.xlsx`);
 
+// ── Token Usage / Cost Tracking ───────────────────────
+export const getProjectTokenUsage = (projectId) =>
+  request(`/projects/${projectId}/token-usage`);
+
+export const getTokenUsageSummary = (projectId = null) => {
+  const qs = projectId ? `?project_id=${projectId}` : '';
+  return request(`/token-usage/summary${qs}`);
+};
+
 // ── Productivity Library ──────────────────────────────
 export const getProductivityLibrary = (params) => {
   const qs = new URLSearchParams(params).toString();
