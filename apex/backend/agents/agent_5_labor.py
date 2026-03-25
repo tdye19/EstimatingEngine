@@ -26,6 +26,7 @@ from apex.backend.models.takeoff_item import TakeoffItem
 from apex.backend.models.labor_estimate import LaborEstimate
 from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.agents.pipeline_contracts import validate_agent_output
+from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.labor_tools import (
     productivity_lookup_tool,
     crew_config_tool,
@@ -208,8 +209,8 @@ async def _llm_labor_match(
     takeoff_items: list,
     productivity_records: list,
     provider,
-) -> tuple[list[LLMProductivityMatch] | None, int]:
-    """Send takeoff items + rate table to LLM; return (matches, tokens_used)."""
+) -> tuple[list[LLMProductivityMatch] | None, int, int]:
+    """Send takeoff items + rate table to LLM; return (matches, input_tokens, output_tokens)."""
     user_prompt = _build_labor_user_prompt(takeoff_items, productivity_records)
     try:
         response = await provider.complete(
@@ -218,18 +219,18 @@ async def _llm_labor_match(
             temperature=0.0,
             max_tokens=4096,
         )
-        tokens = response.input_tokens + response.output_tokens
         logger.info(
             f"Agent 5 LLM: provider={response.provider} model={response.model} "
             f"input_tokens={response.input_tokens} output_tokens={response.output_tokens} "
-            f"total_tokens={tokens} duration_ms={response.duration_ms:.0f}ms"
+            f"total_tokens={response.input_tokens + response.output_tokens} "
+            f"duration_ms={response.duration_ms:.0f}ms"
         )
         matches = _parse_llm_labor_response(response.content)
         logger.info(f"Agent 5 LLM: parsed {len(matches)} validated matches")
-        return matches, tokens
+        return matches, response.input_tokens, response.output_tokens
     except Exception as exc:
         logger.error(f"Agent 5 LLM: call failed — {exc}")
-        return None, 0
+        return None, 0, 0
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +392,8 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
     item_results = []
     labor_method = "db"
     tokens_used = 0
+    _in_tok = 0
+    _out_tok = 0
 
     # -----------------------------------------------------------------------
     # 1.  Attempt LLM-powered productivity matching
@@ -425,11 +428,21 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
         prod_by_id = {rec.id: rec for rec in all_productivity}
         items_by_id = {item.id: item for item in takeoff_items}
 
-        llm_matches, tokens_used = _run_async(
+        llm_matches, _in_tok, _out_tok = _run_async(
             _llm_labor_match(takeoff_items, all_productivity, provider)
         )
+        tokens_used = _in_tok + _out_tok
 
         if llm_matches:
+            log_token_usage(
+                db=db,
+                project_id=project_id,
+                agent_number=5,
+                provider=provider.provider_name,
+                model=provider.model_name,
+                input_tokens=_in_tok,
+                output_tokens=_out_tok,
+            )
             labor_method = "llm"
             matched_item_ids: set[int] = set()
 

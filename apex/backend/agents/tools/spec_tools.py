@@ -54,10 +54,13 @@ def chunk_document(text: str, max_words: int = 3000) -> list[str]:
     return chunks if chunks else [text]
 
 
-async def llm_parse_spec_sections(document_text: str, provider) -> list[dict]:
+async def llm_parse_spec_sections(
+    document_text: str, provider
+) -> tuple[list[dict], int, int]:
     """Use LLM to extract CSI MasterFormat sections from spec text.
 
-    Returns list of dicts: {section_number, division_number, title, content}.
+    Returns (sections, total_input_tokens, total_output_tokens).
+    sections is a list of dicts: {section_number, division_number, title, content}.
     Sends full text to Anthropic (200K context) and Gemini (1M context);
     chunks for Ollama (small context).
     Raises an exception on parse failure — caller should fall back to regex.
@@ -74,6 +77,8 @@ async def llm_parse_spec_sections(document_text: str, provider) -> list[dict]:
         chunks = chunk_document(document_text, max_words=3000)
 
     all_sections: dict[str, dict] = {}  # keyed by section_number for deduplication
+    total_input_tokens = 0
+    total_output_tokens = 0
 
     for chunk in chunks:
         user_prompt = SPEC_PARSER_USER_PROMPT.format(document_text=chunk)
@@ -83,6 +88,8 @@ async def llm_parse_spec_sections(document_text: str, provider) -> list[dict]:
             temperature=0.0,
             max_tokens=4096,
         )
+        total_input_tokens += response.input_tokens
+        total_output_tokens += response.output_tokens
         sections = parse_and_validate_llm_sections(response.content)
 
         for s in sections:
@@ -100,7 +107,7 @@ async def llm_parse_spec_sections(document_text: str, provider) -> list[dict]:
             "content": s["content"],
         })
 
-    return result
+    return result, total_input_tokens, total_output_tokens
 
 
 def section_extractor_tool(text: str, division_range: str = None) -> list[dict]:

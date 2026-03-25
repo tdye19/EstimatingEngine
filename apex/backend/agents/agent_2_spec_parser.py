@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from apex.backend.models.document import Document
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.agents.pipeline_contracts import validate_agent_output
+from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.spec_tools import (
     regex_parse_spec_sections,
     section_extractor_tool,
@@ -37,16 +38,18 @@ def _run_async(coro):
         return asyncio.run(coro)
 
 
-def _parse_document(doc_text: str, use_llm: bool, provider) -> tuple[list[dict], str]:
-    """Return (extracted_sections, parse_method) for a single document."""
+def _parse_document(
+    doc_text: str, use_llm: bool, provider
+) -> tuple[list[dict], str, int, int]:
+    """Return (extracted_sections, parse_method, input_tokens, output_tokens)."""
     if use_llm and provider is not None:
         try:
-            sections = _run_async(llm_parse_spec_sections(doc_text, provider))
-            return sections, "llm"
+            sections, in_tok, out_tok = _run_async(llm_parse_spec_sections(doc_text, provider))
+            return sections, "llm", in_tok, out_tok
         except Exception as e:
             logger.warning(f"LLM parse failed, falling back to regex: {e}")
 
-    return regex_parse_spec_sections(doc_text), "regex"
+    return regex_parse_spec_sections(doc_text), "regex", 0, 0
 
 
 def run_spec_parser_agent(db: Session, project_id: int) -> dict:
@@ -99,8 +102,20 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
             continue
 
         try:
-            extracted, parse_method = _parse_document(doc.raw_text, llm_available, provider)
+            extracted, parse_method, in_tok, out_tok = _parse_document(
+                doc.raw_text, llm_available, provider
+            )
             run_parse_methods.append(parse_method)
+            if parse_method == "llm" and provider is not None and (in_tok or out_tok):
+                log_token_usage(
+                    db=db,
+                    project_id=project_id,
+                    agent_number=2,
+                    provider=provider.provider_name,
+                    model=provider.model_name,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
+                )
 
             sections_created = 0
             for section_data in extracted:

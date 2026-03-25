@@ -18,6 +18,7 @@ from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.gap_report import GapReport, GapReportItem
 from apex.backend.utils.csi_masterformat import MASTER_SCOPE_CHECKLIST
 from apex.backend.agents.pipeline_contracts import validate_agent_output
+from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.gap_tools import (
     checklist_compare_tool,
     gap_scorer_tool,
@@ -226,8 +227,13 @@ def _parse_llm_gap_response(raw_content: str) -> list[LLMGapItem]:
     return validated
 
 
-async def _llm_gap_analysis(parsed_sections: list[dict], provider) -> list[LLMGapItem] | None:
-    """Send parsed sections to LLM for gap analysis. Returns None on any failure."""
+async def _llm_gap_analysis(
+    parsed_sections: list[dict], provider
+) -> tuple[list[LLMGapItem] | None, int, int]:
+    """Send parsed sections to LLM for gap analysis.
+
+    Returns (items, input_tokens, output_tokens). items is None on any failure.
+    """
     user_prompt = _build_user_prompt(parsed_sections)
     try:
         response = await provider.complete(
@@ -243,10 +249,10 @@ async def _llm_gap_analysis(parsed_sections: list[dict], provider) -> list[LLMGa
         )
         items = _parse_llm_gap_response(response.content)
         logger.info(f"Agent 3 LLM: parsed {len(items)} validated gap items")
-        return items
+        return items, response.input_tokens, response.output_tokens
     except Exception as exc:
         logger.error(f"Agent 3 LLM: call failed — {exc}")
-        return None
+        return None, 0, 0
 
 
 # ---------------------------------------------------------------------------
@@ -330,8 +336,17 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
         logger.warning(f"Agent 3: could not initialise LLM provider ({exc}) — using rule-based fallback")
 
     if llm_available and provider is not None:
-        llm_items = _run_async(_llm_gap_analysis(parsed_sections, provider))
+        llm_items, in_tok, out_tok = _run_async(_llm_gap_analysis(parsed_sections, provider))
         if llm_items:
+            log_token_usage(
+                db=db,
+                project_id=project_id,
+                agent_number=3,
+                provider=provider.provider_name,
+                model=provider.model_name,
+                input_tokens=in_tok,
+                output_tokens=out_tok,
+            )
             analysis_method = "llm"
             gap_dicts = _llm_items_to_gap_dicts(llm_items)
             for gap in gap_dicts:

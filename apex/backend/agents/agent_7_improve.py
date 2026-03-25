@@ -30,6 +30,7 @@ from apex.backend.agents.pipeline_contracts import (
     Agent7VarianceItem,
     validate_agent_output,
 )
+from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.improve_tools import (
     variance_calculator_tool,
     productivity_updater_tool,
@@ -173,8 +174,8 @@ async def _llm_variance_analysis(
     actual_items: list[dict],
     estimate_items: list[dict],
     provider,
-) -> tuple[list[Agent7VarianceItem] | None, int]:
-    """Send variance data to LLM; return (items, tokens_used)."""
+) -> tuple[list[Agent7VarianceItem] | None, int, int]:
+    """Send variance data to LLM; return (items, input_tokens, output_tokens)."""
     user_prompt = _build_improve_user_prompt(variances, actual_items, estimate_items)
     try:
         response = await provider.complete(
@@ -183,18 +184,18 @@ async def _llm_variance_analysis(
             temperature=0.0,
             max_tokens=4096,
         )
-        tokens = response.input_tokens + response.output_tokens
         logger.info(
             f"Agent 7 LLM: provider={response.provider} model={response.model} "
             f"input_tokens={response.input_tokens} output_tokens={response.output_tokens} "
-            f"total_tokens={tokens} duration_ms={response.duration_ms:.0f}ms"
+            f"total_tokens={response.input_tokens + response.output_tokens} "
+            f"duration_ms={response.duration_ms:.0f}ms"
         )
         items = _parse_llm_improve_response(response.content)
         logger.info(f"Agent 7 LLM: parsed {len(items)} validated variance items")
-        return items, tokens
+        return items, response.input_tokens, response.output_tokens
     except Exception as exc:
         logger.error(f"Agent 7 LLM: call failed — {exc}")
-        return None, 0
+        return None, 0, 0
 
 
 # ---------------------------------------------------------------------------
@@ -373,6 +374,8 @@ def run_improve_agent(db: Session, project_id: int) -> dict:
     variance_items: list[Agent7VarianceItem] = []
     variance_method = "statistical"
     variance_tokens_used = 0
+    _in_tok = 0
+    _out_tok = 0
 
     try:
         from apex.backend.services.llm_provider import get_llm_provider
@@ -384,10 +387,20 @@ def run_improve_agent(db: Session, project_id: int) -> dict:
                 f"Agent 7: LLM provider '{provider.provider_name}/{provider.model_name}' "
                 "is available — generating LLM variance analysis"
             )
-            llm_items, variance_tokens_used = _run_async(
+            llm_items, _in_tok, _out_tok = _run_async(
                 _llm_variance_analysis(variances, actual_items, estimate_items, provider)
             )
+            variance_tokens_used = _in_tok + _out_tok
             if llm_items:
+                log_token_usage(
+                    db=db,
+                    project_id=project_id,
+                    agent_number=7,
+                    provider=provider.provider_name,
+                    model=provider.model_name,
+                    input_tokens=_in_tok,
+                    output_tokens=_out_tok,
+                )
                 variance_items = llm_items
                 variance_method = "llm"
                 logger.info(
