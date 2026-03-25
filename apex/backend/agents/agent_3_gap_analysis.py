@@ -1,10 +1,19 @@
 """Agent 3: Scope Gap Analysis Agent.
 
 Compares parsed spec scope against a master scope checklist.
+Uses LLM-powered analysis (Claude Sonnet) when a provider is available;
+falls back to rule-based checklist logic if the LLM is unavailable or fails.
 """
 
+import asyncio
+import json
 import logging
+import re
+from typing import Literal, Optional
+
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
+
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.gap_report import GapReport, GapReportItem
 from apex.backend.utils.csi_masterformat import MASTER_SCOPE_CHECKLIST
@@ -18,12 +27,269 @@ from apex.backend.agents.tools.gap_tools import (
 logger = logging.getLogger("apex.agent.gap_analysis")
 
 
+# ---------------------------------------------------------------------------
+# Pydantic contract for individual gap items returned by the LLM
+# ---------------------------------------------------------------------------
+
+class LLMGapItem(BaseModel):
+    """Validated gap item from LLM response."""
+
+    description: str
+    severity: Literal["critical", "high", "medium", "low"]
+    affected_csi_division: str
+    recommendation: str
+    gap_type: Optional[str] = "missing_division"
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def _normalise_severity(cls, v: str) -> str:
+        return str(v).lower().strip()
+
+    @field_validator("affected_csi_division", mode="before")
+    @classmethod
+    def _normalise_division(cls, v: str) -> str:
+        return str(v).strip().lstrip("0").zfill(2) if str(v).strip().isdigit() else str(v).strip()
+
+    @field_validator("gap_type", mode="before")
+    @classmethod
+    def _normalise_gap_type(cls, v) -> str:
+        return str(v).lower().strip() if v else "missing_division"
+
+
+# ---------------------------------------------------------------------------
+# Severity / gap_type mapping: LLM values → DB schema values
+# ---------------------------------------------------------------------------
+
+_SEVERITY_MAP: dict[str, str] = {
+    "critical": "critical",
+    "high":     "critical",   # treat high as critical for DB compatibility
+    "medium":   "moderate",
+    "low":      "watch",
+}
+
+_GAP_TYPE_MAP: dict[str, str] = {
+    "missing_division":  "missing",
+    "implied_scope":     "ambiguous",
+    "missing_common":    "missing",
+    "coordination_gap":  "conflicting",
+    # passthrough aliases
+    "missing":           "missing",
+    "ambiguous":         "ambiguous",
+    "conflicting":       "conflicting",
+}
+
+
+# ---------------------------------------------------------------------------
+# CSI MasterFormat divisions reference (01–49) used in the system prompt
+# ---------------------------------------------------------------------------
+
+_CSI_DIVISIONS_REFERENCE = """\
+DIVISION 00 — Procurement and Contracting Requirements
+DIVISION 01 — General Requirements
+DIVISION 02 — Existing Conditions
+DIVISION 03 — Concrete
+DIVISION 04 — Masonry
+DIVISION 05 — Metals
+DIVISION 06 — Wood, Plastics, and Composites
+DIVISION 07 — Thermal and Moisture Protection
+DIVISION 08 — Openings (Doors, Windows, Glazing)
+DIVISION 09 — Finishes
+DIVISION 10 — Specialties
+DIVISION 11 — Equipment
+DIVISION 12 — Furnishings
+DIVISION 13 — Special Construction
+DIVISION 14 — Conveying Equipment (Elevators, Escalators)
+DIVISION 21 — Fire Suppression (Sprinklers)
+DIVISION 22 — Plumbing
+DIVISION 23 — HVAC (Heating, Ventilating, Air Conditioning)
+DIVISION 25 — Integrated Automation
+DIVISION 26 — Electrical
+DIVISION 27 — Communications
+DIVISION 28 — Electronic Safety and Security
+DIVISION 31 — Earthwork
+DIVISION 32 — Exterior Improvements (Paving, Landscaping)
+DIVISION 33 — Utilities (Site Utilities)
+DIVISION 34 — Transportation
+DIVISION 35 — Waterway and Marine Construction
+DIVISION 40 — Process Integration
+DIVISION 41 — Material Processing and Handling Equipment
+DIVISION 42 — Process Heating, Cooling, and Drying Equipment
+DIVISION 43 — Process Gas and Liquid Handling and Purification
+DIVISION 44 — Pollution Control Equipment
+DIVISION 45 — Industry-Specific Manufacturing Equipment
+DIVISION 46 — Water and Wastewater Equipment
+DIVISION 48 — Electrical Power Generation
+DIVISION 49 — (Reserved)"""
+
+# Build system prompt at module level (avoids re-building on every call)
+GAP_ANALYSIS_SYSTEM_PROMPT = (
+    "You are a senior construction estimator with 20+ years of experience reviewing commercial "
+    "building specifications for general contractors. Your job is to identify scope gaps — "
+    "missing, implied, or ambiguous items that could cause cost overruns or change orders if "
+    "not caught during the bid phase.\n\n"
+    "You will receive a JSON array of CSI MasterFormat spec sections that have been parsed from "
+    "a project specification. Identify what is MISSING or problematic.\n\n"
+    "## CSI MasterFormat Complete Division Reference\n"
+    + _CSI_DIVISIONS_REFERENCE
+    + "\n\n"
+    "## Four Gap Categories to Identify\n\n"
+    "1. **missing_division** — A CSI division entirely absent from the spec that would typically "
+    "be required for this building type (e.g., no Division 22 Plumbing in a commercial office "
+    "building).\n\n"
+    "2. **implied_scope** — Work referenced or strongly implied by another section but never "
+    "explicitly specified (e.g., a concrete section implies Division 03 rebar and formwork; a "
+    "roofing section implies roof drains and flashing; any MEP rough-in implies sleeves and "
+    "coordination drawings).\n\n"
+    "3. **missing_common** — Items commonly required for the apparent building type that are "
+    "simply absent (e.g., a multi-story building should have Division 14 Elevators; a commercial "
+    "tenant fit-out should have Division 10 Specialties such as toilet accessories and "
+    "fire extinguisher cabinets).\n\n"
+    "4. **coordination_gap** — Interface points between trades that no spec section addresses "
+    "(e.g., who provides electrical connections for HVAC equipment; who installs pipe sleeves "
+    "through structural concrete; who coordinates fire alarm with sprinkler contractor).\n\n"
+    "## Severity Definitions\n\n"
+    "- **critical**: Could cause a major cost overrun (>$50K) or significant RFI/schedule delay\n"
+    "- **high**: Likely to generate a change order or dispute (>$10K impact)\n"
+    "- **medium**: Should be clarified before bid submission (<$10K impact)\n"
+    "- **low**: Minor coordination item, informational note only\n\n"
+    "## Output Format\n\n"
+    "Respond ONLY with a valid JSON array. No markdown fences, no explanation, no preamble — "
+    "just the raw JSON array.\n\n"
+    "Each object must have exactly these five fields:\n"
+    '  "description"          — clear explanation of the gap and its cost risk\n'
+    '  "severity"             — one of: "critical", "high", "medium", "low"\n'
+    '  "affected_csi_division"— the CSI division number as a string, e.g. "22" or "03"\n'
+    '  "recommendation"       — specific action the estimator should take before finalising bid\n'
+    '  "gap_type"             — one of: "missing_division", "implied_scope", '
+    '"missing_common", "coordination_gap"\n\n'
+    "Include all significant gaps you identify. Do not fabricate gaps for divisions that are "
+    "legitimately out of scope for the apparent building type."
+)
+
+
+# ---------------------------------------------------------------------------
+# Async / sync helpers
+# ---------------------------------------------------------------------------
+
+def _run_async(coro):
+    """Run an async coroutine from a synchronous context."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
+
+# ---------------------------------------------------------------------------
+# LLM gap analysis
+# ---------------------------------------------------------------------------
+
+def _build_user_prompt(parsed_sections: list[dict]) -> str:
+    return (
+        "Below are the CSI spec sections parsed from this project's specification documents. "
+        "Identify all scope gaps across the four categories.\n\n"
+        "PARSED SPEC SECTIONS:\n"
+        + json.dumps(parsed_sections, indent=2)
+    )
+
+
+def _parse_llm_gap_response(raw_content: str) -> list[LLMGapItem]:
+    """Strip markdown fences, parse JSON, and validate each item with Pydantic."""
+    content = raw_content.strip()
+    # Strip optional markdown code fence
+    content = re.sub(r"^```(?:json)?\s*", "", content)
+    content = re.sub(r"\s*```$", "", content.strip())
+    content = content.strip()
+
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as exc:
+        logger.error(f"Agent 3 LLM: JSON parse error — {exc}")
+        return []
+
+    if not isinstance(data, list):
+        logger.error(f"Agent 3 LLM: expected JSON array, got {type(data).__name__}")
+        return []
+
+    validated: list[LLMGapItem] = []
+    for i, item in enumerate(data):
+        try:
+            validated.append(LLMGapItem.model_validate(item))
+        except Exception as exc:
+            logger.warning(f"Agent 3 LLM: skipping malformed gap item [{i}]: {exc}")
+
+    return validated
+
+
+async def _llm_gap_analysis(parsed_sections: list[dict], provider) -> list[LLMGapItem] | None:
+    """Send parsed sections to LLM for gap analysis. Returns None on any failure."""
+    user_prompt = _build_user_prompt(parsed_sections)
+    try:
+        response = await provider.complete(
+            system_prompt=GAP_ANALYSIS_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.1,
+            max_tokens=4096,
+        )
+        logger.info(
+            f"Agent 3 LLM: provider={response.provider} model={response.model} "
+            f"input_tokens={response.input_tokens} output_tokens={response.output_tokens} "
+            f"duration_ms={response.duration_ms:.0f}ms"
+        )
+        items = _parse_llm_gap_response(response.content)
+        logger.info(f"Agent 3 LLM: parsed {len(items)} validated gap items")
+        return items
+    except Exception as exc:
+        logger.error(f"Agent 3 LLM: call failed — {exc}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Convert LLM items → gap dicts compatible with existing scoring tools
+# ---------------------------------------------------------------------------
+
+def _llm_items_to_gap_dicts(llm_items: list[LLMGapItem]) -> list[dict]:
+    """Normalise LLMGapItem objects into gap dicts for gap_scorer_tool / risk_tagger_tool."""
+    gaps = []
+    for item in llm_items:
+        db_severity = _SEVERITY_MAP.get(item.severity, "watch")
+        raw_gap_type = (item.gap_type or "missing_division").lower()
+        db_gap_type = _GAP_TYPE_MAP.get(raw_gap_type, "missing")
+
+        # Derive a short title from the first sentence of the description
+        title = (item.description.split(".")[0] or item.description)[:200]
+
+        gaps.append({
+            "division_number": item.affected_csi_division,
+            "section_number": None,
+            "title": title,
+            "gap_type": db_gap_type,
+            "severity": db_severity,
+            "description": item.description,
+            "recommendation": item.recommendation,
+        })
+    return gaps
+
+
+# ---------------------------------------------------------------------------
+# Main agent entry point
+# ---------------------------------------------------------------------------
+
 def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
     """Run gap analysis comparing project specs against master checklist.
 
-    Returns dict with gap counts and report details.
+    Execution order:
+      1. Try LLM path — get_llm_provider(agent_number=3), health-check, call LLM.
+      2. If LLM unavailable or returns nothing, fall back to rule-based checklist diff.
+
+    Returns dict validated against Agent3Output pipeline contract.
     """
-    # Get all parsed spec sections
+    # Fetch all parsed spec sections for this project
     sections = db.query(SpecSection).filter(
         SpecSection.project_id == project_id,
         SpecSection.is_deleted == False,  # noqa: E712
@@ -38,27 +304,69 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
         for s in sections
     ]
 
-    # Determine which divisions are present in the project
-    project_divisions = set(s.division_number for s in sections)
+    # -----------------------------------------------------------------------
+    # Attempt LLM-powered gap analysis
+    # -----------------------------------------------------------------------
+    provider = None
+    llm_available = False
+    analysis_method = "rule_based"
+    scored_gaps: list[dict] = []
 
-    # Build checklist for relevant divisions (plus always check core divisions)
-    core_divisions = {"03", "05", "07", "08", "09"}
-    check_divisions = project_divisions | core_divisions
-    checklist = {div: items for div, items in MASTER_SCOPE_CHECKLIST.items() if div in check_divisions}
+    try:
+        from apex.backend.services.llm_provider import get_llm_provider
+        provider = get_llm_provider(agent_number=3)
+        llm_available = _run_async(provider.health_check())
+        if llm_available:
+            logger.info(
+                f"Agent 3: LLM provider '{provider.provider_name}/{provider.model_name}' "
+                "is available — attempting LLM gap analysis"
+            )
+        else:
+            logger.info(
+                f"Agent 3: LLM provider '{provider.provider_name}' is unreachable — "
+                "using rule-based fallback"
+            )
+    except Exception as exc:
+        logger.warning(f"Agent 3: could not initialise LLM provider ({exc}) — using rule-based fallback")
 
-    # Run comparison
-    gaps = checklist_compare_tool(parsed_sections, checklist)
+    if llm_available and provider is not None:
+        llm_items = _run_async(_llm_gap_analysis(parsed_sections, provider))
+        if llm_items:
+            analysis_method = "llm"
+            gap_dicts = _llm_items_to_gap_dicts(llm_items)
+            for gap in gap_dicts:
+                scored_gaps.append(risk_tagger_tool(gap))
+            logger.info(
+                f"Agent 3: LLM path succeeded — {len(scored_gaps)} gaps identified "
+                f"(provider={provider.provider_name}, model={provider.model_name})"
+            )
+        else:
+            logger.warning(
+                "Agent 3: LLM returned no valid gap items — falling back to rule-based analysis"
+            )
 
-    # Score and tag each gap
-    scored_gaps = []
-    for gap in gaps:
-        tagged = risk_tagger_tool(gap)
-        scored_gaps.append(tagged)
+    # -----------------------------------------------------------------------
+    # Rule-based fallback (original logic, unchanged)
+    # -----------------------------------------------------------------------
+    if analysis_method == "rule_based":
+        logger.info("Agent 3: using rule-based checklist comparison (fallback path)")
+        project_divisions = set(s.division_number for s in sections)
+        core_divisions = {"03", "05", "07", "08", "09"}
+        check_divisions = project_divisions | core_divisions
+        checklist = {
+            div: items
+            for div, items in MASTER_SCOPE_CHECKLIST.items()
+            if div in check_divisions
+        }
+        gaps = checklist_compare_tool(parsed_sections, checklist)
+        for gap in gaps:
+            scored_gaps.append(risk_tagger_tool(gap))
 
-    # Get overall scores
+    # -----------------------------------------------------------------------
+    # Score, persist, and return
+    # -----------------------------------------------------------------------
     scores = gap_scorer_tool(scored_gaps)
 
-    # Create gap report
     report = GapReport(
         project_id=project_id,
         overall_score=scores["overall_score"],
@@ -66,17 +374,21 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
         critical_count=scores["critical_count"],
         moderate_count=scores["moderate_count"],
         watch_count=scores["watch_count"],
-        summary=f"Analysis of {len(parsed_sections)} spec sections against {len(checklist)} divisions. "
-                f"Found {scores['total_gaps']} gaps: {scores['critical_count']} critical, "
-                f"{scores['moderate_count']} moderate, {scores['watch_count']} watch.",
+        summary=(
+            f"Analysis of {len(parsed_sections)} spec sections via {analysis_method}. "
+            f"Found {scores['total_gaps']} gaps: "
+            f"{scores['critical_count']} critical, "
+            f"{scores['moderate_count']} moderate, "
+            f"{scores['watch_count']} watch."
+        ),
+        metadata_json={"analysis_method": analysis_method},
     )
     db.add(report)
     db.commit()
     db.refresh(report)
 
-    # Create gap items
     for gap in scored_gaps:
-        item = GapReportItem(
+        db.add(GapReportItem(
             gap_report_id=report.id,
             division_number=gap["division_number"],
             section_number=gap.get("section_number"),
@@ -86,10 +398,14 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
             description=gap.get("description"),
             recommendation=gap.get("recommendation"),
             risk_score=gap.get("risk_score"),
-        )
-        db.add(item)
+        ))
 
     db.commit()
+
+    logger.info(
+        f"Agent 3 complete: {scores['total_gaps']} gaps, "
+        f"analysis_method={analysis_method}, report_id={report.id}"
+    )
 
     return validate_agent_output(3, {
         "total_gaps": scores["total_gaps"],
