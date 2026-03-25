@@ -73,6 +73,25 @@ export const uploadDocument = (projectId, file) => {
   });
 };
 
+// ── Chunked Upload ─────────────────────────────────────
+export const initChunkedUpload = (projectId, filename, fileSize, contentType) =>
+  request(`/projects/${projectId}/documents/upload/init`, {
+    method: 'POST',
+    body: JSON.stringify({ filename, file_size: fileSize, content_type: contentType }),
+  });
+
+export const uploadChunk = (projectId, uploadId, chunkNumber, chunkBlob) => {
+  const form = new FormData();
+  form.append('chunk', chunkBlob, `chunk_${chunkNumber}`);
+  return request(
+    `/projects/${projectId}/documents/upload/${uploadId}/chunk?chunk_number=${chunkNumber}`,
+    { method: 'POST', body: form },
+  );
+};
+
+export const completeChunkedUpload = (projectId, uploadId) =>
+  request(`/projects/${projectId}/documents/upload/${uploadId}/complete`, { method: 'POST' });
+
 // ── Delete ────────────────────────────────────────────
 export const deleteProject = (id) =>
   request(`/projects/${id}`, { method: 'DELETE' });

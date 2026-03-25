@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { listDocuments, uploadDocument, deleteDocument, runPipeline, getPipelineStatus } from '../../api';
-import { FileText, Upload, Clock, CheckCircle2, XCircle, Loader2, Trash2, Play } from 'lucide-react';
+import { listDocuments, deleteDocument, runPipeline, getPipelineStatus } from '../../api';
+import { FileText, Clock, CheckCircle2, XCircle, Loader2, Trash2, Play } from 'lucide-react';
+import ChunkedUploader from '../ChunkedUploader';
 
 const STATUS_CONFIG = {
   pending:    { icon: Clock,         color: 'text-gray-400',  label: 'Pending' },
@@ -20,14 +21,12 @@ function fmtBytes(bytes) {
 export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipelineComplete }) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
   const [deletingId, setDeletingId] = useState(null);
   const [lastUploadedDocId, setLastUploadedDocId] = useState(null);
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [pipelineMsg, setPipelineMsg] = useState('');
   const pollRef = useRef(null);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
@@ -87,22 +86,14 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
     }
   };
 
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setUploadMsg('');
-    try {
-      const result = await uploadDocument(projectId, file);
-      setUploadMsg(`"${file.name}" uploaded successfully.`);
-      setLastUploadedDocId(result?.id ?? null);
-      onUploaded?.();
-    } catch (err) {
-      setUploadMsg(`Upload error: ${err.message}`);
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
+  const handleUploadSuccess = (doc) => {
+    setUploadMsg(`"${doc.filename}" uploaded successfully.`);
+    setLastUploadedDocId(doc.id);
+    onUploaded?.();
+  };
+
+  const handleUploadError = (msg) => {
+    setUploadMsg(`Upload error: ${msg}`);
   };
 
   const handleDelete = async (docId) => {
@@ -127,21 +118,12 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">{docs.length} document{docs.length !== 1 ? 's' : ''}</p>
         <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
-            className="hidden"
-            onChange={handleFileChange}
+          <ChunkedUploader
+            projectId={projectId}
+            onSuccess={handleUploadSuccess}
+            onError={handleUploadError}
+            disabled={pipelineRunning}
           />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="btn-secondary flex items-center gap-2 text-sm"
-          >
-            <Upload className="h-4 w-4" />
-            {uploading ? 'Uploading...' : 'Upload Document'}
-          </button>
           {hasDocuments && (
             <button
               onClick={handleRunPipeline}

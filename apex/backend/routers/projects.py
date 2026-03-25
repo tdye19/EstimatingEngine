@@ -1,6 +1,9 @@
 """Project management router."""
 
+import math
 import os
+import shutil
+import time
 import uuid
 import csv
 import io
@@ -16,12 +19,37 @@ from apex.backend.services.agent_orchestrator import AgentOrchestrator
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut, DocumentOut, APIResponse,
-    PipelineStatusOut, AgentStepStatus,
+    PipelineStatusOut, AgentStepStatus, ChunkedUploadInitRequest,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["projects"], dependencies=[Depends(require_auth)])
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
+CHUNK_SIZE = 1024 * 1024        # 1 MB per chunk
+SESSION_TTL = 1800              # 30 minutes in seconds
+
+# In-memory upload session store: upload_id -> session dict
+_upload_sessions: dict[str, dict] = {}
+
+
+def cleanup_stale_upload_sessions() -> None:
+    """Remove upload sessions and temp dirs older than SESSION_TTL. Call on startup."""
+    now = time.time()
+    stale = [uid for uid, s in list(_upload_sessions.items()) if now - s["created_at"] > SESSION_TTL]
+    for uid in stale:
+        temp_dir = _upload_sessions[uid].get("temp_dir", "")
+        if temp_dir and os.path.isdir(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        _upload_sessions.pop(uid, None)
+
+    # Also remove any orphaned tmp dirs on disk from previous server runs
+    tmp_root = os.path.join(UPLOAD_DIR, "tmp")
+    if os.path.isdir(tmp_root):
+        for entry in os.scandir(tmp_root):
+            if entry.is_dir() and entry.name not in _upload_sessions:
+                age = now - entry.stat().st_mtime
+                if age > SESSION_TTL:
+                    shutil.rmtree(entry.path, ignore_errors=True)
 
 
 def _generate_project_number(db: Session) -> str:
@@ -147,6 +175,137 @@ async def upload_document(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+
+    return APIResponse(
+        success=True,
+        message="Document uploaded",
+        data=DocumentOut.model_validate(doc).model_dump(mode="json"),
+    )
+
+
+@router.post("/{project_id}/documents/upload/init", response_model=APIResponse)
+async def chunked_upload_init(
+    project_id: int,
+    data: ChunkedUploadInitRequest,
+    db: Session = Depends(get_db),
+):
+    """Initialize a chunked upload session. Returns upload_id and chunk_size."""
+    project = db.query(Project).filter(
+        Project.id == project_id, Project.is_deleted == False  # noqa: E712
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    upload_id = str(uuid.uuid4())
+    total_chunks = math.ceil(data.file_size / CHUNK_SIZE)
+
+    temp_dir = os.path.join(UPLOAD_DIR, "tmp", upload_id)
+    os.makedirs(temp_dir, exist_ok=True)
+
+    _upload_sessions[upload_id] = {
+        "project_id": project_id,
+        "filename": data.filename,
+        "file_size": data.file_size,
+        "content_type": data.content_type,
+        "total_chunks": total_chunks,
+        "chunks_received": set(),
+        "temp_dir": temp_dir,
+        "created_at": time.time(),
+    }
+
+    return APIResponse(
+        success=True,
+        message="Upload session initialized",
+        data={"upload_id": upload_id, "chunk_size": CHUNK_SIZE, "total_chunks": total_chunks},
+    )
+
+
+@router.post("/{project_id}/documents/upload/{upload_id}/chunk", response_model=APIResponse)
+async def chunked_upload_chunk(
+    project_id: int,
+    upload_id: str,
+    chunk_number: int,
+    chunk: UploadFile = File(...),
+):
+    """Receive one chunk. chunk_number is 0-indexed and must be sequential."""
+    session = _upload_sessions.get(upload_id)
+    if not session or session["project_id"] != project_id:
+        raise HTTPException(status_code=404, detail="Upload session not found")
+
+    expected = len(session["chunks_received"])
+    if chunk_number != expected:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Expected chunk {expected}, got chunk_number={chunk_number}",
+        )
+
+    chunk_path = os.path.join(session["temp_dir"], f"chunk_{chunk_number:06d}")
+    chunk_data = await chunk.read()
+    with open(chunk_path, "wb") as f:
+        f.write(chunk_data)
+
+    session["chunks_received"].add(chunk_number)
+    chunks_received = len(session["chunks_received"])
+
+    return APIResponse(
+        success=True,
+        data={"chunks_received": chunks_received, "total_expected": session["total_chunks"]},
+    )
+
+
+@router.post("/{project_id}/documents/upload/{upload_id}/complete", response_model=APIResponse)
+async def chunked_upload_complete(
+    project_id: int,
+    upload_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Reassemble chunks into the final file, create Document record, trigger pipeline."""
+    session = _upload_sessions.get(upload_id)
+    if not session or session["project_id"] != project_id:
+        raise HTTPException(status_code=404, detail="Upload session not found")
+
+    total_chunks = session["total_chunks"]
+    chunks_received = len(session["chunks_received"])
+    if chunks_received != total_chunks:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Incomplete upload: received {chunks_received}/{total_chunks} chunks",
+        )
+
+    # Reassemble into final file
+    project_dir = os.path.join(UPLOAD_DIR, str(project_id))
+    os.makedirs(project_dir, exist_ok=True)
+
+    filename = session["filename"]
+    file_ext = os.path.splitext(filename)[1]
+    unique_name = f"{uuid.uuid4()}{file_ext}"
+    file_path = os.path.join(project_dir, unique_name)
+
+    with open(file_path, "wb") as out_f:
+        for i in range(total_chunks):
+            chunk_path = os.path.join(session["temp_dir"], f"chunk_{i:06d}")
+            with open(chunk_path, "rb") as in_f:
+                out_f.write(in_f.read())
+
+    file_size = os.path.getsize(file_path)
+    file_type = file_ext.lstrip(".").lower() if file_ext else "unknown"
+
+    doc = Document(
+        project_id=project_id,
+        filename=filename,
+        file_path=file_path,
+        file_type=file_type,
+        file_size_bytes=file_size,
+        processing_status="pending",
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    # Clean up temp chunks
+    shutil.rmtree(session["temp_dir"], ignore_errors=True)
+    _upload_sessions.pop(upload_id, None)
 
     return APIResponse(
         success=True,

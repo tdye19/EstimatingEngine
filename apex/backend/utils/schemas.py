@@ -14,6 +14,13 @@ class APIResponse(BaseModel):
     error: Optional[str] = None
 
 
+# --- Chunked Upload ---
+class ChunkedUploadInitRequest(BaseModel):
+    filename: str
+    file_size: int
+    content_type: str = "application/octet-stream"
+
+
 # --- Organization ---
 class OrganizationCreate(BaseModel):
     name: str
