@@ -90,6 +90,10 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
     setUploadMsg(`"${doc.filename}" uploaded successfully.`);
     setLastUploadedDocId(doc.id);
     onUploaded?.();
+    // Backend auto-triggers pipeline after upload — start polling immediately
+    setPipelineRunning(true);
+    setPipelineMsg('Pipeline started — running agents…');
+    startPolling();
   };
 
   const handleUploadError = (msg) => {
