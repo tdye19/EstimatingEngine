@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
     try:
         from apex.backend.services.llm_provider import get_llm_provider
         provider = get_llm_provider()
-        logger.info(f"LLM provider: {provider.provider_name} | model: {provider.model_name}")
+        logger.info(f"LLM provider (default): {provider.provider_name} | model: {provider.model_name}")
     except Exception as e:
         logger.warning(f"LLM provider not configured: {e}")
 
@@ -99,20 +99,68 @@ def health_check():
 
 @app.get("/api/health/llm")
 async def llm_health_check():
-    """Check LLM provider availability. No auth required."""
+    """Check LLM provider availability per-agent. No auth required.
+
+    Returns:
+        default_provider: The resolved default provider + availability.
+        agents: Per-agent config (provider, model, api_key_configured).
+        providers: Live availability check for each distinct provider in use.
+    """
+    from apex.backend.services.llm_provider import (
+        get_llm_provider,
+        get_agent_provider_config,
+    )
+
+    # --- Per-agent configuration (no network calls) ---
+    agent_config = get_agent_provider_config()
+
+    # --- Default provider resolution ---
+    default_info: dict = {}
     try:
-        from apex.backend.services.llm_provider import get_llm_provider
-        provider = get_llm_provider()
-        available = await provider.health_check()
-        return {
-            "provider": provider.provider_name,
-            "model": provider.model_name,
-            "available": available,
+        default_provider = get_llm_provider()
+        default_available = await default_provider.health_check()
+        default_info = {
+            "provider": default_provider.provider_name,
+            "model": default_provider.model_name,
+            "available": default_available,
         }
     except Exception as e:
-        return {
-            "provider": os.getenv("LLM_PROVIDER", "ollama"),
+        default_info = {
+            "provider": os.getenv("DEFAULT_LLM_PROVIDER") or os.getenv("LLM_PROVIDER", "ollama"),
             "model": "unknown",
             "available": False,
             "error": str(e),
         }
+
+    # --- Live health check for each distinct provider actually in use ---
+    used_providers: set[str] = set()
+    for cfg in agent_config.values():
+        p = cfg.get("provider", "")
+        if p not in ("python", ""):
+            used_providers.add(p)
+
+    provider_health: dict = {}
+    for pname in sorted(used_providers):
+        try:
+            from apex.backend.services.llm_provider import _build_provider, _default_model_for
+            inst = _build_provider(pname, _default_model_for(pname))
+            provider_health[pname] = {
+                "available": await inst.health_check(),
+                "api_key_configured": bool(
+                    os.getenv("ANTHROPIC_API_KEY") if pname == "anthropic"
+                    else os.getenv("GEMINI_API_KEY") if pname == "gemini"
+                    else True
+                ),
+            }
+        except Exception as exc:
+            provider_health[pname] = {
+                "available": False,
+                "api_key_configured": False,
+                "error": str(exc),
+            }
+
+    return {
+        "default_provider": default_info,
+        "agents": agent_config,
+        "providers": provider_health,
+    }
