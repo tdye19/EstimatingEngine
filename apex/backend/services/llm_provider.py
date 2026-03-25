@@ -2,6 +2,7 @@
 
 Supports Ollama (local), Anthropic Claude API, and Google Gemini API via a
 unified interface.  Provider selection uses a three-level fallback chain:
+
   1. Per-agent env vars  → AGENT_{N}_PROVIDER / AGENT_{N}_MODEL
      (or AGENT_{N}_{SUFFIX}_PROVIDER for sub-roles like AGENT_6_SUMMARY)
   2. Default env vars    → DEFAULT_LLM_PROVIDER / DEFAULT_LLM_MODEL
@@ -18,7 +19,6 @@ from typing import Optional
 import httpx
 
 logger = logging.getLogger("apex.llm_provider")
-
 
 # ---------------------------------------------------------------------------
 # Response dataclass
@@ -366,6 +366,7 @@ def get_llm_provider(
         suffix:       Optional sub-role suffix, e.g. "SUMMARY" for the
                       AGENT_6_SUMMARY_PROVIDER / AGENT_6_SUMMARY_MODEL pair.
     """
+
     # --- Level 1: per-agent ---
     if agent_number is not None:
         if suffix:
@@ -375,6 +376,7 @@ def get_llm_provider(
 
         agent_provider = os.getenv(f"{env_prefix}_PROVIDER")
         agent_model = os.getenv(f"{env_prefix}_MODEL")
+
         if agent_provider:
             logger.debug(
                 "Agent %d%s → provider=%s model=%s (per-agent config)",
@@ -414,12 +416,12 @@ def get_llm_provider(
 # Canonical agent roster for health reporting.
 # Each entry: (agent_number, suffix_or_None, label, description)
 AGENT_PROVIDER_ROSTER = [
-    (1,  None,      "agent_1_ingestion",        "Document Ingestion (Python only — no LLM)"),
-    (2,  None,      "agent_2_spec_parser",       "Spec Parser"),
-    (3,  None,      "agent_3_gap_analysis",      "Gap Analysis"),
+    (1,  None,      "agent_1_ingestion",       "Document Ingestion (Python only — no LLM)"),
+    (2,  None,      "agent_2_spec_parser",      "Spec Parser"),
+    (3,  None,      "agent_3_gap_analysis",     "Gap Analysis"),
     (4,  None,      "agent_4_quantity_takeoff",  "Quantity Takeoff"),
     (5,  None,      "agent_5_labor_productivity","Labor Productivity"),
-    (6,  "SUMMARY", "agent_6_estimate_summary",  "Estimate Assembly — Executive Summary"),
+    (6,  "SUMMARY", "agent_6_estimate_summary", "Estimate Assembly — Executive Summary"),
     (7,  None,      "agent_7_improve",           "IMPROVE Feedback"),
 ]
 
@@ -431,6 +433,7 @@ def get_agent_provider_config() -> dict:
     Used by the /api/health/llm endpoint.
     """
     result = {}
+
     for agent_number, suffix, label, description in AGENT_PROVIDER_ROSTER:
         # Agent 1 is always pure Python
         if agent_number == 1:
@@ -466,6 +469,7 @@ def get_agent_provider_config() -> dict:
                 provider = os.getenv("LLM_PROVIDER", "ollama").lower()
                 model = None
 
+        # Determine if the required API key is present
         api_key_configured = _api_key_is_set(provider)
 
         result[label] = {
@@ -491,7 +495,7 @@ def _api_key_is_set(provider: str) -> bool:
 def _default_model_for(provider: str) -> str:
     defaults = {
         "anthropic": "claude-sonnet-4-6-20260101",
-        "gemini":    "gemini-2.5-flash",
-        "ollama":    "llama3.2",
+        "gemini": "gemini-2.5-flash",
+        "ollama": "llama3.2",
     }
     return defaults.get(provider, "unknown")
