@@ -7,13 +7,14 @@ import time
 import uuid
 import csv
 import io
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Response
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
 from apex.backend.models.project import Project
 from apex.backend.models.document import Document
 from apex.backend.models.project_actual import ProjectActual
+from apex.backend.models.upload_session import UploadSession
 from apex.backend.models.user import User
 from apex.backend.services.agent_orchestrator import AgentOrchestrator
 from apex.backend.utils.auth import require_auth
@@ -28,26 +29,40 @@ UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
 CHUNK_SIZE = 1024 * 1024        # 1 MB per chunk
 SESSION_TTL = 1800              # 30 minutes in seconds
 
-# In-memory upload session store: upload_id -> session dict
-_upload_sessions: dict[str, dict] = {}
-
-
 def cleanup_stale_upload_sessions() -> None:
     """Remove upload sessions and temp dirs older than SESSION_TTL. Call on startup."""
-    now = time.time()
-    stale = [uid for uid, s in list(_upload_sessions.items()) if now - s["created_at"] > SESSION_TTL]
-    for uid in stale:
-        temp_dir = _upload_sessions[uid].get("temp_dir", "")
-        if temp_dir and os.path.isdir(temp_dir):
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        _upload_sessions.pop(uid, None)
+    now = datetime.now(timezone.utc)
+    from apex.backend.db.database import SessionLocal
+    db = SessionLocal()
+    active_upload_ids: set[str] = set()
+    try:
+        expired_sessions = (
+            db.query(UploadSession)
+            .filter(UploadSession.expires_at < now)
+            .all()
+        )
+        for session in expired_sessions:
+            if session.temp_dir and os.path.isdir(session.temp_dir):
+                shutil.rmtree(session.temp_dir, ignore_errors=True)
+            db.delete(session)
 
-    # Also remove any orphaned tmp dirs on disk from previous server runs
+        # Keep non-expired uploads, so we do not remove active temp dirs.
+        active_upload_ids = {
+            row[0]
+            for row in db.query(UploadSession.upload_id)
+            .filter(UploadSession.expires_at >= now)
+            .all()
+        }
+        db.commit()
+    finally:
+        db.close()
+
+    # Also remove any orphaned tmp dirs on disk from previous server runs.
     tmp_root = os.path.join(UPLOAD_DIR, "tmp")
     if os.path.isdir(tmp_root):
         for entry in os.scandir(tmp_root):
-            if entry.is_dir() and entry.name not in _upload_sessions:
-                age = now - entry.stat().st_mtime
+            if entry.is_dir() and entry.name not in active_upload_ids:
+                age = time.time() - entry.stat().st_mtime
                 if age > SESSION_TTL:
                     shutil.rmtree(entry.path, ignore_errors=True)
 
@@ -202,16 +217,20 @@ async def chunked_upload_init(
     temp_dir = os.path.join(UPLOAD_DIR, "tmp", upload_id)
     os.makedirs(temp_dir, exist_ok=True)
 
-    _upload_sessions[upload_id] = {
-        "project_id": project_id,
-        "filename": data.filename,
-        "file_size": data.file_size,
-        "content_type": data.content_type,
-        "total_chunks": total_chunks,
-        "chunks_received": set(),
-        "temp_dir": temp_dir,
-        "created_at": time.time(),
-    }
+    db.add(
+        UploadSession(
+            upload_id=upload_id,
+            project_id=project_id,
+            filename=data.filename,
+            file_size=data.file_size,
+            content_type=data.content_type,
+            total_chunks=total_chunks,
+            next_chunk=0,
+            temp_dir=temp_dir,
+            expires_at=datetime.now(timezone.utc) + timedelta(seconds=SESSION_TTL),
+        )
+    )
+    db.commit()
 
     return APIResponse(
         success=True,
@@ -226,30 +245,39 @@ async def chunked_upload_chunk(
     upload_id: str,
     chunk_number: int,
     chunk: UploadFile = File(...),
+    db: Session = Depends(get_db),
 ):
     """Receive one chunk. chunk_number is 0-indexed and must be sequential."""
-    session = _upload_sessions.get(upload_id)
-    if not session or session["project_id"] != project_id:
+    session = db.query(UploadSession).filter(UploadSession.upload_id == upload_id).first()
+    if not session or session.project_id != project_id:
         raise HTTPException(status_code=404, detail="Upload session not found")
+    if session.expires_at < datetime.now(timezone.utc):
+        if session.temp_dir and os.path.isdir(session.temp_dir):
+            shutil.rmtree(session.temp_dir, ignore_errors=True)
+        db.delete(session)
+        db.commit()
+        raise HTTPException(status_code=404, detail="Upload session expired")
 
-    expected = len(session["chunks_received"])
+    expected = session.next_chunk
     if chunk_number != expected:
         raise HTTPException(
             status_code=400,
             detail=f"Expected chunk {expected}, got chunk_number={chunk_number}",
         )
 
-    chunk_path = os.path.join(session["temp_dir"], f"chunk_{chunk_number:06d}")
+    chunk_path = os.path.join(session.temp_dir, f"chunk_{chunk_number:06d}")
     chunk_data = await chunk.read()
     with open(chunk_path, "wb") as f:
         f.write(chunk_data)
 
-    session["chunks_received"].add(chunk_number)
-    chunks_received = len(session["chunks_received"])
+    session.next_chunk = chunk_number + 1
+    session.expires_at = datetime.now(timezone.utc) + timedelta(seconds=SESSION_TTL)
+    db.commit()
+    chunks_received = session.next_chunk
 
     return APIResponse(
         success=True,
-        data={"chunks_received": chunks_received, "total_expected": session["total_chunks"]},
+        data={"chunks_received": chunks_received, "total_expected": session.total_chunks},
     )
 
 
@@ -261,12 +289,18 @@ async def chunked_upload_complete(
     db: Session = Depends(get_db),
 ):
     """Reassemble chunks into the final file, create Document record, trigger pipeline."""
-    session = _upload_sessions.get(upload_id)
-    if not session or session["project_id"] != project_id:
+    session = db.query(UploadSession).filter(UploadSession.upload_id == upload_id).first()
+    if not session or session.project_id != project_id:
         raise HTTPException(status_code=404, detail="Upload session not found")
+    if session.expires_at < datetime.now(timezone.utc):
+        if session.temp_dir and os.path.isdir(session.temp_dir):
+            shutil.rmtree(session.temp_dir, ignore_errors=True)
+        db.delete(session)
+        db.commit()
+        raise HTTPException(status_code=404, detail="Upload session expired")
 
-    total_chunks = session["total_chunks"]
-    chunks_received = len(session["chunks_received"])
+    total_chunks = session.total_chunks
+    chunks_received = session.next_chunk
     if chunks_received != total_chunks:
         raise HTTPException(
             status_code=400,
@@ -277,14 +311,14 @@ async def chunked_upload_complete(
     project_dir = os.path.join(UPLOAD_DIR, str(project_id))
     os.makedirs(project_dir, exist_ok=True)
 
-    filename = session["filename"]
+    filename = session.filename
     file_ext = os.path.splitext(filename)[1]
     unique_name = f"{uuid.uuid4()}{file_ext}"
     file_path = os.path.join(project_dir, unique_name)
 
     with open(file_path, "wb") as out_f:
         for i in range(total_chunks):
-            chunk_path = os.path.join(session["temp_dir"], f"chunk_{i:06d}")
+            chunk_path = os.path.join(session.temp_dir, f"chunk_{i:06d}")
             with open(chunk_path, "rb") as in_f:
                 out_f.write(in_f.read())
 
@@ -304,8 +338,9 @@ async def chunked_upload_complete(
     db.refresh(doc)
 
     # Clean up temp chunks
-    shutil.rmtree(session["temp_dir"], ignore_errors=True)
-    _upload_sessions.pop(upload_id, None)
+    shutil.rmtree(session.temp_dir, ignore_errors=True)
+    db.delete(session)
+    db.commit()
 
     return APIResponse(
         success=True,
