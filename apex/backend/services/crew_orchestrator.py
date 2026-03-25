@@ -84,7 +84,7 @@ logger = logging.getLogger("apex.crew_orchestrator")
 # ---------------------------------------------------------------------------
 
 try:
-    from crewai import Task, Process  # type: ignore
+    from crewai import Crew, Task, Process  # type: ignore
 
     CREWAI_AVAILABLE = True
     logger.debug("crewai imported successfully — CrewOrchestrator ready")
@@ -353,6 +353,23 @@ class CrewOrchestrator:
 
         # Build CrewAI-backed ApexTask graph for active agents
         apex_tasks = _build_apex_tasks(active_agents)
+
+        # Instantiate Crew as the dependency-graph data structure.
+        # Execution is currently driven by the Python for-loop below,
+        # not Crew.kickoff(). Switch to kickoff() in a future sprint
+        # when parallel execution is enabled.
+        if CREWAI_AVAILABLE:
+            crewai_task_list = [
+                t.crewai_task for t in apex_tasks.values()
+                if t.crewai_task is not None
+            ]
+            if crewai_task_list:
+                self._crew = Crew(
+                    agents=[],
+                    tasks=crewai_task_list,
+                    process=Process.sequential,
+                    verbose=False,
+                )
 
         # -----------------------------------------------------------------
         # WS status table (same shape as AgentOrchestrator)
