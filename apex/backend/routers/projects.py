@@ -15,6 +15,7 @@ from apex.backend.models.project import Project
 from apex.backend.models.document import Document
 from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.upload_session import UploadSession
+from apex.backend.models.upload_chunk import UploadChunk
 from apex.backend.models.user import User
 from apex.backend.services.agent_orchestrator import AgentOrchestrator
 from apex.backend.utils.auth import require_auth
@@ -34,7 +35,6 @@ def cleanup_stale_upload_sessions() -> None:
     now = datetime.now(timezone.utc)
     from apex.backend.db.database import SessionLocal
     db = SessionLocal()
-    active_upload_ids: set[str] = set()
     try:
         expired_sessions = (
             db.query(UploadSession)
@@ -42,26 +42,19 @@ def cleanup_stale_upload_sessions() -> None:
             .all()
         )
         for session in expired_sessions:
+            db.query(UploadChunk).filter(UploadChunk.upload_id == session.upload_id).delete()
             if session.temp_dir and os.path.isdir(session.temp_dir):
                 shutil.rmtree(session.temp_dir, ignore_errors=True)
             db.delete(session)
-
-        # Keep non-expired uploads, so we do not remove active temp dirs.
-        active_upload_ids = {
-            row[0]
-            for row in db.query(UploadSession.upload_id)
-            .filter(UploadSession.expires_at >= now)
-            .all()
-        }
         db.commit()
     finally:
         db.close()
 
-    # Also remove any orphaned tmp dirs on disk from previous server runs.
+    # Also remove old tmp dirs on disk from previous server runs.
     tmp_root = os.path.join(UPLOAD_DIR, "tmp")
     if os.path.isdir(tmp_root):
         for entry in os.scandir(tmp_root):
-            if entry.is_dir() and entry.name not in active_upload_ids:
+            if entry.is_dir():
                 age = time.time() - entry.stat().st_mtime
                 if age > SESSION_TTL:
                     shutil.rmtree(entry.path, ignore_errors=True)
@@ -265,10 +258,15 @@ async def chunked_upload_chunk(
             detail=f"Expected chunk {expected}, got chunk_number={chunk_number}",
         )
 
-    chunk_path = os.path.join(session.temp_dir, f"chunk_{chunk_number:06d}")
     chunk_data = await chunk.read()
-    with open(chunk_path, "wb") as f:
-        f.write(chunk_data)
+    db.add(
+        UploadChunk(
+            upload_id=upload_id,
+            chunk_number=chunk_number,
+            chunk_data=chunk_data,
+            chunk_size=len(chunk_data),
+        )
+    )
 
     session.next_chunk = chunk_number + 1
     session.expires_at = datetime.now(timezone.utc) + timedelta(seconds=SESSION_TTL)
@@ -316,11 +314,21 @@ async def chunked_upload_complete(
     unique_name = f"{uuid.uuid4()}{file_ext}"
     file_path = os.path.join(project_dir, unique_name)
 
+    chunk_rows = (
+        db.query(UploadChunk)
+        .filter(UploadChunk.upload_id == upload_id)
+        .order_by(UploadChunk.chunk_number.asc())
+        .all()
+    )
+    if len(chunk_rows) != total_chunks:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Incomplete upload: stored {len(chunk_rows)}/{total_chunks} chunks",
+        )
+
     with open(file_path, "wb") as out_f:
-        for i in range(total_chunks):
-            chunk_path = os.path.join(session.temp_dir, f"chunk_{i:06d}")
-            with open(chunk_path, "rb") as in_f:
-                out_f.write(in_f.read())
+        for chunk_row in chunk_rows:
+            out_f.write(chunk_row.chunk_data)
 
     file_size = os.path.getsize(file_path)
     file_type = file_ext.lstrip(".").lower() if file_ext else "unknown"
@@ -338,6 +346,7 @@ async def chunked_upload_complete(
     db.refresh(doc)
 
     # Clean up temp chunks
+    db.query(UploadChunk).filter(UploadChunk.upload_id == upload_id).delete()
     shutil.rmtree(session.temp_dir, ignore_errors=True)
     db.delete(session)
     db.commit()
