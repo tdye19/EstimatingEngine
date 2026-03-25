@@ -160,10 +160,13 @@ async def _llm_generate_summary(
             f"total_tokens={response.input_tokens + response.output_tokens} "
             f"duration_ms={response.duration_ms:.0f}ms"
         )
-        return response.content.strip(), response.input_tokens, response.output_tokens
+        return (
+            response.content.strip(), response.input_tokens, response.output_tokens,
+            response.cache_creation_input_tokens, response.cache_read_input_tokens,
+        )
     except Exception as exc:
         logger.error(f"Agent 6 summary LLM: call failed — {exc}")
-        return None, 0, 0
+        return None, 0, 0, 0, 0
 
 
 # ---------------------------------------------------------------------------
@@ -364,7 +367,7 @@ def run_assembly_agent(db: Session, project_id: int) -> dict:
                 f"Agent 6 summary: LLM provider '{provider.provider_name}/{provider.model_name}' "
                 "is available — generating executive summary"
             )
-            llm_text, _in_tok, _out_tok = _run_async(
+            llm_text, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
                 _llm_generate_summary(
                     project, estimate, line_items_data, rollup, exclusions, assumptions, provider
                 )
@@ -380,6 +383,8 @@ def run_assembly_agent(db: Session, project_id: int) -> dict:
                     input_tokens=_in_tok,
                     output_tokens=_out_tok,
                     estimate_id=estimate.id,
+                    cache_creation_tokens=_cache_create,
+                    cache_read_tokens=_cache_read,
                 )
                 executive_summary = llm_text
                 summary_method = "llm"

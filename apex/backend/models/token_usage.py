@@ -17,12 +17,23 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
 }
 
 
-def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+def calculate_cost(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_creation_tokens: int = 0,
+    cache_read_tokens: int = 0,
+) -> float:
     """Return estimated USD cost for a single LLM call.
 
     Matches by checking whether any pricing key appears as a substring of the
     model name (case-insensitive), so minor version suffixes don't break lookup.
     Returns 0.0 for unknown models rather than raising.
+
+    Cache pricing (Anthropic):
+      - cache_creation_tokens: charged at 1.25x base input price
+      - cache_read_tokens:     charged at 0.10x base input price
+      - input_tokens:          charged at 1.0x base input price (non-cached portion)
     """
     model_lower = model.lower()
     input_price: float = 0.0
@@ -35,7 +46,9 @@ def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
 
     return round(
         (input_tokens / 1_000_000) * input_price
-        + (output_tokens / 1_000_000) * output_price,
+        + (output_tokens / 1_000_000) * output_price
+        + (cache_creation_tokens / 1_000_000) * input_price * 1.25
+        + (cache_read_tokens / 1_000_000) * input_price * 0.10,
         8,
     )
 
@@ -67,6 +80,8 @@ class TokenUsage(Base, TimestampMixin):
     model        = Column(String(100), nullable=False)
     input_tokens  = Column(Integer, default=0)
     output_tokens = Column(Integer, default=0)
+    cache_creation_tokens = Column(Integer, default=0)
+    cache_read_tokens     = Column(Integer, default=0)
     estimated_cost = Column(Float, default=0.0)
 
     project  = relationship("Project",  back_populates="token_usage_records")

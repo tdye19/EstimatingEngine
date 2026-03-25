@@ -249,10 +249,13 @@ async def _llm_gap_analysis(
         )
         items = _parse_llm_gap_response(response.content)
         logger.info(f"Agent 3 LLM: parsed {len(items)} validated gap items")
-        return items, response.input_tokens, response.output_tokens
+        return (
+            items, response.input_tokens, response.output_tokens,
+            response.cache_creation_input_tokens, response.cache_read_input_tokens,
+        )
     except Exception as exc:
         logger.error(f"Agent 3 LLM: call failed — {exc}")
-        return None, 0, 0
+        return None, 0, 0, 0, 0
 
 
 # ---------------------------------------------------------------------------
@@ -336,7 +339,9 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
         logger.warning(f"Agent 3: could not initialise LLM provider ({exc}) — using rule-based fallback")
 
     if llm_available and provider is not None:
-        llm_items, in_tok, out_tok = _run_async(_llm_gap_analysis(parsed_sections, provider))
+        llm_items, in_tok, out_tok, cache_create, cache_read = _run_async(
+            _llm_gap_analysis(parsed_sections, provider)
+        )
         if llm_items:
             log_token_usage(
                 db=db,
@@ -346,6 +351,8 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
                 model=provider.model_name,
                 input_tokens=in_tok,
                 output_tokens=out_tok,
+                cache_creation_tokens=cache_create,
+                cache_read_tokens=cache_read,
             )
             analysis_method = "llm"
             gap_dicts = _llm_items_to_gap_dicts(llm_items)

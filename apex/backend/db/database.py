@@ -64,6 +64,35 @@ def _ensure_sprint6_columns():
         logger.warning("DB migration check failed (non-fatal): %s", exc)
 
 
+def _ensure_cache_columns():
+    """Add prompt-caching columns to token_usage table if they don't exist.
+
+    Same safety-net pattern as _ensure_sprint6_columns().
+    # TODO: Replace with Alembic migrations.
+    """
+    if not DATABASE_URL.startswith("sqlite"):
+        return
+
+    new_columns = {
+        "cache_creation_tokens": "INTEGER DEFAULT 0",
+        "cache_read_tokens": "INTEGER DEFAULT 0",
+    }
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("PRAGMA table_info(token_usage)"))
+            existing_columns = {row[1] for row in result}
+
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing_columns:
+                    conn.execute(
+                        text(f"ALTER TABLE token_usage ADD COLUMN {col_name} {col_type}")
+                    )
+                    conn.commit()
+                    logger.info("DB migration: added token_usage.%s (%s)", col_name, col_type)
+    except Exception as exc:
+        logger.warning("DB migration check failed (non-fatal): %s", exc)
+
+
 def init_db():
     from apex.backend.models import (  # noqa: F401
         user, organization, project, document, spec_section,
@@ -73,3 +102,4 @@ def init_db():
     )
     Base.metadata.create_all(bind=engine)
     _ensure_sprint6_columns()
+    _ensure_cache_columns()
