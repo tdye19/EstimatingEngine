@@ -37,6 +37,10 @@ async def lifespan(app: FastAPI):
     # Ensure upload directory exists
     os.makedirs(os.getenv("UPLOAD_DIR", "./uploads"), exist_ok=True)
 
+    # Clean up any stale chunked-upload temp directories from previous runs
+    from apex.backend.routers.projects import cleanup_stale_upload_sessions
+    cleanup_stale_upload_sessions()
+
     # Log active LLM provider
     try:
         from apex.backend.services.llm_provider import get_llm_provider
