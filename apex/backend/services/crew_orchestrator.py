@@ -278,7 +278,7 @@ class CrewOrchestrator:
         tokens: int = 0,
         output_data: Optional[dict] = None,
     ) -> None:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         log.status = "completed"
         log.completed_at = now
         log.duration_seconds = (now - log.started_at).total_seconds() if log.started_at else 0
@@ -288,7 +288,7 @@ class CrewOrchestrator:
         self.db.commit()
 
     def _log_error(self, log: AgentRunLog, error_msg: str) -> None:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         log.status = "failed"
         log.completed_at = now
         log.duration_seconds = (now - log.started_at).total_seconds() if log.started_at else 0

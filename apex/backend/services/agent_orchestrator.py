@@ -73,7 +73,7 @@ class AgentOrchestrator:
         return log
 
     def _log_complete(self, log: AgentRunLog, summary: str, tokens: int = 0, output_data: dict = None):
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         log.status = "completed"
         log.completed_at = now
         log.duration_seconds = (now - log.started_at).total_seconds() if log.started_at else 0
@@ -83,7 +83,7 @@ class AgentOrchestrator:
         self.db.commit()
 
     def _log_error(self, log: AgentRunLog, error_msg: str):
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         log.status = "failed"
         log.completed_at = now
         log.duration_seconds = (now - log.started_at).total_seconds() if log.started_at else 0
@@ -306,9 +306,8 @@ class AgentOrchestrator:
         results["pipeline_mode"] = effective_mode
 
         # Final WebSocket event
-        from apex.backend.services.ws_manager import ws_manager as _ws
         if failed_at is None:
-            _ws.broadcast_sync(self.project_id, {
+            ws_manager.broadcast_sync(self.project_id, {
                 "type":             "pipeline_complete",
                 "project_id":       self.project_id,
                 "pipeline_id":      pipeline_id,
@@ -319,7 +318,7 @@ class AgentOrchestrator:
                 "total_elapsed_ms": _elapsed_ms(),
             })
         else:
-            _ws.broadcast_sync(self.project_id, {
+            ws_manager.broadcast_sync(self.project_id, {
                 "type":             "pipeline_error",
                 "project_id":       self.project_id,
                 "pipeline_id":      pipeline_id,
