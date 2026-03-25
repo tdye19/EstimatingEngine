@@ -12,11 +12,12 @@ from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.upload_session import UploadSession
+from apex.backend.models.upload_chunk import UploadChunk
 
 __all__ = [
     "User", "Organization", "Project", "Document", "SpecSection",
     "GapReport", "GapReportItem", "TakeoffItem", "LaborEstimate",
     "MaterialPrice", "Estimate", "EstimateLineItem", "ProjectActual",
     "ProductivityHistory", "AgentRunLog",
-    "UploadSession",
+    "UploadSession", "UploadChunk",
 ]
