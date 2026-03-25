@@ -106,7 +106,7 @@ export default function ChunkedUploader({ projectId, onSuccess, onError, disable
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.est"
           className="hidden"
           onChange={handleFileChange}
         />
@@ -114,6 +114,7 @@ export default function ChunkedUploader({ projectId, onSuccess, onError, disable
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || uploading}
           className="btn-secondary flex items-center gap-2 text-sm"
+          title="Upload a construction spec (PDF/DOCX) or a WinEst estimate file (.est/.xlsx)"
         >
           {uploading
             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -121,6 +122,11 @@ export default function ChunkedUploader({ projectId, onSuccess, onError, disable
           {uploading ? 'Uploading…' : 'Upload Document'}
         </button>
       </div>
+      {!uploading && (
+        <p className="text-xs text-gray-400">
+          Spec (PDF/DOCX) or WinEst estimate (.est&nbsp;/&nbsp;.xlsx)
+        </p>
+      )}
 
       {uploading && (
         <div className="space-y-1 min-w-[220px]">
