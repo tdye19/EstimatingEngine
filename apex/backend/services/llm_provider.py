@@ -200,9 +200,29 @@ class AnthropicProvider(LLMProvider):
             return False
 
 
-def get_llm_provider() -> LLMProvider:
-    """Factory that returns the configured provider. Falls back gracefully."""
-    provider_name = os.getenv("LLM_PROVIDER", "ollama").lower()
+def get_llm_provider(agent_number: Optional[int] = None) -> LLMProvider:
+    """Factory that returns the configured provider. Falls back gracefully.
+
+    If agent_number is provided, checks for per-agent env config first:
+      AGENT_<N>_PROVIDER  (e.g. AGENT_3_PROVIDER=anthropic)
+      AGENT_<N>_MODEL     (e.g. AGENT_3_MODEL=claude-sonnet-4-6-20260101)
+    Falls back to LLM_PROVIDER / DEFAULT_LLM_PROVIDER if no per-agent config.
+    """
+    if agent_number is not None:
+        agent_provider_name = os.getenv(f"AGENT_{agent_number}_PROVIDER", "").lower()
+        agent_model = os.getenv(f"AGENT_{agent_number}_MODEL") or None
+        if agent_provider_name == "anthropic":
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError(
+                    f"ANTHROPIC_API_KEY required for AGENT_{agent_number}_PROVIDER=anthropic"
+                )
+            return AnthropicProvider(api_key=api_key, model=agent_model)
+        elif agent_provider_name in ("ollama", "local"):
+            return OllamaProvider(model=agent_model)
+        # No per-agent config — fall through to default below
+
+    provider_name = os.getenv("LLM_PROVIDER", os.getenv("DEFAULT_LLM_PROVIDER", "ollama")).lower()
     if provider_name == "anthropic":
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
