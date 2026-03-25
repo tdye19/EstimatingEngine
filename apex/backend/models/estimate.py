@@ -31,6 +31,8 @@ class Estimate(Base, TimestampMixin):
     alternates = Column(JSON, nullable=True)
     bid_bond_required = Column(Integer, default=0)
     summary_json = Column(JSON, nullable=True)
+    executive_summary = Column(Text, nullable=True)
+    variance_report_json = Column(JSON, nullable=True)
 
     project = relationship("Project", back_populates="estimates")
     line_items = relationship("EstimateLineItem", back_populates="estimate", cascade="all, delete-orphan")
