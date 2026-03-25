@@ -1,17 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { getVariance, uploadActuals } from '../../api';
 import { TrendingUp, TrendingDown, Minus, Upload } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from 'recharts';
+
+const VarianceChart = lazy(() => import('../charts/VarianceChart'));
 
 function fmt$(val) {
   return '$' + Number(val || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -131,23 +122,9 @@ export default function VarianceTab({ projectId }) {
       {/* Variance chart */}
       <div className="card">
         <h3 className="text-sm font-semibold mb-4">Variance by CSI Code (%)</h3>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-            <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(v) => `${v.toFixed(1)}%`} />
-            <ReferenceLine y={0} stroke="#666" />
-            <Bar dataKey="variance" radius={[4, 4, 0, 0]} label={false}>
-              {chartData.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={entry.variance > 0 ? '#ef4444' : '#10b981'}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <Suspense fallback={<div className="text-gray-400 text-center py-8">Loading chart...</div>}>
+          <VarianceChart chartData={chartData} />
+        </Suspense>
       </div>
 
       {/* Detail table */}
