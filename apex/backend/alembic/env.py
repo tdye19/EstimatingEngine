@@ -25,8 +25,13 @@ from apex.backend.db.database import Base, DATABASE_URL  # noqa: E402
 
 from apex.backend.models import (  # noqa: F401, E402
     agent_run_log,
+    audit_log,
+    bid_comparison,
+    change_order,
     document,
+    equipment_rate,
     estimate,
+    estimate_library,
     gap_report,
     labor_estimate,
     material_price,
