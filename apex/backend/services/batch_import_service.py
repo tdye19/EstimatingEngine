@@ -26,6 +26,7 @@ from apex.backend.models.document_association import DocumentAssociation, Docume
 from apex.backend.models.estimate_library import EstimateLibraryEntry
 from apex.backend.models.historical_line_item import HistoricalLineItem
 from apex.backend.models.project import Project
+from apex.backend.services.line_item_normalizer import LineItemNormalizer
 from apex.backend.utils.csi_masterformat import CSI_DIVISIONS
 from apex.backend.utils.winest_parser import is_winest_xlsx, parse_winest_file
 
@@ -277,74 +278,21 @@ class BatchImportService:
                 f"WinEst parse failed for '{doc.filename}': {err_msg}"
             )
 
-        # Denormalised fields from parent library entry ---------------------------
-        proj_type      = library_entry.project_type   if library_entry else None
-        building_type  = library_entry.building_type  if library_entry else None
-        loc_state      = library_entry.location_state if library_entry else None
-        bid_date       = library_entry.bid_date       if library_entry else None
-        bid_result_val = library_entry.bid_result     if library_entry else None
+        # Normalize raw items via LineItemNormalizer --------------------------------
+        normalizer = LineItemNormalizer()
+        normalized_items = normalizer.normalize_winest_items(
+            parse_result["line_items"],
+            library_entry,
+        )
 
         created_items: list[HistoricalLineItem] = []
 
-        for raw in parse_result["line_items"]:
-            desc          = raw.get("description") or ""
-            quantity      = raw.get("quantity")
-            labor_hours   = raw.get("labor_hours")
-            labor_rate    = raw.get("labor_rate")
-            material_cost = raw.get("material_cost")
-            total_cost    = raw.get("total") or 0.0
-
-            # CSI mapping ---------------------------------------------------------
-            csi_code_raw = raw.get("csi_code")
-            if csi_code_raw:
-                # Parse division number from code string like "03 10 00"
-                div_token = str(csi_code_raw).split()[0]
-                try:
-                    csi_div_int = int(div_token)
-                except (ValueError, TypeError):
-                    csi_div_int = None
-                csi_code    = csi_code_raw
-                csi_div_key = f"{csi_div_int:02d}" if csi_div_int is not None else ""
-                csi_div_name = CSI_DIVISIONS.get(csi_div_key)
-            else:
-                csi_code, csi_div_int, csi_div_name = _auto_map_csi(desc)
-
-            # Derived fields ------------------------------------------------------
-            productivity_rate: Optional[float] = None
-            if labor_hours and quantity and quantity > 0:
-                productivity_rate = round(labor_hours / quantity, 4)
-
-            unit_cost: Optional[float] = None
-            if total_cost and quantity and quantity > 0:
-                unit_cost = round(total_cost / quantity, 4)
-
-            labor_cost: Optional[float] = None
-            if labor_hours and labor_rate:
-                labor_cost = round(labor_hours * labor_rate, 2)
-
+        for norm in normalized_items:
             item = HistoricalLineItem(
                 library_entry_id=assoc.library_entry_id,
                 project_id=assoc.project_id,
                 source_file=doc.filename,
-                source_type="winest",
-                csi_code=csi_code,
-                csi_division=csi_div_int,
-                csi_division_name=csi_div_name,
-                description=desc,
-                quantity=quantity,
-                unit_of_measure=raw.get("unit"),
-                unit_cost=unit_cost,
-                total_cost=total_cost,
-                labor_cost=labor_cost,
-                material_cost=material_cost,
-                labor_hours=labor_hours,
-                labor_rate=labor_rate,
-                productivity_rate=productivity_rate,
-                project_type=proj_type,
-                building_type=building_type,
-                location_state=loc_state,
-                bid_date=bid_date,
-                bid_result=bid_result_val,
+                **norm,
             )
             db.add(item)
             created_items.append(item)
