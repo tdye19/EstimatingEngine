@@ -490,8 +490,379 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
     ),
 ]
 
-# CIV-001 through CIV-010 added after that
+CIVIL_GAP_RULES: list[DomainGapRule] = [
+    DomainGapRule(
+        id="CIV-001",
+        name="Dewatering Not Included",
+        gap_type="missing",
+        severity="critical",
+        scope_includes_any=["31 22 01", "31 23 00", "31 23 01", "31 23 02"],
+        scope_excludes_all=["31 23 19"],
+        spec_keywords=[
+            "dewatering", "water table", "groundwater", "high water table",
+            "well points", "sump pump", "cofferdam", "geotechnical report", "seasonal water",
+        ],
+        title="Dewatering Excluded from Earthwork Scope",
+        description=(
+            "Excavation is in your scope but dewatering is not. Specs or geotech report indicate "
+            "potential groundwater issues. Dewatering can be one of the largest unforeseen costs in "
+            "civil work. Even seasonal high water tables in Michigan can require dewatering for deep "
+            "excavations."
+        ),
+        typical_responsibility="Civil contractor or specialty dewatering sub",
+        cost_impact_description="$5,000–$50,000+ depending on conditions and duration",
+        cost_impact_low=5000,
+        cost_impact_high=50000,
+        recommendation="Review geotech boring logs for water table elevation. Price as alternate if not included.",
+        rfi_language=(
+            "Geotech report indicates water table at elevation ___. Please confirm dewatering "
+            "requirements and responsibility for excavations below this elevation."
+        ),
+        affected_csi_codes=["31 23 19"],
+    ),
 
-CIVIL_GAP_RULES: list[DomainGapRule] = []  # Populated by next spec
+    DomainGapRule(
+        id="CIV-002",
+        name="Rock Excavation Potential",
+        gap_type="ambiguous",
+        severity="critical",
+        scope_includes_any=["31 22 01", "31 23 00", "31 23 01"],
+        scope_excludes_all=["31 33 00"],
+        spec_keywords=[
+            "rock excavation", "rock removal", "blasting", "rock line", "bedrock",
+            "rock encountered", "hard excavation", "ripping", "hoe ram", "rock unit price",
+        ],
+        title="Rock Excavation Not Addressed",
+        description=(
+            "Excavation is in your scope but rock excavation is not. Review geotech report for "
+            "bedrock depth. If rock is within excavation limits, mechanical removal (hoe ram) or "
+            "blasting may be required. This is often handled as a unit price item but must be "
+            "carried somewhere."
+        ),
+        typical_responsibility="Civil contractor — often unit price alternate",
+        cost_impact_description="$15–$50/CY for mechanical removal; $5–$20/CY for blasting",
+        cost_impact_low=15,
+        cost_impact_high=50,
+        recommendation="Carry rock excavation as unit price alternate in bid. Review geotech borings.",
+        affected_csi_codes=["31 33 00"],
+    ),
+
+    DomainGapRule(
+        id="CIV-003",
+        name="Contaminated / Unsuitable Soil",
+        gap_type="ambiguous",
+        severity="critical",
+        scope_includes_any=["31 22 01", "31 23 00", "31 25 01"],
+        scope_excludes_all=[],
+        spec_keywords=[
+            "contaminated", "hazardous", "LNAPL", "DNAPL", "petroleum",
+            "underground storage tank", "UST", "Phase I", "Phase II",
+            "environmental", "special waste", "unsuitable material", "regulated material",
+        ],
+        title="Potential Contaminated Soil",
+        description=(
+            "Specs or environmental reports reference potential soil contamination. Contaminated "
+            "soil disposal costs are dramatically higher than clean soil. Special handling, "
+            "manifesting, and disposal at licensed facilities may be required. This can blow a "
+            "budget if not properly addressed."
+        ),
+        typical_responsibility="Varies — often owner risk with contractor handling. Verify contract terms.",
+        cost_impact_description=(
+            "Clean disposal: $10–$25/CY; Contaminated: $50–$300+/CY; Hazardous: $200–$1,000+/CY"
+        ),
+        cost_impact_low=50,
+        cost_impact_high=300,
+        recommendation=(
+            "Qualify bid: clean soil only. Contaminated soil as change order or unit price. "
+            "Review Phase I/II."
+        ),
+        rfi_language=(
+            "Has a Phase I or Phase II environmental assessment been performed? Are there known "
+            "soil contamination conditions? Please clarify disposal requirements and responsibility."
+        ),
+        affected_csi_codes=["31 25 01"],
+    ),
+
+    DomainGapRule(
+        id="CIV-004",
+        name="Cut/Fill Imbalance — Import/Export",
+        gap_type="scope_boundary",
+        severity="moderate",
+        scope_includes_any=["31 22 01", "31 22 02"],
+        scope_excludes_all=[],
+        spec_keywords=[
+            "import", "export", "borrow", "waste", "haul off", "disposal",
+            "off-site", "spoils", "cut and fill", "earthwork balance", "mass diagram",
+        ],
+        title="Earthwork Balance — Import/Export Costs",
+        description=(
+            "Your scope includes mass earthwork (cut and fill). Verify the earthwork balance — "
+            "is the site balanced, or will significant import or export of material be required? "
+            "Hauling costs are distance-dependent and can be a major cost driver."
+        ),
+        typical_responsibility="Civil contractor",
+        cost_impact_description="Haul: $8–$20/CY depending on distance; Import fill: $12–$25/CY delivered",
+        cost_impact_low=8,
+        cost_impact_high=25,
+        recommendation="Calculate cut/fill balance from grading plan. Get haul distance and disposal/source quotes.",
+        affected_csi_codes=["31 25 00", "31 25 01", "31 25 02"],
+    ),
+
+    DomainGapRule(
+        id="CIV-005",
+        name="Erosion Control Maintenance Duration",
+        gap_type="scope_boundary",
+        severity="moderate",
+        scope_includes_any=["31 14 00", "31 14 01"],
+        scope_excludes_all=[],
+        spec_keywords=[
+            "SWPPP", "NPDES", "erosion control maintenance", "inspection",
+            "weekly inspection", "storm event", "BMP maintenance", "sediment removal",
+            "final stabilization", "EGLE", "DEQ",
+        ],
+        title="Erosion Control Maintenance Responsibility & Duration",
+        description=(
+            "Erosion control installation is in your scope. Clarify: Are you responsible for "
+            "ongoing maintenance, weekly inspections, and post-storm event repairs? For how long? "
+            "Until final stabilization? This can extend well beyond your earthwork scope duration "
+            "and the costs add up."
+        ),
+        typical_responsibility=(
+            "Varies — initial install by civil; maintenance may be GC or civil depending on contract"
+        ),
+        cost_impact_description="Maintenance: $500–$2,000/month; Repairs: $2,000–$10,000 per event",
+        cost_impact_low=500,
+        cost_impact_high=25000,
+        recommendation="Clarify maintenance duration and responsibility in bid. Include monthly allowance.",
+        affected_csi_codes=["31 14 00"],
+    ),
+
+    DomainGapRule(
+        id="CIV-006",
+        name="Utility Crossings & Conflicts",
+        gap_type="ambiguous",
+        severity="moderate",
+        scope_includes_any=["33 11 00", "33 31 00", "33 41 00"],
+        scope_excludes_all=[],
+        spec_keywords=[
+            "utility crossing", "conflict", "existing utility", "Miss Dig", "MISS DIG",
+            "pothole", "test pit", "utility relocation", "protect in place",
+        ],
+        title="Existing Utility Crossings & Conflicts",
+        description=(
+            "New utility installation is in your scope. Verify existing utility locations and "
+            "potential conflicts. Crossings, protection-in-place, and relocations can add "
+            "significant cost. Review available utility survey and require test pits / potholing "
+            "at critical crossings."
+        ),
+        typical_responsibility="Civil contractor; relocations may be by utility company",
+        cost_impact_description=(
+            "Test pits: $500–$1,500/each; Protection: $1,000–$5,000/crossing; "
+            "Relocation: $5,000–$50,000+"
+        ),
+        cost_impact_low=500,
+        cost_impact_high=50000,
+        recommendation=(
+            "Request utility survey. Identify crossings on plans. Carry allowance for unforeseen conflicts."
+        ),
+        affected_csi_codes=["33 10 00", "33 30 00", "33 40 00"],
+    ),
+
+    DomainGapRule(
+        id="CIV-007",
+        name="Compaction Testing Responsibility",
+        gap_type="scope_boundary",
+        severity="watch",
+        scope_includes_any=["31 23 16", "31 23 10"],
+        scope_excludes_all=[],
+        spec_keywords=[
+            "compaction test", "proctor", "nuclear density", "field density",
+            "95% compaction", "90% compaction", "modified proctor", "standard proctor",
+        ],
+        title="Compaction Testing Responsibility",
+        description=(
+            "Backfill and compaction are in your scope. Verify who is responsible for compaction "
+            "testing (nuclear density, sand cone, etc.). Typically owner/CM, but failing tests "
+            "mean rework costs for the contractor."
+        ),
+        typical_responsibility="Owner/CM pays for testing; contractor pays for rework if failing",
+        cost_impact_description="Testing: $2,000–$10,000 if contractor-responsible; Rework: $5–$15/CY",
+        cost_impact_low=0,
+        cost_impact_high=10000,
+        recommendation="Verify testing responsibility in Division 01. Budget for potential rework.",
+        affected_csi_codes=["31 23 16"],
+    ),
+
+    DomainGapRule(
+        id="CIV-008",
+        name="Trench Safety & OSHA Requirements",
+        gap_type="missing",
+        severity="critical",
+        scope_includes_any=["31 23 02", "33 11 00", "33 31 00", "33 41 00"],
+        scope_excludes_all=["31 54 00"],
+        spec_keywords=[
+            "trench safety", "trench box", "shoring", "sloping", "benching",
+            "trench shield", "OSHA", "competent person", "excavation safety", "29 CFR 1926",
+        ],
+        title="Trench Safety / Shoring for Utilities",
+        description=(
+            "Utility trench excavation is in your scope but trench shoring is not explicitly "
+            "included. OSHA requires protection for trenches >5 ft deep. Even if not spec'd, this "
+            "is a regulatory requirement and a cost that must be carried. Include trench box rental "
+            "or sloping costs."
+        ),
+        typical_responsibility="Civil contractor — mandatory regardless of spec",
+        cost_impact_description="Trench box rental: $500–$2,000/month; Sloping: additional excavation volume",
+        cost_impact_low=500,
+        cost_impact_high=10000,
+        recommendation="Budget trench box rental for duration of utility work. Always required >5 ft depth.",
+        affected_csi_codes=["31 54 00"],
+    ),
+
+    DomainGapRule(
+        id="CIV-009",
+        name="Subgrade Preparation for Building/Paving",
+        gap_type="scope_boundary",
+        severity="moderate",
+        scope_includes_any=["31 23 20", "31 22 00"],
+        scope_excludes_all=[],
+        spec_keywords=[
+            "subgrade", "subbase", "proof roll", "lime stabilization", "cement stabilization",
+            "geogrid", "geotextile", "bearing capacity", "subgrade modulus",
+        ],
+        title="Subgrade Preparation Scope Boundary",
+        description=(
+            "Fine grading / earthwork is in your scope. Clarify the handoff point: Does your "
+            "scope include subgrade preparation to specific tolerances for building foundations, "
+            "slabs on grade, and pavement? Or does the concrete / paving contractor handle final "
+            "subgrade prep? This is a common gap between civil and concrete scopes."
+        ),
+        typical_responsibility="Usually civil prepares to rough subgrade; concrete/paving does final prep",
+        cost_impact_description="Lime/cement stabilization: $3–$8/SY; Geogrid: $1.50–$4.00/SY",
+        cost_impact_low=1.50,
+        cost_impact_high=8.00,
+        recommendation="Define handoff tolerance clearly. Include in bid qualifications.",
+        affected_csi_codes=["31 23 20", "31 31 00"],
+    ),
+
+    DomainGapRule(
+        id="CIV-010",
+        name="Utility Connection / Tap Fees",
+        gap_type="scope_boundary",
+        severity="moderate",
+        scope_includes_any=["33 11 00", "33 12 00", "33 31 00", "33 32 00"],
+        scope_excludes_all=[],
+        spec_keywords=[
+            "tap fee", "connection fee", "permit", "road cut", "road opening",
+            "utility tap", "main connection", "wet tap", "hot tap", "shutdown",
+        ],
+        title="Utility Connection & Tap Fees",
+        description=(
+            "Utility installation is in your scope. Clarify: Are tap fees, connection fees, and "
+            "road opening permits included in your scope or paid by the owner? Also verify who "
+            "performs the actual connection to existing mains — utility company or contractor."
+        ),
+        typical_responsibility=(
+            "Owner typically pays fees; contractor performs connections (varies by municipality)"
+        ),
+        cost_impact_description=(
+            "Tap fees: $500–$10,000+ per connection; Road cut: $2,000–$15,000 per opening"
+        ),
+        cost_impact_low=500,
+        cost_impact_high=25000,
+        recommendation=(
+            "Contact local utility and municipality for fee schedules. "
+            "Exclude fees; include labor for connections."
+        ),
+        affected_csi_codes=["33 10 00", "33 30 00"],
+    ),
+]
 
 ALL_DOMAIN_RULES: list[DomainGapRule] = CONCRETE_GAP_RULES + CIVIL_GAP_RULES
+
+
+def _normalize_csi_set(parsed_sections: list[dict]) -> set[str]:
+    """Build normalized set of CSI codes from parsed sections for matching."""
+    codes = set()
+    for s in parsed_sections:
+        sec = s.get("section_number", "").replace(" ", "").replace(".", "")
+        codes.add(sec)
+        if len(sec) >= 4:
+            codes.add(sec[:4])
+        if len(sec) >= 6:
+            codes.add(sec[:6])
+    return codes
+
+
+def _code_matches(csi_code: str, normalized_set: set[str]) -> bool:
+    """Check if a CSI code matches anything in the normalized set."""
+    clean = csi_code.replace(" ", "").replace(".", "")
+    if clean in normalized_set:
+        return True
+    if len(clean) >= 4 and clean[:4] in normalized_set:
+        return True
+    if len(clean) >= 6 and clean[:6] in normalized_set:
+        return True
+    return False
+
+
+def run_domain_rules(
+    parsed_sections: list[dict],
+    spec_content_text: str = "",
+) -> list[dict]:
+    """Run all domain gap rules against parsed spec sections.
+
+    Args:
+        parsed_sections: List of dicts with section_number, division_number keys
+            (same format Agent 3 already uses).
+        spec_content_text: Concatenated text content from SpecSection rows.
+            Used for keyword matching. If empty, keyword check is skipped
+            (rules fire on scope conditions alone).
+
+    Returns:
+        List of gap dicts compatible with gap_scorer_tool / risk_tagger_tool.
+    """
+    normalized = _normalize_csi_set(parsed_sections)
+    text_lower = spec_content_text.lower() if spec_content_text else ""
+    triggered: list[dict] = []
+
+    for rule in ALL_DOMAIN_RULES:
+        # Check scope_includes_any: at least one must match
+        if rule.scope_includes_any:
+            if not any(_code_matches(c, normalized) for c in rule.scope_includes_any):
+                continue
+
+        # Check scope_excludes_all: ALL must be absent
+        if rule.scope_excludes_all:
+            if any(_code_matches(c, normalized) for c in rule.scope_excludes_all):
+                continue
+
+        # Check spec keywords
+        if rule.spec_keywords and text_lower:
+            kw_hits = [kw.lower() in text_lower for kw in rule.spec_keywords]
+            if rule.spec_keyword_match == "all":
+                if not all(kw_hits):
+                    continue
+            else:
+                if not any(kw_hits):
+                    continue
+
+        # Rule triggered — build gap dict
+        triggered.append({
+            "division_number": rule.affected_csi_codes[0][:2] if rule.affected_csi_codes else "00",
+            "section_number": rule.affected_csi_codes[0] if rule.affected_csi_codes else None,
+            "title": rule.title,
+            "gap_type": rule.gap_type,
+            "severity": rule.severity,
+            "description": rule.description,
+            "recommendation": rule.recommendation,
+            "cost_impact_description": rule.cost_impact_description,
+            "cost_impact_low": rule.cost_impact_low,
+            "cost_impact_high": rule.cost_impact_high,
+            "typical_responsibility": rule.typical_responsibility,
+            "rfi_language": rule.rfi_language,
+            "rule_id": rule.id,
+        })
+
+    logger.info(f"Domain rules: {len(triggered)} of {len(ALL_DOMAIN_RULES)} rules triggered")
+    return triggered
