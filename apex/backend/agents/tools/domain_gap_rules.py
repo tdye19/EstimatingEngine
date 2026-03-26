@@ -284,9 +284,211 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         affected_csi_codes=["03 22 01", "03 22 02"],
     ),
-]
 
-# CGR-009 through CGR-015 added in next spec
+    DomainGapRule(
+        id="CGR-009",
+        name="Testing & Inspection Responsibility",
+        gap_type="scope_boundary",
+        severity="watch",
+        scope_includes_any=["03 30 00", "03 31 00"],
+        scope_excludes_all=[],
+        spec_keywords=[
+            "concrete testing", "compressive strength test", "cylinder", "slump test",
+            "air content", "field testing", "special inspection", "third party testing",
+            "Section 01 45", "Section 01 40",
+        ],
+        title="Concrete Testing & Special Inspection",
+        description=(
+            "Specs reference concrete testing and/or special inspection. This is typically paid "
+            "for by the owner/CM, but verify. If the concrete contractor is responsible for any "
+            "testing, include costs. At minimum, verify you are responsible for providing access, "
+            "holding pours for testing, and casting cylinders."
+        ),
+        typical_responsibility="Owner/CM pays testing agency. Contractor provides access and cast cylinders.",
+        cost_impact_description="$3,000–$15,000 if contractor-responsible",
+        cost_impact_low=0,
+        cost_impact_high=15000,
+        recommendation="Review Division 01 for testing requirements. Include in bid qualifications.",
+        affected_csi_codes=["01 45 00", "01 40 00"],
+    ),
+
+    DomainGapRule(
+        id="CGR-010",
+        name="High-Strength or Specialty Mix Designs",
+        gap_type="missing",
+        severity="moderate",
+        scope_includes_any=["03 31 00", "03 30 00"],
+        scope_excludes_all=["03 37 06", "03 37 05"],
+        spec_keywords=[
+            "6000 psi", "7000 psi", "8000 psi", "10000 psi",
+            "high strength", "high-strength", "high performance",
+            "self-consolidating", "SCC", "low heat",
+            "supplementary cementitious", "fly ash", "slag cement",
+            "silica fume", "GGBFS",
+        ],
+        title="High-Strength or Specialty Concrete Mix",
+        description=(
+            "Specs reference high-strength or specialty concrete mixes beyond standard 4000–5000 PSI. "
+            "High-strength concrete has significant cost premiums and may require special placement "
+            "procedures, extended curing, and pre-qualified mix designs. Verify all mix design "
+            "requirements and price accordingly."
+        ),
+        typical_responsibility="Concrete contractor prices mix; ready-mix supplier develops mix design",
+        cost_impact_description="6000 PSI: +$15–$30/CY; 8000+ PSI: +$40–$80/CY; SCC: +$30–$50/CY",
+        cost_impact_low=15,
+        cost_impact_high=80,
+        recommendation="Get ready-mix quotes for all specified mixes. Carry premium per CY.",
+        affected_csi_codes=["03 37 06", "03 37 05"],
+    ),
+
+    DomainGapRule(
+        id="CGR-011",
+        name="Mechanical Rebar Splices / Couplers",
+        gap_type="missing",
+        severity="moderate",
+        scope_includes_any=["03 21 01", "03 21 00"],
+        scope_excludes_all=["03 21 11"],
+        spec_keywords=[
+            "mechanical splice", "coupler", "mechanical coupler", "cadweld",
+            "headed bar", "headed rebar", "ASTM A1034",
+            "Type 1 splice", "Type 2 splice",
+        ],
+        title="Mechanical Rebar Splices Required",
+        description=(
+            "Specs require mechanical rebar splices or couplers instead of (or in addition to) "
+            "standard lap splices. Mechanical splices are significantly more expensive than lap "
+            "splices but may be required for congested areas, seismic detailing, or large bar sizes "
+            "(#8 and above)."
+        ),
+        typical_responsibility="Concrete contractor / rebar sub furnishes and installs",
+        cost_impact_description="$5–$50 per splice depending on bar size and type",
+        cost_impact_low=5,
+        cost_impact_high=50,
+        recommendation=(
+            "Count splices on drawings. Get supplier quote for specific coupler type and bar sizes."
+        ),
+        affected_csi_codes=["03 21 11"],
+    ),
+
+    DomainGapRule(
+        id="CGR-012",
+        name="Control Joint Sawcutting",
+        gap_type="missing",
+        severity="watch",
+        scope_includes_any=["03 31 09", "03 31 10"],
+        scope_excludes_all=["03 15 03"],
+        spec_keywords=[
+            "saw cut", "sawcut", "control joint", "contraction joint",
+            "joint spacing", "joint layout", "slab joint",
+        ],
+        title="Control Joint Sawcutting for Slabs",
+        description=(
+            "SOG or topping slabs are in your scope but control/contraction joints are not "
+            "explicitly included. Sawcutting is typically the concrete contractor's responsibility. "
+            "Verify joint spacing and layout requirements."
+        ),
+        typical_responsibility="Concrete contractor",
+        cost_impact_description="$0.75–$2.00/LF sawcut",
+        cost_impact_low=0.75,
+        cost_impact_high=2.00,
+        recommendation=(
+            "Calculate total LF of sawcuts based on joint spacing and slab area. Include in scope."
+        ),
+        affected_csi_codes=["03 15 03"],
+    ),
+
+    DomainGapRule(
+        id="CGR-013",
+        name="Special Curing Requirements",
+        gap_type="missing",
+        severity="moderate",
+        scope_includes_any=["03 35 00", "03 31 00"],
+        scope_excludes_all=[],
+        spec_keywords=[
+            "wet cure", "wet curing", "7-day cure", "14-day cure",
+            "moist cure", "ponding", "burlap", "curing blanket",
+            "curing compound", "membrane curing", "extended curing",
+            "ASTM C309", "ASTM C171",
+        ],
+        title="Special Curing Beyond Standard",
+        description=(
+            "Specs call for extended or special curing methods beyond standard spray-on curing "
+            "compound. Wet curing, burlap, ponding, or extended cure periods add significant labor "
+            "cost and can impact the schedule. Verify curing requirements for each concrete element."
+        ),
+        typical_responsibility="Concrete contractor",
+        cost_impact_description=(
+            "Standard cure: $0.10–$0.20/SF; Wet cure: $0.50–$1.50/SF; Extended: +$/day"
+        ),
+        cost_impact_low=0.10,
+        cost_impact_high=1.50,
+        recommendation=(
+            "Identify elements requiring special curing. Add labor for daily wet cure maintenance."
+        ),
+        affected_csi_codes=["03 35 07"],
+    ),
+
+    DomainGapRule(
+        id="CGR-014",
+        name="Fiber Reinforcement Specified",
+        gap_type="missing",
+        severity="moderate",
+        scope_includes_any=["03 31 09", "03 31 10"],
+        scope_excludes_all=["03 21 07", "03 21 08", "03 21 09"],
+        spec_keywords=[
+            "fiber reinforcement", "steel fiber", "synthetic fiber",
+            "macro fiber", "micro fiber", "polypropylene fiber",
+            "fiber dosage", "fibers per cubic yard",
+        ],
+        title="Fiber Reinforcement Required",
+        description=(
+            "Specs call for fiber reinforcement in concrete, but fiber reinforcement is not in your "
+            "scope. Fiber is typically added at the batch plant and is either a ready-mix add charge "
+            "or furnished by the contractor. Verify type, dosage, and responsibility."
+        ),
+        typical_responsibility="Usually specified as ready-mix additive; contractor pays upcharge",
+        cost_impact_description=(
+            "Micro synthetic: $3–$6/CY; Macro synthetic: $8–$15/CY; Steel: $20–$45/CY"
+        ),
+        cost_impact_low=3,
+        cost_impact_high=45,
+        recommendation=(
+            "Get ready-mix pricing with fiber dosage. May replace or supplement WWR — verify."
+        ),
+        affected_csi_codes=["03 21 07", "03 21 08", "03 21 09"],
+    ),
+
+    DomainGapRule(
+        id="CGR-015",
+        name="Reshoring & Stripping Requirements",
+        gap_type="missing",
+        severity="moderate",
+        scope_includes_any=["03 11 05", "03 31 08"],
+        scope_excludes_all=[],
+        spec_keywords=[
+            "reshoring", "reshore", "shoring plan", "stripping time",
+            "minimum strip time", "shore removal", "backshore",
+            "28-day strength", "75% strength",
+        ],
+        title="Reshoring & Formwork Stripping Requirements",
+        description=(
+            "Elevated concrete is in scope. Verify reshoring requirements per the structural "
+            "engineer's shoring plan. Multiple levels of reshoring can significantly increase "
+            "form/shore material requirements and tie up equipment longer than planned. Extended "
+            "strip times affect schedule."
+        ),
+        typical_responsibility="Concrete contractor per structural engineer's shoring plan",
+        cost_impact_description=(
+            "Each additional level of reshoring: $1.50–$3.00/SF; Extended strip: schedule impact"
+        ),
+        cost_impact_low=1.50,
+        cost_impact_high=3.00,
+        recommendation=(
+            "Get or develop shoring plan early. Price reshoring materials and extended rental."
+        ),
+        affected_csi_codes=["03 11 05"],
+    ),
+]
 
 CIVIL_GAP_RULES: list[DomainGapRule] = [
     DomainGapRule(
