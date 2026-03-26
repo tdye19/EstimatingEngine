@@ -13,7 +13,6 @@ Execution order:
      default rate lookup (original logic, unchanged).
 """
 
-import asyncio
 import json
 import logging
 import re
@@ -27,6 +26,7 @@ from apex.backend.models.labor_estimate import LaborEstimate
 from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.services.token_tracker import log_token_usage
+from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.agents.tools.labor_tools import (
     productivity_lookup_tool,
     crew_config_tool,
@@ -110,24 +110,6 @@ LABOR_SYSTEM_PROMPT = (
 
 
 # ---------------------------------------------------------------------------
-# Async helper (same pattern as Agents 2, 3, 4)
-# ---------------------------------------------------------------------------
-
-def _run_async(coro):
-    """Run an async coroutine from a synchronous context."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
-        return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
-
-
-# ---------------------------------------------------------------------------
 # User prompt builder
 # ---------------------------------------------------------------------------
 
@@ -192,11 +174,16 @@ def _parse_llm_labor_response(raw_content: str) -> list[LLMProductivityMatch]:
         return []
 
     validated: list[LLMProductivityMatch] = []
+    skipped = 0
     for i, item in enumerate(data):
         try:
             validated.append(LLMProductivityMatch.model_validate(item))
         except Exception as exc:
+            skipped += 1
             logger.warning(f"Agent 5 LLM: skipping malformed match [{i}]: {exc}")
+
+    if skipped:
+        logger.warning(f"Agent 5 LLM: {skipped}/{len(data)} items skipped due to malformed data")
 
     return validated
 

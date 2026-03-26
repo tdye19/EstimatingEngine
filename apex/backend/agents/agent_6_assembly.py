@@ -13,7 +13,6 @@ Execution order:
   5. The summary is stored in estimate.executive_summary for PDF export.
 """
 
-import asyncio
 import json
 import logging
 
@@ -26,6 +25,7 @@ from apex.backend.models.estimate import Estimate, EstimateLineItem
 from apex.backend.models.project import Project
 from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.services.token_tracker import log_token_usage
+from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.agents.tools.assembly_tools import (
     cost_rollup_tool,
     markup_applier_tool,
@@ -51,24 +51,6 @@ SUMMARY_SYSTEM_PROMPT = (
     "Keep the tone professional and concise — 2-3 paragraphs maximum. "
     "Do NOT recalculate or modify any dollar amounts. Present the numbers exactly as provided."
 )
-
-
-# ---------------------------------------------------------------------------
-# Async helper (same pattern as Agent 5)
-# ---------------------------------------------------------------------------
-
-def _run_async(coro):
-    """Run an async coroutine from a synchronous context."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
-        return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------

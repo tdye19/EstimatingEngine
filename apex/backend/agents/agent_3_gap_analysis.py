@@ -5,7 +5,6 @@ Uses LLM-powered analysis (Claude Sonnet) when a provider is available;
 falls back to rule-based checklist logic if the LLM is unavailable or fails.
 """
 
-import asyncio
 import json
 import logging
 import re
@@ -18,6 +17,7 @@ from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.gap_report import GapReport, GapReportItem
 from apex.backend.utils.csi_masterformat import MASTER_SCOPE_CHECKLIST
 from apex.backend.agents.pipeline_contracts import validate_agent_output
+from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.gap_tools import (
     checklist_compare_tool,
@@ -169,24 +169,6 @@ GAP_ANALYSIS_SYSTEM_PROMPT = (
 
 
 # ---------------------------------------------------------------------------
-# Async / sync helpers
-# ---------------------------------------------------------------------------
-
-def _run_async(coro):
-    """Run an async coroutine from a synchronous context."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
-        return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
-
-
-# ---------------------------------------------------------------------------
 # LLM gap analysis
 # ---------------------------------------------------------------------------
 
@@ -218,11 +200,16 @@ def _parse_llm_gap_response(raw_content: str) -> list[LLMGapItem]:
         return []
 
     validated: list[LLMGapItem] = []
+    skipped = 0
     for i, item in enumerate(data):
         try:
             validated.append(LLMGapItem.model_validate(item))
         except Exception as exc:
+            skipped += 1
             logger.warning(f"Agent 3 LLM: skipping malformed gap item [{i}]: {exc}")
+
+    if skipped:
+        logger.warning(f"Agent 3 LLM: {skipped}/{len(data)} items skipped due to malformed data")
 
     return validated
 

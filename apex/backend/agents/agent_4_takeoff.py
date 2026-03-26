@@ -5,7 +5,6 @@ Uses LLM-first extraction (Claude Sonnet) when a provider is available;
 falls back to regex per-section extraction if the LLM is unavailable or fails.
 """
 
-import asyncio
 import json
 import logging
 import re
@@ -18,6 +17,7 @@ from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.takeoff_item import TakeoffItem
 from apex.backend.models.gap_report import GapReport
 from apex.backend.agents.pipeline_contracts import validate_agent_output
+from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.takeoff_tools import (
     quantity_calculator_tool,
@@ -137,24 +137,6 @@ TAKEOFF_SYSTEM_PROMPT = (
 
 
 # ---------------------------------------------------------------------------
-# Async helper (same pattern used by Agent 2 and Agent 3)
-# ---------------------------------------------------------------------------
-
-def _run_async(coro):
-    """Run an async coroutine from a synchronous context."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
-        return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
-
-
-# ---------------------------------------------------------------------------
 # User prompt builder
 # ---------------------------------------------------------------------------
 
@@ -229,11 +211,16 @@ def _parse_llm_takeoff_response(raw_content: str) -> list[LLMTakeoffItem]:
         return []
 
     validated: list[LLMTakeoffItem] = []
+    skipped = 0
     for i, item in enumerate(data):
         try:
             validated.append(LLMTakeoffItem.model_validate(item))
         except Exception as exc:
+            skipped += 1
             logger.warning(f"Agent 4 LLM: skipping malformed takeoff item [{i}]: {exc}")
+
+    if skipped:
+        logger.warning(f"Agent 4 LLM: {skipped}/{len(data)} items skipped due to malformed data")
 
     return validated
 

@@ -4,9 +4,9 @@ Parses CSI MasterFormat Division specs into structured scope items.
 Uses LLM parsing when a provider is available; falls back to regex.
 """
 
-import asyncio
 import logging
 from sqlalchemy.orm import Session
+from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.models.document import Document
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.agents.pipeline_contracts import validate_agent_output
@@ -21,21 +21,6 @@ from apex.backend.agents.tools.spec_tools import (
 )
 
 logger = logging.getLogger("apex.agent.spec_parser")
-
-
-def _run_async(coro):
-    """Run an async coroutine from a synchronous context."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Running inside an existing event loop (e.g. Jupyter / some test runners)
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
-        return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
 
 
 def _parse_document(

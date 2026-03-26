@@ -18,7 +18,7 @@ from apex.backend.models.upload_session import UploadSession
 from apex.backend.models.upload_chunk import UploadChunk
 from apex.backend.models.user import User
 from apex.backend.services.crew_orchestrator import get_orchestrator
-from apex.backend.utils.auth import require_auth
+from apex.backend.utils.auth import require_auth, get_authorized_project
 from apex.backend.utils.schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut, DocumentOut, APIResponse,
     PipelineStatusOut, AgentStepStatus, ChunkedUploadInitRequest,
@@ -26,9 +26,9 @@ from apex.backend.utils.schemas import (
 
 router = APIRouter(prefix="/api/projects", tags=["projects"], dependencies=[Depends(require_auth)])
 
-UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
-CHUNK_SIZE = 1024 * 1024        # 1 MB per chunk
-SESSION_TTL = 1800              # 30 minutes in seconds
+from apex.backend.config import (
+    UPLOAD_DIR, CHUNK_SIZE, SESSION_TTL, MAX_UPLOAD_BYTES, ALLOWED_EXTENSIONS,
+)
 
 def cleanup_stale_upload_sessions() -> None:
     """Remove upload sessions and temp dirs older than SESSION_TTL. Call on startup."""
@@ -63,8 +63,17 @@ def cleanup_stale_upload_sessions() -> None:
 def _generate_project_number(db: Session) -> str:
     year = datetime.now().year
     prefix = f"PRJ-{year}-"
-    count = db.query(Project).filter(Project.project_number.like(f"{prefix}%")).count()
-    return f"{prefix}{count + 1:03d}"
+    from sqlalchemy import func
+    max_num = (
+        db.query(func.max(Project.project_number))
+        .filter(Project.project_number.like(f"{prefix}%"))
+        .scalar()
+    )
+    if max_num:
+        last_seq = int(max_num.replace(prefix, ""))
+    else:
+        last_seq = 0
+    return f"{prefix}{last_seq + 1:03d}"
 
 
 @router.post("", response_model=APIResponse)
@@ -103,21 +112,28 @@ def create_project(
 
 
 @router.get("", response_model=APIResponse)
-def list_projects(db: Session = Depends(get_db)):
-    projects = db.query(Project).filter(Project.is_deleted == False).all()  # noqa: E712
+def list_projects(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    query = db.query(Project).filter(
+        Project.is_deleted == False,  # noqa: E712
+        Project.owner_id == user.id,
+    ).order_by(Project.id.desc())
+    total = query.count()
+    projects = query.offset(skip).limit(min(limit, 200)).all()
     return APIResponse(
         success=True,
         data=[ProjectOut.model_validate(p).model_dump(mode="json") for p in projects],
+        message=f"{total} projects total",
     )
 
 
 @router.get("/{project_id}", response_model=APIResponse)
-def get_project(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(
-        Project.id == project_id, Project.is_deleted == False  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+def get_project(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    project = get_authorized_project(project_id, user, db)
     return APIResponse(
         success=True,
         data=ProjectOut.model_validate(project).model_dump(mode="json"),
@@ -125,12 +141,8 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{project_id}", response_model=APIResponse)
-def update_project(project_id: int, data: ProjectUpdate, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(
-        Project.id == project_id, Project.is_deleted == False  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+def update_project(project_id: int, data: ProjectUpdate, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    project = get_authorized_project(project_id, user, db)
 
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(project, field, value)
@@ -149,28 +161,36 @@ async def upload_document(
     project_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
 ):
-    project = db.query(Project).filter(
-        Project.id == project_id, Project.is_deleted == False  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_authorized_project(project_id, user, db)
+
+    # Validate file extension
+    file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
+    file_type = file_ext.lstrip(".").lower() if file_ext else ""
+    if file_type not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type '.{file_type}' not allowed. Accepted: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
+
+    # Read content and validate size
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large ({len(content) / 1024 / 1024:.1f} MB). Maximum: {MAX_UPLOAD_BYTES // 1024 // 1024} MB",
+        )
 
     # Ensure upload directory exists
     project_dir = os.path.join(UPLOAD_DIR, str(project_id))
     os.makedirs(project_dir, exist_ok=True)
 
     # Save file
-    file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
     unique_name = f"{uuid.uuid4()}{file_ext}"
     file_path = os.path.join(project_dir, unique_name)
-
-    content = await file.read()
     with open(file_path, "wb") as f:
         f.write(content)
-
-    # Determine file type
-    file_type = file_ext.lstrip(".").lower() if file_ext else "unknown"
 
     doc = Document(
         project_id=project_id,
@@ -196,13 +216,25 @@ async def chunked_upload_init(
     project_id: int,
     data: ChunkedUploadInitRequest,
     db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
 ):
     """Initialize a chunked upload session. Returns upload_id and chunk_size."""
-    project = db.query(Project).filter(
-        Project.id == project_id, Project.is_deleted == False  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_authorized_project(project_id, user, db)
+
+    # Validate file extension
+    file_ext = os.path.splitext(data.filename)[1].lstrip(".").lower() if data.filename else ""
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type '.{file_ext}' not allowed. Accepted: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
+
+    # Validate file size
+    if data.file_size > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large ({data.file_size / 1024 / 1024:.1f} MB). Maximum: {MAX_UPLOAD_BYTES // 1024 // 1024} MB",
+        )
 
     upload_id = str(uuid.uuid4())
     total_chunks = math.ceil(data.file_size / CHUNK_SIZE)
@@ -367,7 +399,8 @@ async def chunked_upload_complete(
 
 
 @router.get("/{project_id}/documents", response_model=APIResponse)
-def list_documents(project_id: int, db: Session = Depends(get_db)):
+def list_documents(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
     docs = db.query(Document).filter(
         Document.project_id == project_id,
         Document.is_deleted == False,  # noqa: E712
@@ -379,18 +412,15 @@ def list_documents(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{project_id}", status_code=204)
-def delete_project(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(
-        Project.id == project_id, Project.is_deleted == False  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+def delete_project(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    project = get_authorized_project(project_id, user, db)
     project.is_deleted = True
     db.commit()
 
 
 @router.delete("/{project_id}/documents/{doc_id}", status_code=204)
-def delete_document(project_id: int, doc_id: int, db: Session = Depends(get_db)):
+def delete_document(project_id: int, doc_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
     doc = db.query(Document).filter(
         Document.id == doc_id,
         Document.project_id == project_id,
@@ -445,12 +475,9 @@ def run_agents(
     project_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
 ):
-    project = db.query(Project).filter(
-        Project.id == project_id, Project.is_deleted == False  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_authorized_project(project_id, user, db)
 
     background_tasks.add_task(_run_pipeline, project_id)
 
@@ -468,6 +495,7 @@ def pipeline_run(
     document_id: int = None,
     pipeline_mode: str = None,
     db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
 ):
     """Start the agent pipeline in the background.
 
@@ -476,11 +504,7 @@ def pipeline_run(
       pipeline_mode — "spec" | "winest_import" (auto-detected if omitted;
                       .est files always trigger "winest_import")
     """
-    project = db.query(Project).filter(
-        Project.id == project_id, Project.is_deleted == False  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_authorized_project(project_id, user, db)
 
     # Resolve document_id if not provided
     if document_id is None:
@@ -512,13 +536,9 @@ def pipeline_run(
 
 
 @router.get("/{project_id}/pipeline/status", response_model=PipelineStatusOut)
-def pipeline_status(project_id: int, db: Session = Depends(get_db)):
+def pipeline_status(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
     """Return the current pipeline status for each agent (1-6)."""
-    project = db.query(Project).filter(
-        Project.id == project_id, Project.is_deleted == False  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_authorized_project(project_id, user, db)
 
     orchestrator = get_orchestrator(db, project_id)
     statuses = orchestrator.get_pipeline_status()
@@ -548,14 +568,11 @@ def run_single_agent(
     project_id: int,
     agent_number: int,
     db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
 ):
     if agent_number < 1 or agent_number > 7:
         raise HTTPException(status_code=400, detail="agent_number must be between 1 and 7")
-    project = db.query(Project).filter(
-        Project.id == project_id, Project.is_deleted == False  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_authorized_project(project_id, user, db)
     try:
         orchestrator = get_orchestrator(db, project_id)
         result = orchestrator.run_single_agent(agent_number)
@@ -574,34 +591,46 @@ def run_single_agent(
 async def upload_actuals(
     project_id: int,
     file: UploadFile = File(...),
-    background_tasks: BackgroundTasks = None,
+    background_tasks: BackgroundTasks = Depends(),
     db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
 ):
     """Upload field actuals as CSV and trigger IMPROVE agent."""
-    project = db.query(Project).filter(
-        Project.id == project_id, Project.is_deleted == False  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_authorized_project(project_id, user, db)
 
     content = await file.read()
     text = content.decode("utf-8", errors="ignore")
     reader = csv.DictReader(io.StringIO(text))
 
+    required_columns = {"csi_code"}
+    if reader.fieldnames is None:
+        raise HTTPException(status_code=400, detail="CSV file is empty or has no header row")
+    missing = required_columns - set(reader.fieldnames)
+    if missing:
+        raise HTTPException(status_code=400, detail=f"CSV missing required columns: {', '.join(sorted(missing))}")
+
     imported = 0
-    for row in reader:
-        actual = ProjectActual(
-            project_id=project_id,
-            csi_code=row.get("csi_code", "").strip(),
-            description=row.get("description", ""),
-            actual_quantity=float(row.get("actual_quantity", 0) or 0),
-            actual_labor_hours=float(row.get("actual_labor_hours", 0) or 0),
-            actual_cost=float(row.get("actual_cost", 0) or 0),
-            crew_type=row.get("crew_type", ""),
-            work_type=row.get("work_type", ""),
-        )
+    skipped = 0
+    for row_num, row in enumerate(reader, start=2):
+        try:
+            actual = ProjectActual(
+                project_id=project_id,
+                csi_code=row.get("csi_code", "").strip(),
+                description=row.get("description", ""),
+                actual_quantity=float(row.get("actual_quantity", 0) or 0),
+                actual_labor_hours=float(row.get("actual_labor_hours", 0) or 0),
+                actual_cost=float(row.get("actual_cost", 0) or 0),
+                crew_type=row.get("crew_type", ""),
+                work_type=row.get("work_type", ""),
+            )
+        except (ValueError, TypeError):
+            skipped += 1
+            continue
         db.add(actual)
         imported += 1
+
+    if imported == 0:
+        raise HTTPException(status_code=400, detail=f"No valid rows in CSV ({skipped} rows skipped due to invalid data)")
 
     db.commit()
 
@@ -615,11 +644,10 @@ async def upload_actuals(
         finally:
             session.close()
 
-    if background_tasks:
-        background_tasks.add_task(_run_improve, project_id)
+    background_tasks.add_task(_run_improve, project_id)
 
     return APIResponse(
         success=True,
-        message=f"Imported {imported} actuals, IMPROVE agent started",
-        data={"imported": imported},
+        message=f"Imported {imported} actuals ({skipped} skipped), IMPROVE agent started",
+        data={"imported": imported, "skipped": skipped},
     )

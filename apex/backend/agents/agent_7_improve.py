@@ -15,7 +15,6 @@ Execution order:
      project (estimate.variance_report_json) and returned in the output.
 """
 
-import asyncio
 import json
 import logging
 import re
@@ -31,6 +30,7 @@ from apex.backend.agents.pipeline_contracts import (
     validate_agent_output,
 )
 from apex.backend.services.token_tracker import log_token_usage
+from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.agents.tools.improve_tools import (
     variance_calculator_tool,
     productivity_updater_tool,
@@ -61,24 +61,6 @@ IMPROVE_SYSTEM_PROMPT = (
     '  "recommendation"         — string, concrete action for future estimates\n'
     '  "confidence"             — "high", "medium", or "low"\n'
 )
-
-
-# ---------------------------------------------------------------------------
-# Async helper (same pattern as Agents 5 and 6)
-# ---------------------------------------------------------------------------
-
-def _run_async(coro):
-    """Run an async coroutine from a synchronous context."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
-        return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------
@@ -156,11 +138,16 @@ def _parse_llm_improve_response(raw_content: str) -> list[Agent7VarianceItem]:
         return []
 
     validated: list[Agent7VarianceItem] = []
+    skipped = 0
     for i, item in enumerate(data):
         try:
             validated.append(Agent7VarianceItem.model_validate(item))
         except Exception as exc:
+            skipped += 1
             logger.warning(f"Agent 7 LLM: skipping malformed variance item [{i}]: {exc}")
+
+    if skipped:
+        logger.warning(f"Agent 7 LLM: {skipped}/{len(data)} items skipped due to malformed data")
 
     return validated
 

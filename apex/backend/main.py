@@ -3,11 +3,15 @@
 import asyncio
 import os
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Load .env before anything else so env vars are available during import
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -20,8 +24,10 @@ from apex.backend.routers import test_pipeline as test_pipeline_router
 from apex.backend.routers import websocket as ws_router
 from apex.backend.services.ws_manager import ws_manager
 
+# Logging — honour LOG_LEVEL env var
+log_level = getattr(logging, LOG_LEVEL, logging.INFO)
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
 )
 logger = logging.getLogger("apex")
@@ -60,20 +66,39 @@ async def lifespan(app: FastAPI):
     logger.info("APEX Platform shutting down.")
 
 
+from apex.backend.config import APEX_DEV_MODE, CORS_ORIGINS, GLOBAL_RATE_LIMIT, LOG_LEVEL
+
+limiter = Limiter(key_func=get_remote_address, default_limits=[GLOBAL_RATE_LIMIT])
+
 app = FastAPI(
     title="APEX — Automated Project Estimation Exchange",
     description="AI-powered construction estimating platform for general contractors",
     version="1.0.0",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS
+
+# ── Request ID middleware ──────────────────────────────────────────
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+# CORS — tighten methods/headers for non-dev
+_cors_origins = CORS_ORIGINS
+_is_dev = APEX_DEV_MODE
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(","),
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"] if not _is_dev else ["*"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"] if not _is_dev else ["*"],
 )
 
 # Routers
@@ -86,19 +111,20 @@ app.include_router(token_usage_router.router)
 app.include_router(ws_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
-if os.getenv("APEX_DEV_MODE", "").lower() in ("true", "1", "yes"):
+if _is_dev:
     app.include_router(test_pipeline_router.router)
     logger.info("Dev mode: test pipeline router mounted at /api/test")
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled error: {exc}", exc_info=True)
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.error(f"Unhandled error [request_id={request_id}]: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={
             "success": False,
-            "error": str(exc),
+            "error": "Internal server error",
             "message": "Internal server error",
             "data": None,
         },
@@ -107,7 +133,24 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "healthy", "service": "apex-backend", "version": "1.0.0"}
+    """Health check with database connectivity verification."""
+    db_ok = True
+    try:
+        from sqlalchemy import text
+        from apex.backend.db.database import SessionLocal
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+    except Exception:
+        db_ok = False
+
+    status = "healthy" if db_ok else "degraded"
+    return {
+        "status": status,
+        "service": "apex-backend",
+        "version": "1.0.0",
+        "database": "connected" if db_ok else "unavailable",
+    }
 
 
 @app.get("/api/health/llm")
