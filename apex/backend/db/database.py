@@ -41,13 +41,7 @@ def get_db():
         db.close()
 
 
-# Schema migrations handled by Alembic — run: alembic upgrade head
+# Schema migrations handled by Alembic — see apex/backend/alembic/versions/
+# Run: PYTHONPATH=. alembic -c apex/backend/alembic.ini upgrade head
 def init_db():
-    from apex.backend.models import (  # noqa: F401
-        user, organization, project, document, spec_section,
-        gap_report, takeoff_item, labor_estimate, material_price,
-        estimate, project_actual, productivity_history, agent_run_log,
-        token_usage, upload_session, upload_chunk, equipment_rate,
-        bid_comparison, change_order,
-    )
-    Base.metadata.create_all(bind=engine)
+    pass
