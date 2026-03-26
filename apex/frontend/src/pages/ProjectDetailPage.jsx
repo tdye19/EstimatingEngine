@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useParams, NavLink, Routes, Route, Navigate } from 'react-router-dom';
 import { getProject, runAgents, uploadDocument, updateProject } from '../api';
 import {
@@ -22,6 +22,8 @@ import {
   GitBranch,
   Package,
   FileDiff,
+  LibraryBig,
+  FolderArchive,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -41,6 +43,9 @@ import EstimateVersionsTab from '../components/tabs/EstimateVersionsTab';
 import ErrorBoundary from '../components/ErrorBoundary';
 import PipelineStatus from '../components/PipelineStatus';
 
+const EstimateLibraryTab = lazy(() => import('../components/tabs/EstimateLibraryTab'));
+const BatchUploadTab = lazy(() => import('../components/tabs/BatchUploadTab'));
+
 const TABS = [
   { path: 'documents', label: 'Documents', icon: Files },
   { path: 'spec-sections', label: 'Spec Sections', icon: BookOpen },
@@ -56,6 +61,8 @@ const TABS = [
   { path: 'schedule', label: 'Schedule', icon: Calendar },
   { path: 'agents', label: 'Agent Logs', icon: Activity },
   { path: 'cost-tracking', label: 'Cost Tracking', icon: DollarSign },
+  { path: 'estimate-library', label: 'Estimate Library', icon: LibraryBig },
+  { path: 'batch-import', label: 'Batch Import', icon: FolderArchive },
 ];
 
 export default function ProjectDetailPage() {
@@ -285,6 +292,26 @@ export default function ProjectDetailPage() {
         <Route path="schedule" element={<ErrorBoundary key="schedule"><ScheduleTab projectId={id} /></ErrorBoundary>} />
         <Route path="agents" element={<ErrorBoundary key="agents"><AgentLogsTab projectId={id} onAgentComplete={handleAgentComplete} /></ErrorBoundary>} />
         <Route path="cost-tracking" element={<ErrorBoundary key="cost-tracking"><CostTrackingTab projectId={id} refreshKey={costRefreshKey} /></ErrorBoundary>} />
+        <Route
+          path="estimate-library"
+          element={
+            <ErrorBoundary key="estimate-library">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading…</div>}>
+                <EstimateLibraryTab />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="batch-import"
+          element={
+            <ErrorBoundary key="batch-import">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading…</div>}>
+                <BatchUploadTab />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
         <Route index element={<Navigate to="documents" replace />} />
       </Routes>
 

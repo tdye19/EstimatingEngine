@@ -397,3 +397,75 @@ export const getNotificationSettings = () => request('/notifications/settings');
 
 export const sendTestNotification = () =>
   request('/notifications/test', { method: 'POST' });
+
+// ── Estimate Library ──────────────────────────────────
+export const getEstimateLibrary = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/estimate-library/${qs ? `?${qs}` : ''}`);
+};
+
+export const getEstimateLibraryEntry = (entryId) =>
+  request(`/estimate-library/${entryId}`);
+
+export const createEstimateLibraryEntry = (data) =>
+  request('/estimate-library/', { method: 'POST', body: JSON.stringify(data) });
+
+export const updateEstimateLibraryEntry = (entryId, data) =>
+  request(`/estimate-library/${entryId}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const deleteEstimateLibraryEntry = (entryId) =>
+  request(`/estimate-library/${entryId}`, { method: 'DELETE' });
+
+export const getEstimateLibraryStats = () =>
+  request('/estimate-library/stats/summary');
+
+export const compareEstimates = (ids) =>
+  request(`/estimate-library/compare?ids=${ids.join(',')}`);
+
+// ── Batch Import ──────────────────────────────────────
+export const uploadBatchZip = (file, onProgress) => {
+  const form = new FormData();
+  form.append('file', file);
+  return new Promise((resolve, reject) => {
+    const token = localStorage.getItem('apex_token');
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}/batch-import/upload-zip`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        localStorage.removeItem('apex_token');
+        window.location.href = '/login';
+        reject(new Error('Session expired — please log in again'));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const json = JSON.parse(xhr.responseText);
+        resolve(json.data !== undefined ? json.data : json);
+      } else {
+        let err = {};
+        try { err = JSON.parse(xhr.responseText); } catch (_) {}
+        reject(new Error(err.detail || 'Upload failed'));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.send(form);
+  });
+};
+
+export const getBatchGroups = () => request('/batch-import/groups');
+
+export const getBatchGroup = (groupId) => request(`/batch-import/groups/${groupId}`);
+
+export const processBatchGroup = (groupId) =>
+  request(`/batch-import/process-group/${groupId}`, { method: 'POST' });
+
+export const updateDocumentAssociation = (assocId, data) =>
+  request(`/batch-import/associations/${assocId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
