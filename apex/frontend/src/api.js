@@ -469,3 +469,6 @@ export const updateDocumentAssociation = (assocId, data) =>
     method: 'PUT',
     body: JSON.stringify(data),
   });
+
+export const processWinest = (assocId) =>
+  request(`/batch-import/process-winest/${assocId}`, { method: 'POST' });
