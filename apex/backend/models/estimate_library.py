@@ -82,6 +82,11 @@ class EstimateLibraryEntry(Base, TimestampMixin):
         back_populates="entry",
         cascade="all, delete-orphan",
     )
+    line_items = relationship(
+        "HistoricalLineItem",
+        back_populates="library_entry",
+        cascade="all, delete-orphan",
+    )
 
     # ── helpers ────────────────────────────────────────────────────
     def recalculate_cost_per_sqft(self) -> None:
