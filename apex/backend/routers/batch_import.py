@@ -128,7 +128,7 @@ def process_group(
     if not group:
         raise HTTPException(status_code=404, detail="DocumentGroup not found")
 
-    ws_manager.broadcast_sync(
+    ws_manager.broadcast_batch_sync(
         group_id,
         {"event": "batch_group_started", "group_id": group_id, "group_name": group.name},
     )
@@ -136,14 +136,14 @@ def process_group(
     try:
         summary = _service.process_batch_group(group_id=group_id, db=db)
     except Exception as exc:
-        ws_manager.broadcast_sync(
+        ws_manager.broadcast_batch_sync(
             group_id,
             {"event": "batch_group_error", "group_id": group_id, "error": str(exc)},
         )
         logger.error("process_batch_group failed for group %d: %s", group_id, exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
-    ws_manager.broadcast_sync(
+    ws_manager.broadcast_batch_sync(
         group_id,
         {"event": "batch_group_complete", "group_id": group_id, "summary": summary},
     )
