@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { getTakeoff, updateTakeoffItem, bulkUpdateTakeoff } from '../../api';
-import { Ruler, Pencil, Check, X, ChevronUp, ChevronDown, Search, StickyNote } from 'lucide-react';
+import { Ruler, Pencil, Check, X, ChevronUp, ChevronDown, Search, StickyNote, AlertTriangle } from 'lucide-react';
 
 export default function TakeoffTab({ projectId }) {
   const [items, setItems] = useState([]);
@@ -275,8 +275,9 @@ export default function TakeoffTab({ projectId }) {
               <tbody className="divide-y divide-gray-50">
                 {divItems.map((item) => {
                   const isEditing = editId === item.id;
+                  const isLowConf = (item.confidence || 0) < 0.7;
                   return (
-                    <tr key={item.id} className={`hover:bg-gray-50 ${selectedIds.has(item.id) ? 'bg-apex-50' : ''}`}>
+                    <tr key={item.id} className={`hover:bg-gray-50 ${selectedIds.has(item.id) ? 'bg-apex-50' : isLowConf ? 'bg-yellow-50/50' : ''}`} title={isLowConf ? 'Low confidence — verify this quantity before submitting' : undefined}>
                       <td className="px-4 py-2">
                         <input
                           type="checkbox"
@@ -286,7 +287,7 @@ export default function TakeoffTab({ projectId }) {
                         />
                       </td>
                       <td className="px-4 py-2 font-mono text-xs">{item.csi_code}</td>
-                      <td className="px-4 py-2">{item.description}</td>
+                      <td className="px-4 py-2"><div className="flex items-center gap-1.5">{isLowConf && <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 shrink-0" title="Low confidence" />}{item.description}</div></td>
                       <td className="px-4 py-2 text-right font-medium">
                         {isEditing ? (
                           <input

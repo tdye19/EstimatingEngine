@@ -204,6 +204,7 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
             onSuccess={handleUploadSuccess}
             onError={handleUploadError}
             disabled={pipelineRunning}
+            multiple
           />
           {hasDocuments && (
             <button

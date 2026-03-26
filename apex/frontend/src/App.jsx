@@ -9,6 +9,7 @@ import AdminPage from './pages/AdminPage';
 import MaterialsPage from './pages/MaterialsPage';
 import ComparePage from './pages/ComparePage';
 import FieldActualsPage from './pages/FieldActualsPage';
+import BenchmarkingPage from './pages/BenchmarkingPage';
 import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/materials" element={<MaterialsPage />} />
           <Route path="/compare" element={<ComparePage />} />
           <Route path="/field-entry" element={<FieldActualsPage />} />
+          <Route path="/benchmarking" element={<BenchmarkingPage />} />
           {user?.role === 'admin' && (
             <Route path="/admin" element={<AdminPage />} />
           )}

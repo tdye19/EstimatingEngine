@@ -351,6 +351,108 @@ class PipelineStatusOut(BaseModel):
     overall: str  # pending / running / completed / failed
 
 
+# --- Bid Comparison ---
+class BidComparisonItemCreate(BaseModel):
+    division_number: str
+    csi_code: Optional[str] = None
+    description: Optional[str] = None
+    amount: float = 0.0
+    unit_cost: Optional[float] = None
+    quantity: Optional[float] = None
+    unit_of_measure: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class BidComparisonItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    comparison_id: int
+    division_number: str
+    csi_code: Optional[str] = None
+    description: Optional[str] = None
+    amount: float
+    unit_cost: Optional[float] = None
+    quantity: Optional[float] = None
+    unit_of_measure: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class BidComparisonCreate(BaseModel):
+    name: str
+    source_type: str = "competitor"
+    bid_date: Optional[str] = None
+    total_bid_amount: Optional[float] = None
+    notes: Optional[str] = None
+    items: list[BidComparisonItemCreate] = []
+
+
+class BidComparisonOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: int
+    name: str
+    source_type: str
+    bid_date: Optional[str] = None
+    total_bid_amount: Optional[float] = None
+    notes: Optional[str] = None
+    items: list[BidComparisonItemOut] = []
+    created_at: datetime
+
+
+# --- Change Order ---
+class ChangeOrderCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    csi_code: Optional[str] = None
+    change_type: str = "addition"
+    requested_by: Optional[str] = None
+    cost_impact: float = 0.0
+    schedule_impact_days: int = 0
+    status: str = "pending"
+
+
+class ChangeOrderUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    csi_code: Optional[str] = None
+    change_type: Optional[str] = None
+    requested_by: Optional[str] = None
+    cost_impact: Optional[float] = None
+    schedule_impact_days: Optional[int] = None
+    status: Optional[str] = None
+
+
+class ChangeOrderOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: int
+    co_number: str
+    title: str
+    description: Optional[str] = None
+    csi_code: Optional[str] = None
+    change_type: str
+    requested_by: Optional[str] = None
+    cost_impact: float
+    schedule_impact_days: int
+    status: str
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- Estimate Version ---
+class EstimateVersionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: int
+    version: int
+    status: str
+    total_direct_cost: float
+    total_bid_amount: float
+    created_at: datetime
+
+
 # --- Agent Run Log ---
 class AgentRunLogOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

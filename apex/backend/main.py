@@ -25,6 +25,12 @@ from apex.backend.routers import exports
 from apex.backend.routers import token_usage as token_usage_router
 from apex.backend.routers import test_pipeline as test_pipeline_router
 from apex.backend.routers import websocket as ws_router
+from apex.backend.routers import bid_comparison as bid_comparison_router
+from apex.backend.routers import change_orders as change_orders_router
+from apex.backend.routers import material_prices as material_prices_router
+from apex.backend.routers import benchmarking as benchmarking_router
+from apex.backend.routers import users as users_router
+from apex.backend.routers import notifications as notifications_router
 from apex.backend.services.ws_manager import ws_manager
 
 # Logging — honour LOG_LEVEL env var
@@ -112,6 +118,12 @@ app.include_router(exports.router)
 app.include_router(materials_router.router)
 app.include_router(token_usage_router.router)
 app.include_router(ws_router.router)
+app.include_router(bid_comparison_router.router)
+app.include_router(change_orders_router.router)
+app.include_router(material_prices_router.router)
+app.include_router(benchmarking_router.router)
+app.include_router(users_router.router)
+app.include_router(notifications_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
 if _is_dev:

@@ -2,7 +2,6 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
-  FolderKanban,
   Library,
   LogOut,
   Zap,
@@ -10,6 +9,7 @@ import {
   DollarSign,
   ArrowLeftRight,
   ClipboardList,
+  TrendingUp,
 } from 'lucide-react';
 import LLMStatus from './LLMStatus';
 
@@ -19,6 +19,7 @@ const NAV = [
   { to: '/materials', icon: DollarSign, label: 'Material Prices' },
   { to: '/compare', icon: ArrowLeftRight, label: 'Compare' },
   { to: '/field-entry', icon: ClipboardList, label: 'Field Entry' },
+  { to: '/benchmarking', icon: TrendingUp, label: 'Benchmarking' },
 ];
 
 const ADMIN_NAV = { to: '/admin', icon: Shield, label: 'Admin' };

@@ -371,6 +371,11 @@ class AgentOrchestrator:
                 "skipped_agents":   skipped_agents,
                 "total_elapsed_ms": _elapsed_ms(),
             })
+            # Email notification — fire-and-forget (errors logged, never raised)
+            try:
+                self._notify_pipeline_complete(results)
+            except Exception as _e:
+                logger.warning("Email notification failed: %s", _e)
         else:
             ws_manager.broadcast_sync(self.project_id, {
                 "type":             "pipeline_error",
@@ -385,6 +390,48 @@ class AgentOrchestrator:
             })
 
         return results
+
+    # ------------------------------------------------------------------
+    # Email notification helpers
+    # ------------------------------------------------------------------
+
+    def _notify_pipeline_complete(self, results: dict):
+        """Send pipeline-complete email to the project owner (if NOTIFICATIONS_ENABLED)."""
+        import os
+        if os.getenv("NOTIFICATIONS_ENABLED", "false").lower() not in ("true", "1", "yes"):
+            return
+
+        from apex.backend.services.email_service import notify_pipeline_complete
+        from apex.backend.models.estimate import Estimate
+        from apex.backend.models.user import User
+
+        project = self.db.query(Project).filter(Project.id == self.project_id).first()
+        if not project:
+            return
+
+        estimate = (
+            self.db.query(Estimate)
+            .filter(Estimate.project_id == self.project_id, Estimate.is_deleted == False)  # noqa: E712
+            .order_by(Estimate.version.desc())
+            .first()
+        )
+
+        recipient = None
+        if project.owner_id:
+            owner = self.db.query(User).filter(User.id == project.owner_id).first()
+            if owner and owner.email:
+                recipient = owner.email
+
+        notify_email = os.getenv("NOTIFICATION_EMAIL", recipient)
+        if not notify_email:
+            return
+
+        notify_pipeline_complete(
+            to=notify_email,
+            project_name=project.name,
+            project_number=project.project_number,
+            total_bid=estimate.total_bid_amount if estimate else None,
+        )
 
     # ------------------------------------------------------------------
     # Pipeline status query

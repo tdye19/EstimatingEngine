@@ -303,3 +303,100 @@ export async function updateMaterialPrice(priceId, data) {
 export async function deleteMaterialPrice(priceId) {
   return request(`/material-prices/${priceId}`, { method: 'DELETE' });
 }
+
+// ── Bid Comparisons ────────────────────────────────────
+export const getBidComparisons = (projectId) =>
+  request(`/projects/${projectId}/bid-comparisons`);
+
+export const createBidComparison = (projectId, data) =>
+  request(`/projects/${projectId}/bid-comparisons`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const deleteBidComparison = (projectId, compId) =>
+  request(`/projects/${projectId}/bid-comparisons/${compId}`, { method: 'DELETE' });
+
+export const getBidComparisonOverlay = (projectId) =>
+  request(`/projects/${projectId}/bid-comparisons/overlay`);
+
+// ── Change Orders ──────────────────────────────────────
+export const getChangeOrders = (projectId) =>
+  request(`/projects/${projectId}/change-orders`);
+
+export const createChangeOrder = (projectId, data) =>
+  request(`/projects/${projectId}/change-orders`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const updateChangeOrder = (projectId, coId, data) =>
+  request(`/projects/${projectId}/change-orders/${coId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+export const deleteChangeOrder = (projectId, coId) =>
+  request(`/projects/${projectId}/change-orders/${coId}`, { method: 'DELETE' });
+
+export const getChangeOrderSummary = (projectId) =>
+  request(`/projects/${projectId}/change-orders/summary`);
+
+// ── Estimate Versioning ────────────────────────────────
+export const getEstimateVersions = (projectId) =>
+  request(`/projects/${projectId}/estimate/versions`);
+
+export const getEstimateVersion = (projectId, version) =>
+  request(`/projects/${projectId}/estimate/versions/${version}`);
+
+export const snapshotEstimate = (projectId) =>
+  request(`/projects/${projectId}/estimate/snapshot`, { method: 'POST' });
+
+// ── Subcontractor Packages ────────────────────────────
+export const listSubcontractorPackages = (projectId) =>
+  request(`/exports/projects/${projectId}/subcontractor-packages/list`)
+    .then((d) => d?.data ?? d);
+
+export const downloadSubcontractorPackage = (projectId, trade, filename) =>
+  downloadBlob(`/exports/projects/${projectId}/subcontractor-packages/${trade}`, filename);
+
+// ── Material Price Lookup & Benchmarks ────────────────
+export const lookupMaterialPrice = (csiCode, description, unit) =>
+  request('/material-prices/lookup', {
+    method: 'POST',
+    body: JSON.stringify({ csi_code: csiCode, description, unit }),
+  });
+
+export const getMaterialBenchmarks = () => request('/material-prices/benchmarks');
+
+export const getProjectMaterialCosts = (projectId) =>
+  request(`/material-prices/projects/${projectId}/material-costs`);
+
+// ── Benchmarking ─────────────────────────────────────
+export const getBenchmarkProjects = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/benchmarking/projects${qs ? `?${qs}` : ''}`);
+};
+
+export const getDivisionTrends = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/benchmarking/division-trends${qs ? `?${qs}` : ''}`);
+};
+
+// ── User Profile & Roles ──────────────────────────────
+export const getMe = () => request('/users/me');
+
+export const updateUserRole = (userId, role) =>
+  request(`/users/${userId}/role`, {
+    method: 'PUT',
+    body: JSON.stringify({ role }),
+  });
+
+export const deactivateUser = (userId) =>
+  request(`/users/${userId}`, { method: 'DELETE' });
+
+// ── Notifications ─────────────────────────────────────
+export const getNotificationSettings = () => request('/notifications/settings');
+
+export const sendTestNotification = () =>
+  request('/notifications/test', { method: 'POST' });

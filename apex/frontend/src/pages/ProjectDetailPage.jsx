@@ -18,6 +18,10 @@ import {
   BookOpen,
   DollarSign,
   Calendar,
+  BarChart2,
+  GitBranch,
+  Package,
+  FileDiff,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -30,6 +34,10 @@ import DocumentsTab from '../components/tabs/DocumentsTab';
 import SpecSectionsTab from '../components/tabs/SpecSectionsTab';
 import CostTrackingTab from '../components/tabs/CostTrackingTab';
 import ScheduleTab from '../components/tabs/ScheduleTab';
+import BidComparisonTab from '../components/tabs/BidComparisonTab';
+import ChangeOrderTab from '../components/tabs/ChangeOrderTab';
+import SubcontractorPackageTab from '../components/tabs/SubcontractorPackageTab';
+import EstimateVersionsTab from '../components/tabs/EstimateVersionsTab';
 import ErrorBoundary from '../components/ErrorBoundary';
 import PipelineStatus from '../components/PipelineStatus';
 
@@ -40,6 +48,10 @@ const TABS = [
   { path: 'takeoff', label: 'Takeoff', icon: Ruler },
   { path: 'labor', label: 'Labor', icon: HardHat },
   { path: 'estimate', label: 'Estimate', icon: Calculator },
+  { path: 'estimate-versions', label: 'Versions', icon: GitBranch },
+  { path: 'bid-comparison', label: 'Bid Compare', icon: BarChart2 },
+  { path: 'sub-packages', label: 'Sub Packages', icon: Package },
+  { path: 'change-orders', label: 'Change Orders', icon: FileDiff },
   { path: 'variance', label: 'Variance', icon: TrendingUp },
   { path: 'schedule', label: 'Schedule', icon: Calendar },
   { path: 'agents', label: 'Agent Logs', icon: Activity },
@@ -63,6 +75,10 @@ export default function ProjectDetailPage() {
   const [estimateRefreshKey, setEstimateRefreshKey] = useState(0);
   const [varianceRefreshKey, setVarianceRefreshKey] = useState(0);
   const [costRefreshKey, setCostRefreshKey] = useState(0);
+  const [bidCompareRefreshKey, setBidCompareRefreshKey] = useState(0);
+  const [changeOrderRefreshKey, setChangeOrderRefreshKey] = useState(0);
+  const [subPackageRefreshKey, setSubPackageRefreshKey] = useState(0);
+  const [versionsRefreshKey, setVersionsRefreshKey] = useState(0);
   const fileInputRef = useRef(null);
 
   const loadProject = () => {
@@ -112,6 +128,8 @@ export default function ProjectDetailPage() {
     setEstimateRefreshKey((k) => k + 1);
     setVarianceRefreshKey((k) => k + 1);
     setCostRefreshKey((k) => k + 1);
+    setSubPackageRefreshKey((k) => k + 1);
+    setVersionsRefreshKey((k) => k + 1);
   };
 
   const handleAgentComplete = (agentNumber) => {
@@ -259,6 +277,10 @@ export default function ProjectDetailPage() {
         <Route path="takeoff" element={<ErrorBoundary key="takeoff"><TakeoffTab projectId={id} refreshKey={takeoffRefreshKey} /></ErrorBoundary>} />
         <Route path="labor" element={<ErrorBoundary key="labor"><LaborTab projectId={id} refreshKey={laborRefreshKey} /></ErrorBoundary>} />
         <Route path="estimate" element={<ErrorBoundary key="estimate"><EstimateTab projectId={id} project={project} refreshKey={estimateRefreshKey} /></ErrorBoundary>} />
+        <Route path="estimate-versions" element={<ErrorBoundary key="estimate-versions"><EstimateVersionsTab projectId={id} refreshKey={versionsRefreshKey} /></ErrorBoundary>} />
+        <Route path="bid-comparison" element={<ErrorBoundary key="bid-comparison"><BidComparisonTab projectId={id} refreshKey={bidCompareRefreshKey} /></ErrorBoundary>} />
+        <Route path="sub-packages" element={<ErrorBoundary key="sub-packages"><SubcontractorPackageTab projectId={id} project={project} refreshKey={subPackageRefreshKey} /></ErrorBoundary>} />
+        <Route path="change-orders" element={<ErrorBoundary key="change-orders"><ChangeOrderTab projectId={id} refreshKey={changeOrderRefreshKey} /></ErrorBoundary>} />
         <Route path="variance" element={<ErrorBoundary key="variance"><VarianceTab projectId={id} refreshKey={varianceRefreshKey} /></ErrorBoundary>} />
         <Route path="schedule" element={<ErrorBoundary key="schedule"><ScheduleTab projectId={id} /></ErrorBoundary>} />
         <Route path="agents" element={<ErrorBoundary key="agents"><AgentLogsTab projectId={id} onAgentComplete={handleAgentComplete} /></ErrorBoundary>} />

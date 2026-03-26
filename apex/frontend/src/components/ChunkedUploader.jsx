@@ -15,14 +15,16 @@ const MAX_RETRIES = 3;
  *
  * Props:
  *   projectId  – current project ID
- *   onSuccess(doc)  – called with the DocumentOut object on completion
- *   onError(msg)    – called with an error string if the upload fails
+ *   onSuccess(doc)  – called with the DocumentOut object on each successful upload
+ *   onError(msg)    – called with an error string if an upload fails
  *   disabled        – disable the button (e.g. while pipeline is running)
+ *   multiple        – enable multi-file selection (default false)
  */
-export default function ChunkedUploader({ projectId, onSuccess, onError, disabled }) {
+export default function ChunkedUploader({ projectId, onSuccess, onError, disabled, multiple = false }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);     // 0–100
   const [statusMsg, setStatusMsg] = useState('');
+  const [batchProgress, setBatchProgress] = useState(null); // { current, total } during batch
   const fileInputRef = useRef(null);
 
   async function uploadLargeFile(file) {
@@ -71,32 +73,64 @@ export default function ChunkedUploader({ projectId, onSuccess, onError, disable
     return doc;
   }
 
+  async function uploadSingleFile(file) {
+    setProgress(0);
+    setStatusMsg(`Uploading "${file.name}"…`);
+    let doc;
+    if (file.size > SMALL_FILE_THRESHOLD) {
+      doc = await uploadLargeFile(file);
+    } else {
+      setProgress(50);
+      doc = await uploadDocument(projectId, file);
+      setProgress(100);
+    }
+    return doc;
+  }
+
   async function handleFileChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
     setUploading(true);
     setProgress(0);
     setStatusMsg('');
 
-    try {
-      let doc;
-      if (file.size > SMALL_FILE_THRESHOLD) {
-        doc = await uploadLargeFile(file);
-      } else {
-        setStatusMsg('Uploading…');
-        setProgress(50);
-        doc = await uploadDocument(projectId, file);
-        setProgress(100);
+    if (files.length === 1) {
+      try {
+        const doc = await uploadSingleFile(files[0]);
+        onSuccess?.(doc);
+      } catch (err) {
+        onError?.(err.message || 'Upload failed');
+      } finally {
+        setUploading(false);
+        setStatusMsg('');
+        setProgress(0);
+        e.target.value = '';
       }
-      onSuccess?.(doc);
-    } catch (err) {
-      onError?.(err.message || 'Upload failed');
-    } finally {
-      setUploading(false);
-      setStatusMsg('');
-      setProgress(0);
-      e.target.value = '';
+      return;
+    }
+
+    // Batch upload: sequential, one file at a time
+    setBatchProgress({ current: 0, total: files.length });
+    let successCount = 0;
+    const errors = [];
+    for (let i = 0; i < files.length; i++) {
+      setBatchProgress({ current: i + 1, total: files.length });
+      try {
+        const doc = await uploadSingleFile(files[i]);
+        onSuccess?.(doc);
+        successCount++;
+      } catch (err) {
+        errors.push(`"${files[i].name}": ${err.message}`);
+      }
+    }
+    setUploading(false);
+    setBatchProgress(null);
+    setStatusMsg('');
+    setProgress(0);
+    e.target.value = '';
+    if (errors.length) {
+      onError?.(`${successCount}/${files.length} uploaded. Errors: ${errors.join('; ')}`);
     }
   }
 
@@ -108,23 +142,32 @@ export default function ChunkedUploader({ projectId, onSuccess, onError, disable
           type="file"
           accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.est"
           className="hidden"
+          multiple={multiple}
           onChange={handleFileChange}
         />
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || uploading}
           className="btn-secondary flex items-center gap-2 text-sm"
-          title="Upload a construction spec (PDF/DOCX) or a WinEst estimate file (.est/.xlsx)"
+          title={multiple ? "Upload one or more spec/estimate files" : "Upload a construction spec (PDF/DOCX) or a WinEst estimate file (.est/.xlsx)"}
         >
           {uploading
             ? <Loader2 className="h-4 w-4 animate-spin" />
             : <Upload className="h-4 w-4" />}
-          {uploading ? 'Uploading…' : 'Upload Document'}
+          {uploading
+            ? batchProgress
+              ? `Uploading ${batchProgress.current}/${batchProgress.total}…`
+              : 'Uploading…'
+            : multiple
+            ? 'Upload Documents'
+            : 'Upload Document'}
         </button>
       </div>
       {!uploading && (
         <p className="text-xs text-gray-400">
-          Spec (PDF/DOCX) or WinEst estimate (.est&nbsp;/&nbsp;.xlsx)
+          {multiple
+            ? 'Select multiple files — specs (PDF/DOCX), WinEst (.est/.xlsx)'
+            : 'Spec (PDF/DOCX) or WinEst estimate (.est\u00a0/\u00a0.xlsx)'}
         </p>
       )}
 
@@ -132,6 +175,11 @@ export default function ChunkedUploader({ projectId, onSuccess, onError, disable
         <div className="space-y-1 min-w-[220px]">
           {statusMsg && (
             <p className="text-xs text-gray-500 truncate">{statusMsg}</p>
+          )}
+          {batchProgress && (
+            <p className="text-xs text-gray-500">
+              File {batchProgress.current} of {batchProgress.total}
+            </p>
           )}
           <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
             <div

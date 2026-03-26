@@ -462,6 +462,216 @@ def export_estimate_xlsx(
     )
 
 
+# ─────────────────────────── SUBCONTRACTOR PACKAGES ────────────────────────
+
+# Map CSI division prefix → trade name
+_TRADE_MAP = {
+    "01": "General Conditions",
+    "02": "Existing Conditions",
+    "03": "Concrete",
+    "04": "Masonry",
+    "05": "Metals",
+    "06": "Wood & Plastics",
+    "07": "Thermal & Moisture",
+    "08": "Openings",
+    "09": "Finishes",
+    "10": "Specialties",
+    "11": "Equipment",
+    "12": "Furnishings",
+    "13": "Special Construction",
+    "14": "Conveying",
+    "21": "Fire Suppression",
+    "22": "Plumbing",
+    "23": "HVAC",
+    "25": "Integrated Automation",
+    "26": "Electrical",
+    "27": "Communications",
+    "28": "Electronic Safety",
+    "31": "Earthwork",
+    "32": "Exterior Improvements",
+    "33": "Utilities",
+}
+
+
+@router.get("/projects/{project_id}/subcontractor-packages/list")
+def list_subcontractor_packages(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """Return the trade breakdown without generating PDFs — for the UI table."""
+    project, estimate, org = _get_estimate_or_404(project_id, db)
+
+    trades: dict[str, dict] = {}
+    for li in estimate.line_items or []:
+        div = (li.division_number or "00").strip()
+        trade = _TRADE_MAP.get(div[:2] if len(div) >= 2 else div, f"Division {div}")
+        if trade not in trades:
+            trades[trade] = {"division": div[:2] if len(div) >= 2 else div, "items": 0, "total": 0.0}
+        trades[trade]["items"] += 1
+        trades[trade]["total"] += li.total_cost or 0.0
+
+    result = [
+        {"trade": t, "division": v["division"], "items": v["items"], "total": v["total"]}
+        for t, v in sorted(trades.items(), key=lambda x: x[1]["division"])
+    ]
+    return {"success": True, "data": result}
+
+
+@router.get("/projects/{project_id}/subcontractor-packages/{trade}")
+def export_subcontractor_package_pdf(
+    project_id: int,
+    trade: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """Generate a PDF bid package for a single trade / CSI division."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+
+    project, estimate, org = _get_estimate_or_404(project_id, db)
+
+    trade_decoded = trade.replace("-", " ").title()
+
+    # Collect matching line items (match by trade name or division prefix)
+    div_prefix = next(
+        (k for k, v in _TRADE_MAP.items() if v.lower() == trade_decoded.lower()),
+        None,
+    )
+    line_items = [
+        li for li in (estimate.line_items or [])
+        if (li.division_number or "").startswith(div_prefix or "__NOMATCH__")
+        or (li.division_number or "") == trade_decoded
+    ]
+
+    if not line_items:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No line items found for trade '{trade_decoded}'",
+        )
+
+    buf = io.BytesIO()
+    styles = getSampleStyleSheet()
+    APEX_BLUE = colors.HexColor("#1e40af")
+    LIGHT_GRAY = colors.HexColor("#f1f5f9")
+    MID_GRAY = colors.HexColor("#94a3b8")
+
+    style_title = ParagraphStyle("title", parent=styles["Normal"], fontSize=18, fontName="Helvetica-Bold", textColor=APEX_BLUE, spaceAfter=4)
+    style_sub = ParagraphStyle("sub", parent=styles["Normal"], fontSize=11, fontName="Helvetica-Bold", textColor=APEX_BLUE, spaceBefore=10, spaceAfter=4)
+    style_meta = ParagraphStyle("meta", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#475569"))
+    style_footer = ParagraphStyle("footer", parent=styles["Normal"], fontSize=8, textColor=MID_GRAY, alignment=1)
+
+    def fmt_dollar(val):
+        return f"${val:,.0f}" if val is not None else "$0"
+
+    doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=0.75*inch, rightMargin=0.75*inch, topMargin=0.75*inch, bottomMargin=0.75*inch)
+    story = []
+
+    org_name = org.name if org else "General Contractor"
+    story.append(Paragraph(org_name.upper(), ParagraphStyle("org", parent=styles["Normal"], fontSize=9, textColor=MID_GRAY)))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph(f"SUBCONTRACTOR BID PACKAGE", style_title))
+    story.append(Paragraph(f"{project.name} — {trade_decoded}", style_sub))
+    story.append(HRFlowable(width="100%", thickness=2, color=APEX_BLUE, spaceAfter=6))
+
+    meta = (
+        f"<b>Project #:</b> {project.project_number} &nbsp;&nbsp; "
+        f"<b>Location:</b> {project.location or '—'} &nbsp;&nbsp; "
+        f"<b>Bid Date:</b> {project.bid_date or '—'} &nbsp;&nbsp; "
+        f"<b>Date Issued:</b> {date.today().strftime('%B %d, %Y')}"
+    )
+    story.append(Paragraph(meta, style_meta))
+    story.append(Spacer(1, 16))
+
+    story.append(Paragraph("Scope of Work", style_sub))
+    story.append(Paragraph(
+        f"The following scope of work is to be performed by the subcontractor for "
+        f"<b>{trade_decoded}</b> work. All work shall conform to project specifications, "
+        f"applicable codes, and general contractor requirements.",
+        styles["Normal"],
+    ))
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Bid Items", style_sub))
+    col_widths = [0.7*inch, 2.8*inch, 0.6*inch, 0.5*inch, 0.9*inch, 0.9*inch]
+    header_row = [
+        Paragraph("<b>CSI Code</b>", styles["Normal"]),
+        Paragraph("<b>Description</b>", styles["Normal"]),
+        Paragraph("<b>Qty</b>", styles["Normal"]),
+        Paragraph("<b>Unit</b>", styles["Normal"]),
+        Paragraph("<b>Unit Cost</b>", styles["Normal"]),
+        Paragraph("<b>Total</b>", styles["Normal"]),
+    ]
+    tbl_data = [header_row]
+    total_cost = 0.0
+
+    for li in line_items:
+        tbl_data.append([
+            li.csi_code or "",
+            li.description or "",
+            f"{li.quantity or 0:,.1f}",
+            li.unit_of_measure or "",
+            fmt_dollar(li.unit_cost),
+            fmt_dollar(li.total_cost),
+        ])
+        total_cost += li.total_cost or 0.0
+
+    tbl_data.append([
+        "", Paragraph("<b>SUBTOTAL</b>", styles["Normal"]),
+        "", "", "",
+        Paragraph(f"<b>{fmt_dollar(total_cost)}</b>", styles["Normal"]),
+    ])
+
+    tbl = Table(tbl_data, colWidths=col_widths, repeatRows=1)
+    last = len(tbl_data) - 1
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), APEX_BLUE),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, last - 1), [colors.white, LIGHT_GRAY]),
+        ("BACKGROUND", (0, last), (-1, last), colors.HexColor("#dbeafe")),
+        ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 20))
+
+    story.append(Paragraph("Terms & Conditions", style_sub))
+    for term in [
+        "Subcontractor shall provide all labor, material, equipment, and supervision.",
+        "All work subject to general contractor review and approval.",
+        "Subcontractor shall carry liability insurance per project requirements.",
+        "Submission of bid constitutes acceptance of project schedule and milestones.",
+        "Unit prices shall remain firm for 30 days from bid date.",
+    ]:
+        story.append(Paragraph(f"• {term}", styles["Normal"]))
+    story.append(Spacer(1, 12))
+
+    story.append(HRFlowable(width="100%", thickness=1, color=MID_GRAY, spaceBefore=12, spaceAfter=6))
+    story.append(Paragraph(
+        f"Package prepared by {current_user.full_name} | APEX Estimating Platform",
+        style_footer,
+    ))
+
+    doc.build(story)
+    buf.seek(0)
+
+    safe_trade = trade_decoded.replace(" ", "-").replace("/", "-").lower()
+    filename = f"{project.project_number}_{safe_trade}_bid_package.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 # ─────────────────────────── CSV ───────────────────────────
 
 @router.get("/projects/{project_id}/estimate/csv")
