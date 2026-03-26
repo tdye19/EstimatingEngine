@@ -13,11 +13,16 @@ from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.upload_session import UploadSession
 from apex.backend.models.upload_chunk import UploadChunk
+from apex.backend.models.token_Usage import TokenUsage
+from apex.backend.models.bid_Comparison import BidComparison
+from apex.backend.models.equipment_Rate import EquipmentRate
+from apex.backend.models.change_Order import ChangeOrder
+from apex.backend.models.audit_log import AuditLog
 
 __all__ = [
     "User", "Organization", "Project", "Document", "SpecSection",
     "GapReport", "GapReportItem", "TakeoffItem", "LaborEstimate",
     "MaterialPrice", "Estimate", "EstimateLineItem", "ProjectActual",
     "ProductivityHistory", "AgentRunLog",
-    "UploadSession", "UploadChunk",
+    "UploadSession", "UploadChunk", "TokenUsage", "BidComparison", "EquipmentRate", "ChangeOrder", "AuditLog",
 ]
