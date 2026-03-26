@@ -19,6 +19,7 @@ from apex.backend.models.equipment_Rate import EquipmentRate
 from apex.backend.models.change_Order import ChangeOrder
 from apex.backend.models.audit_log import AuditLog
 from apex.backend.models.estimate_library import EstimateLibraryEntry, EstimateLibraryTag
+from apex.backend.models.historical_line_item import HistoricalLineItem
 
 __all__ = [
     "User", "Organization", "Project", "Document", "SpecSection",
@@ -27,4 +28,5 @@ __all__ = [
     "ProductivityHistory", "AgentRunLog",
     "UploadSession", "UploadChunk", "TokenUsage", "BidComparison", "EquipmentRate", "ChangeOrder", "AuditLog",
     "EstimateLibraryEntry", "EstimateLibraryTag",
+    "HistoricalLineItem",
 ]
