@@ -25,6 +25,7 @@ from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.labor_estimate import LaborEstimate
 from apex.backend.models.takeoff_item import TakeoffItem
 from apex.backend.models.estimate import Estimate
+from apex.backend.models.gap_report import GapReport
 from apex.backend.agents.pipeline_contracts import (
     Agent7VarianceItem,
     validate_agent_output,
@@ -239,10 +240,161 @@ def _statistical_variance_items(
 
 
 # ---------------------------------------------------------------------------
+# Rule-based fallback — produces recommendations without an LLM
+# ---------------------------------------------------------------------------
+
+def _generate_fallback_recommendations(
+    estimate,  # Estimate DB object (with .line_items loaded), or None
+    critical_gap_count: int = 0,
+) -> list[Agent7VarianceItem]:
+    # FALLBACK: Rule-based path when LLM unavailable (Sprint 8)
+    items: list[Agent7VarianceItem] = []
+
+    if estimate is not None:
+        contingency_pct = float(estimate.contingency_pct or 0.0)
+        overhead_pct = float(estimate.overhead_pct or 0.0)
+        profit_pct = float(estimate.profit_pct or 0.0)
+        total_direct_cost = float(estimate.total_direct_cost or 0.0)
+        line_items = estimate.line_items or []
+
+        # Contingency checks
+        if contingency_pct < 5.0:
+            items.append(Agent7VarianceItem(
+                line_item="Contingency Rate",
+                estimated_rate=contingency_pct,
+                historical_actual_rate=5.0,
+                variance_pct=round(contingency_pct - 5.0, 2),
+                likely_cause="LOW — industry standard is 5-10% for commercial",
+                recommendation="Increase contingency to at least 5% to cover unforeseen conditions",
+                confidence="medium",
+            ))
+        elif contingency_pct > 15.0:
+            items.append(Agent7VarianceItem(
+                line_item="Contingency Rate",
+                estimated_rate=contingency_pct,
+                historical_actual_rate=15.0,
+                variance_pct=round(contingency_pct - 15.0, 2),
+                likely_cause="HIGH — review for over-padding",
+                recommendation="Review contingency basis; values above 15% may indicate scope uncertainty",
+                confidence="medium",
+            ))
+
+        # Overhead check
+        if overhead_pct > 20.0:
+            items.append(Agent7VarianceItem(
+                line_item="Overhead Rate",
+                estimated_rate=overhead_pct,
+                historical_actual_rate=18.0,
+                variance_pct=round(overhead_pct - 18.0, 2),
+                likely_cause="Review overhead — above typical 10-18% range",
+                recommendation="Review overhead allocation; typical commercial range is 10-18%",
+                confidence="medium",
+            ))
+
+        # Profit margin checks
+        if profit_pct < 3.0:
+            items.append(Agent7VarianceItem(
+                line_item="Profit Margin",
+                estimated_rate=profit_pct,
+                historical_actual_rate=3.0,
+                variance_pct=round(profit_pct - 3.0, 2),
+                likely_cause="Thin margin — consider risk exposure",
+                recommendation="Review if margin covers project risk; consider raising to at least 3%",
+                confidence="medium",
+            ))
+        elif profit_pct > 20.0:
+            items.append(Agent7VarianceItem(
+                line_item="Profit Margin",
+                estimated_rate=profit_pct,
+                historical_actual_rate=20.0,
+                variance_pct=round(profit_pct - 20.0, 2),
+                likely_cause="Aggressive margin — may reduce bid competitiveness",
+                recommendation="Verify market conditions justify margin above 20%",
+                confidence="medium",
+            ))
+
+        # Line item concentration check — any single item > 40% of subtotal
+        if total_direct_cost > 0 and line_items:
+            for li in line_items:
+                li_cost = float(li.total_cost or 0.0)
+                if li_cost <= 0:
+                    continue
+                li_pct = (li_cost / total_direct_cost) * 100.0
+                if li_pct > 40.0:
+                    label = li.description or li.csi_code
+                    items.append(Agent7VarianceItem(
+                        line_item=label,
+                        estimated_rate=round(li_pct, 2),
+                        historical_actual_rate=40.0,
+                        variance_pct=round(li_pct - 40.0, 2),
+                        likely_cause=(
+                            f"Concentration risk — {label} represents {li_pct:.1f}% of estimate"
+                        ),
+                        recommendation=(
+                            "Verify scope completeness; high concentration may indicate missing line items"
+                        ),
+                        confidence="medium",
+                    ))
+
+        # Missing CSI divisions check — expect ≥6 of divisions 1-14
+        if line_items:
+            present_divisions: set[int] = set()
+            for li in line_items:
+                try:
+                    div_num = int(str(li.division_number).split(".")[0].strip())
+                    if 1 <= div_num <= 14:
+                        present_divisions.add(div_num)
+                except (ValueError, AttributeError):
+                    pass
+            n_primary = len(present_divisions)
+            if n_primary < 6:
+                items.append(Agent7VarianceItem(
+                    line_item="CSI Division Coverage",
+                    estimated_rate=float(n_primary),
+                    historical_actual_rate=6.0,
+                    variance_pct=round((n_primary - 6.0) / 6.0 * 100.0, 2),
+                    likely_cause=(
+                        f"Possible missing scope — only {n_primary} of 14 primary CSI divisions represented"
+                    ),
+                    recommendation=(
+                        "Review estimate for missing divisions; typical commercial projects cover 6+ divisions"
+                    ),
+                    confidence="low",
+                ))
+
+    # Gap coverage check — Agent 3 critical gaps
+    if critical_gap_count > 5:
+        items.append(Agent7VarianceItem(
+            line_item="Scope Gap Risk",
+            estimated_rate=float(critical_gap_count),
+            historical_actual_rate=5.0,
+            variance_pct=round((critical_gap_count - 5.0) / 5.0 * 100.0, 2),
+            likely_cause=f"Scope risk — {critical_gap_count} critical gaps identified in spec analysis",
+            recommendation=(
+                "Address critical scope gaps before finalising bid; unresolved gaps increase cost risk"
+            ),
+            confidence="medium",
+        ))
+
+    # Always include a note that rule-based review was used
+    items.append(Agent7VarianceItem(
+        line_item="Review Note",
+        estimated_rate=0.0,
+        historical_actual_rate=0.0,
+        variance_pct=0.0,
+        likely_cause="AI-powered review unavailable — rule-based review provided",
+        recommendation="Re-run with LLM available for enhanced variance analysis and recommendations",
+        confidence="low",
+    ))
+
+    return items
+
+
+# ---------------------------------------------------------------------------
 # Main agent entry point
 # ---------------------------------------------------------------------------
 
-def run_improve_agent(db: Session, project_id: int) -> dict:
+def run_improve_agent(db: Session, project_id: int, use_llm: bool = True) -> dict:
     """Process actuals and generate variance report, update productivity rates.
 
     Returns dict with variance analysis results validated against Agent7Output.
@@ -361,58 +513,90 @@ def run_improve_agent(db: Session, project_id: int) -> dict:
     # -----------------------------------------------------------------------
     # Step 2: LLM variance analysis — explains causes, recommends adjustments
     # -----------------------------------------------------------------------
+
+    # Fetch the latest estimate and gap report now so the rule-based fallback
+    # can access financial percentages and critical gap count if needed.
+    latest_estimate = (
+        db.query(Estimate)
+        .filter(
+            Estimate.project_id == project_id,
+            Estimate.is_deleted == False,  # noqa: E712
+        )
+        .order_by(Estimate.version.desc())
+        .first()
+    )
+
+    latest_gap_report = (
+        db.query(GapReport)
+        .filter(
+            GapReport.project_id == project_id,
+            GapReport.is_deleted == False,  # noqa: E712
+        )
+        .order_by(GapReport.id.desc())
+        .first()
+    )
+    critical_gap_count = int(latest_gap_report.critical_count or 0) if latest_gap_report else 0
+
     variance_items: list[Agent7VarianceItem] = []
     variance_method = "statistical"
     variance_tokens_used = 0
     _in_tok = 0
     _out_tok = 0
 
-    try:
-        from apex.backend.services.llm_provider import get_llm_provider
-        provider = get_llm_provider(agent_number=7)
-        llm_available = _run_async(provider.health_check())
+    if not use_llm:
+        # FALLBACK: Rule-based path when LLM unavailable (Sprint 8)
+        logger.warning("Agent 7: use_llm=False — skipping LLM, using rule-based fallback")
+        variance_items = _generate_fallback_recommendations(latest_estimate, critical_gap_count)
+        variance_method = "rule_based"
+    else:
+        try:
+            from apex.backend.services.llm_provider import get_llm_provider
+            provider = get_llm_provider(agent_number=7)
+            llm_available = _run_async(provider.health_check())
 
-        if llm_available:
-            logger.info(
-                f"Agent 7: LLM provider '{provider.provider_name}/{provider.model_name}' "
-                "is available — generating LLM variance analysis"
-            )
-            llm_items, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
-                _llm_variance_analysis(variances, actual_items, estimate_items, provider)
-            )
-            variance_tokens_used = _in_tok + _out_tok
-            if llm_items:
-                log_token_usage(
-                    db=db,
-                    project_id=project_id,
-                    agent_number=7,
-                    provider=provider.provider_name,
-                    model=provider.model_name,
-                    input_tokens=_in_tok,
-                    output_tokens=_out_tok,
-                    cache_creation_tokens=_cache_create,
-                    cache_read_tokens=_cache_read,
-                )
-                variance_items = llm_items
-                variance_method = "llm"
+            if llm_available:
                 logger.info(
-                    f"Agent 7 LLM: analysis complete — {len(variance_items)} items, "
-                    f"{variance_tokens_used} tokens, method=llm"
+                    f"Agent 7: LLM provider '{provider.provider_name}/{provider.model_name}' "
+                    "is available — generating LLM variance analysis"
                 )
+                llm_items, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
+                    _llm_variance_analysis(variances, actual_items, estimate_items, provider)
+                )
+                variance_tokens_used = _in_tok + _out_tok
+                if llm_items:
+                    log_token_usage(
+                        db=db,
+                        project_id=project_id,
+                        agent_number=7,
+                        provider=provider.provider_name,
+                        model=provider.model_name,
+                        input_tokens=_in_tok,
+                        output_tokens=_out_tok,
+                        cache_creation_tokens=_cache_create,
+                        cache_read_tokens=_cache_read,
+                    )
+                    variance_items = llm_items
+                    variance_method = "llm"
+                    logger.info(
+                        f"Agent 7 LLM: analysis complete — {len(variance_items)} items, "
+                        f"{variance_tokens_used} tokens, method=llm"
+                    )
+                else:
+                    logger.warning(
+                        "Agent 7 LLM: returned no valid items — falling back to statistical comparison"
+                    )
             else:
-                logger.warning(
-                    "Agent 7 LLM: returned no valid items — falling back to statistical comparison"
+                logger.info(
+                    f"Agent 7: LLM provider '{provider.provider_name}' unreachable — "
+                    "using statistical fallback"
                 )
-        else:
-            logger.info(
-                f"Agent 7: LLM provider '{provider.provider_name}' unreachable — "
-                "using statistical fallback"
+        except Exception as exc:
+            # FALLBACK: Rule-based path when LLM unavailable (Sprint 8)
+            logger.warning(
+                f"Agent 7: LLM call failed ({exc}) — using rule-based fallback"
             )
-    except Exception as exc:
-        logger.warning(
-            f"Agent 7: could not initialise LLM provider ({exc}) — "
-            "using statistical fallback"
-        )
+            variance_items = _generate_fallback_recommendations(latest_estimate, critical_gap_count)
+            variance_method = "rule_based"
 
     if not variance_items:
         variance_items = _statistical_variance_items(variances, actual_items, estimate_items)
@@ -429,16 +613,6 @@ def run_improve_agent(db: Session, project_id: int) -> dict:
         "items": [item.model_dump() for item in variance_items],
         "trends": trends,
     }
-
-    latest_estimate = (
-        db.query(Estimate)
-        .filter(
-            Estimate.project_id == project_id,
-            Estimate.is_deleted == False,  # noqa: E712
-        )
-        .order_by(Estimate.version.desc())
-        .first()
-    )
     if latest_estimate:
         latest_estimate.variance_report_json = variance_report
         db.commit()
