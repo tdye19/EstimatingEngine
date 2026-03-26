@@ -156,11 +156,33 @@ async def _llm_generate_summary(
 # Template-based fallback summary
 # ---------------------------------------------------------------------------
 
-def _template_summary(estimate: Estimate, rollup: dict, exclusions: list, assumptions) -> str:
-    """Generate a template-based executive summary when the LLM is unavailable."""
+# FALLBACK: Rule-based path when LLM unavailable (Sprint 8)
+def _generate_fallback_summary(
+    project,
+    estimate: Estimate,
+    line_items_data: list[dict],
+    rollup: dict,
+    exclusions: list,
+    assumptions,
+) -> str:
+    """Generate a template-based executive summary when the LLM is unavailable.
+
+    Uses f-strings to fill in project name, total cost, line item count, and
+    top 3 cost categories.  No LLM call is made.
+    """
+    # FALLBACK: Rule-based path when LLM unavailable (Sprint 8)
+    project_name = getattr(project, "name", None) or f"Project {project.id}"
+
     divisions = ", ".join(
         f"Division {d}" for d in rollup["by_division"].keys()
     ) or "various divisions"
+
+    line_item_count = len(line_items_data)
+
+    # Top 3 cost categories by total_cost
+    sorted_items = sorted(line_items_data, key=lambda x: x.get("total_cost", 0), reverse=True)
+    top_3 = [item["description"] for item in sorted_items[:3]]
+    top_3_text = "; ".join(top_3) if top_3 else "N/A"
 
     if isinstance(exclusions, list) and exclusions:
         excl_text = "; ".join(str(e) for e in exclusions)
@@ -175,12 +197,15 @@ def _template_summary(estimate: Estimate, rollup: dict, exclusions: list, assump
         assump_text = "Standard industry assumptions apply"
 
     return (
-        f"This bid proposal encompasses work across {divisions}, "
-        f"with a total bid amount of ${estimate.total_bid_amount:,.2f}. "
-        f"The estimate includes direct costs of ${estimate.total_direct_cost:,.2f} "
-        f"covering labor, materials, and equipment, with overhead at "
-        f"{estimate.overhead_pct:.0f}%, profit at {estimate.profit_pct:.0f}%, "
-        f"and contingency at {estimate.contingency_pct:.0f}%.\n\n"
+        f"AI-generated summary unavailable — template summary provided\n\n"
+        f"Project: {project_name}. This bid proposal encompasses {line_item_count} line "
+        f"item(s) across {divisions}, with a total bid amount of "
+        f"${estimate.total_bid_amount:,.2f}. The estimate includes direct costs of "
+        f"${estimate.total_direct_cost:,.2f} covering labor, materials, and equipment, "
+        f"with overhead at {estimate.overhead_pct:.0f}%, profit at "
+        f"{estimate.profit_pct:.0f}%, and contingency at "
+        f"{estimate.contingency_pct:.0f}%.\n\n"
+        f"Top cost categories: {top_3_text}. "
         f"Key assumptions include: {assump_text}. "
         f"Exclusions from this proposal: {excl_text}.\n\n"
         f"All pricing reflects current market conditions and is based on the scope "
@@ -193,8 +218,14 @@ def _template_summary(estimate: Estimate, rollup: dict, exclusions: list, assump
 # Main agent entry point
 # ---------------------------------------------------------------------------
 
-def run_assembly_agent(db: Session, project_id: int) -> dict:
+def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> dict:
     """Assemble the full bid estimate from all components.
+
+    Args:
+        db: SQLAlchemy session.
+        project_id: ID of the project to assemble.
+        use_llm: When False, skip the LLM call entirely and use the
+            rule-based fallback summary (Sprint 8).
 
     Returns dict with estimate details and executive summary.
     """
@@ -344,53 +375,62 @@ def run_assembly_agent(db: Session, project_id: int) -> dict:
     _in_tok = 0
     _out_tok = 0
 
-    try:
-        from apex.backend.services.llm_provider import get_llm_provider
-        provider = get_llm_provider(agent_number=6, suffix="SUMMARY")
-        llm_available = _run_async(provider.health_check())
+    if not use_llm:
+        # FALLBACK: Rule-based path when LLM unavailable (Sprint 8)
+        logger.info("Agent 6 summary: use_llm=False — skipping LLM call, using fallback summary")
+    else:
+        try:
+            from apex.backend.services.llm_provider import get_llm_provider
+            provider = get_llm_provider(agent_number=6, suffix="SUMMARY")
+            llm_available = _run_async(provider.health_check())
 
-        if llm_available:
-            logger.info(
-                f"Agent 6 summary: LLM provider '{provider.provider_name}/{provider.model_name}' "
-                "is available — generating executive summary"
-            )
-            llm_text, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
-                _llm_generate_summary(
-                    project, estimate, line_items_data, rollup, exclusions, assumptions, provider
-                )
-            )
-            summary_tokens_used = _in_tok + _out_tok
-            if llm_text:
-                log_token_usage(
-                    db=db,
-                    project_id=project_id,
-                    agent_number=6,
-                    provider=provider.provider_name,
-                    model=provider.model_name,
-                    input_tokens=_in_tok,
-                    output_tokens=_out_tok,
-                    estimate_id=estimate.id,
-                    cache_creation_tokens=_cache_create,
-                    cache_read_tokens=_cache_read,
-                )
-                executive_summary = llm_text
-                summary_method = "llm"
+            if llm_available:
                 logger.info(
-                    f"Agent 6 summary: LLM summary generated "
-                    f"({summary_tokens_used} tokens, method=llm)"
+                    f"Agent 6 summary: LLM provider '{provider.provider_name}/{provider.model_name}' "
+                    "is available — generating executive summary"
                 )
+                llm_text, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
+                    _llm_generate_summary(
+                        project, estimate, line_items_data, rollup, exclusions, assumptions, provider
+                    )
+                )
+                summary_tokens_used = _in_tok + _out_tok
+                if llm_text:
+                    log_token_usage(
+                        db=db,
+                        project_id=project_id,
+                        agent_number=6,
+                        provider=provider.provider_name,
+                        model=provider.model_name,
+                        input_tokens=_in_tok,
+                        output_tokens=_out_tok,
+                        estimate_id=estimate.id,
+                        cache_creation_tokens=_cache_create,
+                        cache_read_tokens=_cache_read,
+                    )
+                    executive_summary = llm_text
+                    summary_method = "llm"
+                    logger.info(
+                        f"Agent 6 summary: LLM summary generated "
+                        f"({summary_tokens_used} tokens, method=llm)"
+                    )
+                else:
+                    logger.warning("Agent 6 summary: LLM returned empty content — using fallback summary")
             else:
-                logger.warning("Agent 6 summary: LLM returned empty content — using template fallback")
-        else:
-            logger.info(
-                f"Agent 6 summary: LLM provider '{provider.provider_name}' unreachable — "
-                "using template fallback"
+                logger.warning(
+                    f"Agent 6 summary: LLM provider '{provider.provider_name}' unreachable — "
+                    "using fallback summary"
+                )
+        except Exception as exc:
+            logger.warning(
+                f"Agent 6 summary: LLM call failed ({exc}) — using fallback summary"
             )
-    except Exception as exc:
-        logger.warning(f"Agent 6 summary: could not initialise LLM provider ({exc}) — using template fallback")
 
     if executive_summary is None:
-        executive_summary = _template_summary(estimate, rollup, exclusions, assumptions)
+        # FALLBACK: Rule-based path when LLM unavailable (Sprint 8)
+        executive_summary = _generate_fallback_summary(
+            project, estimate, line_items_data, rollup, exclusions, assumptions
+        )
         summary_method = "template"
 
     # Persist the summary — estimate numbers are unchanged
