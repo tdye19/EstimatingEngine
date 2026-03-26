@@ -343,9 +343,6 @@ export const getChangeOrderSummary = (projectId) =>
   request(`/projects/${projectId}/change-orders/summary`);
 
 // ── Estimate Versioning ────────────────────────────────
-export const getEstimateVersions = (projectId) =>
-  request(`/projects/${projectId}/estimate/versions`);
-
 export const getEstimateVersion = (projectId, version) =>
   request(`/projects/${projectId}/estimate/versions/${version}`);
 
