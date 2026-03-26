@@ -2,16 +2,17 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
-  FolderKanban,
   Library,
   LogOut,
   Zap,
+  TrendingUp,
 } from 'lucide-react';
 import LLMStatus from './LLMStatus';
 
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/productivity', icon: Library, label: 'Productivity Library' },
+  { to: '/benchmarking', icon: TrendingUp, label: 'Benchmarking' },
 ];
 
 export default function Layout() {

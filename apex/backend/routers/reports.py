@@ -14,7 +14,7 @@ from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import (
     GapReportOut, TakeoffItemOut, TakeoffItemUpdate, EstimateOut,
     VarianceReportOut, ProjectActualOut, AgentRunLogOut, LaborEstimateOut,
-    SpecSectionOut, APIResponse,
+    SpecSectionOut, APIResponse, EstimateVersionOut,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["reports"], dependencies=[Depends(require_auth)])
@@ -166,6 +166,114 @@ def get_variance_report(project_id: int, db: Session = Depends(get_db)):
     )
 
     return APIResponse(success=True, data=report.model_dump(mode="json"))
+
+
+@router.get("/{project_id}/estimate/versions", response_model=APIResponse)
+def list_estimate_versions(project_id: int, db: Session = Depends(get_db)):
+    """List all saved estimate versions for a project (newest first)."""
+    versions = (
+        db.query(Estimate)
+        .filter(
+            Estimate.project_id == project_id,
+            Estimate.is_deleted == False,  # noqa: E712
+        )
+        .order_by(Estimate.version.desc())
+        .all()
+    )
+    return APIResponse(
+        success=True,
+        data=[EstimateVersionOut.model_validate(e).model_dump(mode="json") for e in versions],
+    )
+
+
+@router.get("/{project_id}/estimate/versions/{version_num}", response_model=APIResponse)
+def get_estimate_version(project_id: int, version_num: int, db: Session = Depends(get_db)):
+    """Get a specific estimate version."""
+    estimate = db.query(Estimate).filter(
+        Estimate.project_id == project_id,
+        Estimate.version == version_num,
+        Estimate.is_deleted == False,  # noqa: E712
+    ).first()
+    if not estimate:
+        raise HTTPException(status_code=404, detail=f"Version {version_num} not found")
+    return APIResponse(
+        success=True,
+        data=EstimateOut.model_validate(estimate).model_dump(mode="json"),
+    )
+
+
+@router.post("/{project_id}/estimate/snapshot", response_model=APIResponse)
+def snapshot_estimate(project_id: int, db: Session = Depends(get_db)):
+    """Create a new versioned snapshot of the current estimate (increments version number)."""
+    from apex.backend.models.estimate import EstimateLineItem
+
+    current = (
+        db.query(Estimate)
+        .filter(
+            Estimate.project_id == project_id,
+            Estimate.is_deleted == False,  # noqa: E712
+        )
+        .order_by(Estimate.version.desc())
+        .first()
+    )
+    if not current:
+        raise HTTPException(status_code=404, detail="No estimate to snapshot")
+
+    next_version = current.version + 1
+
+    # Deep-copy the estimate record
+    snapshot = Estimate(
+        project_id=project_id,
+        version=next_version,
+        status="draft",
+        total_direct_cost=current.total_direct_cost,
+        total_labor_cost=current.total_labor_cost,
+        total_material_cost=current.total_material_cost,
+        total_subcontractor_cost=current.total_subcontractor_cost,
+        gc_markup_pct=current.gc_markup_pct,
+        gc_markup_amount=current.gc_markup_amount,
+        overhead_pct=current.overhead_pct,
+        overhead_amount=current.overhead_amount,
+        profit_pct=current.profit_pct,
+        profit_amount=current.profit_amount,
+        contingency_pct=current.contingency_pct,
+        contingency_amount=current.contingency_amount,
+        total_bid_amount=current.total_bid_amount,
+        exclusions=current.exclusions,
+        assumptions=current.assumptions,
+        alternates=current.alternates,
+        bid_bond_required=current.bid_bond_required,
+        executive_summary=current.executive_summary,
+    )
+    db.add(snapshot)
+    db.flush()
+
+    # Copy line items
+    for li in current.line_items:
+        new_li = EstimateLineItem(
+            estimate_id=snapshot.id,
+            division_number=li.division_number,
+            csi_code=li.csi_code,
+            description=li.description,
+            quantity=li.quantity,
+            unit_of_measure=li.unit_of_measure,
+            labor_cost=li.labor_cost,
+            material_cost=li.material_cost,
+            equipment_cost=li.equipment_cost,
+            subcontractor_cost=li.subcontractor_cost,
+            total_cost=li.total_cost,
+            unit_cost=li.unit_cost,
+            notes=li.notes,
+        )
+        db.add(new_li)
+
+    db.commit()
+    db.refresh(snapshot)
+    return APIResponse(
+        success=True,
+        message=f"Estimate snapshot created as version {next_version}",
+        data=EstimateVersionOut.model_validate(snapshot).model_dump(mode="json"),
+    )
 
 
 @router.get("/{project_id}/agent-logs", response_model=APIResponse)
