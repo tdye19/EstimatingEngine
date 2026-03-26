@@ -18,6 +18,7 @@ from apex.backend.models.bid_Comparison import BidComparison
 from apex.backend.models.equipment_Rate import EquipmentRate
 from apex.backend.models.change_Order import ChangeOrder
 from apex.backend.models.audit_log import AuditLog
+from apex.backend.models.estimate_library import EstimateLibraryEntry, EstimateLibraryTag
 
 __all__ = [
     "User", "Organization", "Project", "Document", "SpecSection",
@@ -25,4 +26,5 @@ __all__ = [
     "MaterialPrice", "Estimate", "EstimateLineItem", "ProjectActual",
     "ProductivityHistory", "AgentRunLog",
     "UploadSession", "UploadChunk", "TokenUsage", "BidComparison", "EquipmentRate", "ChangeOrder", "AuditLog",
+    "EstimateLibraryEntry", "EstimateLibraryTag",
 ]

@@ -31,6 +31,7 @@ from apex.backend.routers import material_prices as material_prices_router
 from apex.backend.routers import benchmarking as benchmarking_router
 from apex.backend.routers import users as users_router
 from apex.backend.routers import notifications as notifications_router
+from apex.backend.routers import estimate_library as estimate_library_router
 from apex.backend.services.ws_manager import ws_manager
 
 # Logging — honour LOG_LEVEL env var
@@ -124,6 +125,7 @@ app.include_router(material_prices_router.router)
 app.include_router(benchmarking_router.router)
 app.include_router(users_router.router)
 app.include_router(notifications_router.router)
+app.include_router(estimate_library_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
 if _is_dev:
