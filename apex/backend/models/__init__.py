@@ -20,6 +20,7 @@ from apex.backend.models.change_Order import ChangeOrder
 from apex.backend.models.audit_log import AuditLog
 from apex.backend.models.estimate_library import EstimateLibraryEntry, EstimateLibraryTag
 from apex.backend.models.historical_line_item import HistoricalLineItem
+from apex.backend.models.document_association import DocumentGroup, DocumentAssociation
 
 __all__ = [
     "User", "Organization", "Project", "Document", "SpecSection",
@@ -29,4 +30,5 @@ __all__ = [
     "UploadSession", "UploadChunk", "TokenUsage", "BidComparison", "EquipmentRate", "ChangeOrder", "AuditLog",
     "EstimateLibraryEntry", "EstimateLibraryTag",
     "HistoricalLineItem",
+    "DocumentGroup", "DocumentAssociation",
 ]

@@ -87,6 +87,10 @@ class EstimateLibraryEntry(Base, TimestampMixin):
         back_populates="library_entry",
         cascade="all, delete-orphan",
     )
+    document_associations = relationship(
+        "DocumentAssociation",
+        back_populates="library_entry",
+    )
 
     # ── helpers ────────────────────────────────────────────────────
     def recalculate_cost_per_sqft(self) -> None:
