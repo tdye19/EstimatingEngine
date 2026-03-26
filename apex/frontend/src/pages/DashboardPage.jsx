@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listProjects, createProject, deleteProject } from '../api';
+import { listProjects, createProject, deleteProject, cloneProject } from '../api';
 import {
   FolderKanban,
   DollarSign,
@@ -9,6 +9,7 @@ import {
   Plus,
   X,
   Trash2,
+  Copy,
 } from 'lucide-react';
 
 const STATUS_COLORS = {
@@ -36,18 +37,33 @@ const EMPTY_FORM = {
 export default function DashboardPage() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+  const [cloningId, setCloningId] = useState(null);
 
-  useEffect(() => {
+  const loadProjects = () => {
+    setLoading(true);
+    setError('');
     listProjects()
       .then((data) => setProjects(data || []))
-      .catch(() => setProjects([]))
+      .catch((err) => setError(err.message || 'Failed to load projects'))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(loadProjects, []);
+
+  const filtered = search
+    ? projects.filter((p) =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        (p.project_number || '').toLowerCase().includes(search.toLowerCase()) ||
+        (p.location || '').toLowerCase().includes(search.toLowerCase())
+      )
+    : projects;
 
   const stats = {
     total: projects.length,
@@ -98,6 +114,19 @@ export default function DashboardPage() {
     }
   };
 
+  const handleClone = async (e, projectId) => {
+    e.preventDefault();
+    setCloningId(projectId);
+    try {
+      const cloned = await cloneProject(projectId);
+      setProjects((prev) => [cloned, ...prev]);
+    } catch (err) {
+      alert(`Clone failed: ${err.message}`);
+    } finally {
+      setCloningId(null);
+    }
+  };
+
   const field = (key) => ({
     value: form[key],
     onChange: (e) => setForm((f) => ({ ...f, [key]: e.target.value })),
@@ -124,14 +153,29 @@ export default function DashboardPage() {
         <StatCard label="Pipeline Value" value={fmt$(stats.totalValue)} icon={DollarSign} color="text-green-600" />
       </div>
 
+      {/* Search bar */}
+      {!loading && projects.length > 0 && (
+        <div className="mb-6">
+          <input
+            type="text"
+            className="input w-full max-w-sm"
+            placeholder="Search projects by name, number, or location..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
+
       {/* Project cards */}
       {loading ? (
         <div className="text-center py-16 text-gray-400">Loading projects...</div>
-      ) : projects.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">No projects yet.</div>
+      ) : error ? (
+        <div className="text-center py-16 text-red-500">{error}<button onClick={loadProjects} className="ml-3 text-sm underline">Retry</button></div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">{search ? 'No matching projects.' : 'No projects yet.'}</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {projects.map((p) => (
+          {filtered.map((p) => (
             <Link key={p.id} to={`/projects/${p.id}`} className="card hover:shadow-md transition-shadow group relative">
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -144,6 +188,14 @@ export default function DashboardPage() {
                   <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap ${STATUS_COLORS[p.status] || 'bg-gray-100 text-gray-800'}`}>
                     {p.status?.replace('_', ' ')}
                   </span>
+                  <button
+                    onClick={(e) => handleClone(e, p.id)}
+                    disabled={cloningId === p.id}
+                    className="p-1 rounded text-gray-300 hover:text-apex-500 hover:bg-apex-50 transition-colors disabled:opacity-50"
+                    title="Clone project"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
                   <button
                     onClick={(e) => handleDelete(e, p.id)}
                     disabled={deletingId === p.id}

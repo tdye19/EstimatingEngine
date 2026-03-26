@@ -1,6 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
-import { getEstimate, exportEstimatePdf, exportEstimateXlsx } from '../../api';
-import { Calculator, DollarSign, FileDown, FileSpreadsheet } from 'lucide-react';
+import { getEstimate, getEstimateVersions, getEstimateByVersion, exportEstimatePdf, exportEstimateXlsx, exportEstimateCsv, exportEstimateQb, updateEstimateMarkups } from '../../api';
+import { Calculator, DollarSign, FileDown, FileSpreadsheet, Pencil, Check, X, ChevronDown } from 'lucide-react';
 
 const EstimateCharts = lazy(() => import('../charts/EstimateCharts'));
 
@@ -11,21 +11,54 @@ function fmt$(val) {
 export default function EstimateTab({ projectId, project }) {
   const [est, setEst] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [exporting, setExporting] = useState('');
+  const [editingMarkups, setEditingMarkups] = useState(false);
+  const [markupForm, setMarkupForm] = useState({ overhead_pct: 0, profit_pct: 0, contingency_pct: 0, gc_markup_pct: 0 });
+  const [savingMarkups, setSavingMarkups] = useState(false);
+  const [versions, setVersions] = useState([]);
+  const [selectedVersion, setSelectedVersion] = useState(null);
 
-  useEffect(() => {
-    getEstimate(projectId)
-      .then(setEst)
-      .catch(() => {})
+  const load = () => {
+    setLoading(true);
+    setError('');
+    Promise.all([
+      getEstimate(projectId),
+      getEstimateVersions(projectId),
+    ])
+      .then(([estData, versionsData]) => {
+        setEst(estData);
+        setVersions(versionsData || []);
+        if (estData && estData.version != null) {
+          setSelectedVersion(estData.version);
+        } else if (versionsData && versionsData.length > 0) {
+          setSelectedVersion(versionsData[0].version);
+        }
+      })
+      .catch((err) => setError(err.message || 'Failed to load estimate'))
       .finally(() => setLoading(false));
-  }, [projectId]);
+  };
+
+  useEffect(load, [projectId]);
+
+  const handleVersionChange = (version) => {
+    setSelectedVersion(version);
+    setLoading(true);
+    setError('');
+    getEstimateByVersion(projectId, version)
+      .then(setEst)
+      .catch((err) => setError(err.message || 'Failed to load estimate version'))
+      .finally(() => setLoading(false));
+  };
 
   const handleExport = async (type) => {
     setExporting(type);
     try {
       const num = project?.project_number || `PRJ-${projectId}`;
       if (type === 'pdf') await exportEstimatePdf(projectId, num);
-      else await exportEstimateXlsx(projectId, num);
+      else if (type === 'xlsx') await exportEstimateXlsx(projectId, num);
+      else if (type === 'csv') await exportEstimateCsv(projectId, num);
+      else if (type === 'qb') await exportEstimateQb(projectId, num);
     } catch (err) {
       console.error('Export failed:', err);
     } finally {
@@ -33,7 +66,35 @@ export default function EstimateTab({ projectId, project }) {
     }
   };
 
+  const startEditMarkups = () => {
+    setMarkupForm({
+      overhead_pct: est.overhead_pct || 0,
+      profit_pct: est.profit_pct || 0,
+      contingency_pct: est.contingency_pct || 0,
+      gc_markup_pct: est.gc_markup_pct || 0,
+    });
+    setEditingMarkups(true);
+  };
+
+  const cancelEditMarkups = () => {
+    setEditingMarkups(false);
+  };
+
+  const saveMarkups = async () => {
+    setSavingMarkups(true);
+    try {
+      const updated = await updateEstimateMarkups(projectId, est.id, markupForm);
+      setEst((prev) => ({ ...prev, ...updated }));
+      setEditingMarkups(false);
+    } catch (err) {
+      console.error('Failed to save markups:', err);
+    } finally {
+      setSavingMarkups(false);
+    }
+  };
+
   if (loading) return <div className="text-gray-400 py-8 text-center">Loading estimate...</div>;
+  if (error) return <div className="text-red-500 py-8 text-center">{error}<button onClick={load} className="ml-3 text-sm underline">Retry</button></div>;
   if (!est) return <div className="text-gray-400 py-8 text-center">No estimate available.</div>;
 
   // Group line items by division
@@ -59,6 +120,24 @@ export default function EstimateTab({ projectId, project }) {
 
   return (
     <div className="space-y-6">
+      {/* Version selector */}
+      {versions.length > 1 && (
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-600">Version:</label>
+          <select
+            value={selectedVersion ?? ''}
+            onChange={(e) => handleVersionChange(Number(e.target.value))}
+            className="input text-sm"
+          >
+            {versions.map((v) => (
+              <option key={v.version} value={v.version}>
+                v{v.version} — {v.status} — {fmt$(v.total_bid_amount)} — {v.created_at ? new Date(v.created_at).toLocaleDateString() : 'N/A'}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Export buttons */}
       <div className="flex justify-end gap-2">
         <button
@@ -76,6 +155,22 @@ export default function EstimateTab({ projectId, project }) {
         >
           <FileSpreadsheet className="h-4 w-4" />
           {exporting === 'xlsx' ? 'Generating…' : 'Export Excel'}
+        </button>
+        <button
+          onClick={() => handleExport('csv')}
+          disabled={!!exporting}
+          className="btn-secondary flex items-center gap-2 text-sm"
+        >
+          <FileDown className="h-4 w-4" />
+          {exporting === 'csv' ? 'Generating…' : 'Export CSV'}
+        </button>
+        <button
+          onClick={() => handleExport('qb')}
+          disabled={!!exporting}
+          className="btn-secondary flex items-center gap-2 text-sm"
+        >
+          <FileDown className="h-4 w-4" />
+          {exporting === 'qb' ? 'Generating…' : 'Export QB'}
         </button>
       </div>
 
@@ -111,19 +206,74 @@ export default function EstimateTab({ projectId, project }) {
 
       {/* Markup breakdown */}
       <div className="card">
-        <h3 className="text-sm font-semibold mb-4">Estimate Build-Up</h3>
-        <div className="space-y-3">
-          {markups.map((m) => (
-            <div key={m.label} className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">{m.label}</span>
-              <span className="font-semibold">{fmt$(m.amount)}</span>
-            </div>
-          ))}
-          <div className="border-t border-gray-200 pt-3 flex items-center justify-between">
-            <span className="font-bold">Total Bid</span>
-            <span className="text-lg font-bold text-apex-600">{fmt$(est.total_bid_amount)}</span>
-          </div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold">Estimate Build-Up</h3>
+          {!editingMarkups && (
+            <button
+              onClick={startEditMarkups}
+              className="text-gray-400 hover:text-apex-600 transition-colors"
+              title="Edit Markups"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
         </div>
+        {editingMarkups ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Direct Cost</span>
+              <span className="font-semibold">{fmt$(est.total_direct_cost)}</span>
+            </div>
+            {[
+              { key: 'overhead_pct', label: 'Overhead' },
+              { key: 'profit_pct', label: 'Profit' },
+              { key: 'contingency_pct', label: 'Contingency' },
+              { key: 'gc_markup_pct', label: 'GC Markup' },
+            ].map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between">
+                <label className="text-sm text-gray-600">{label} (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={markupForm[key]}
+                  onChange={(e) => setMarkupForm((prev) => ({ ...prev, [key]: parseFloat(e.target.value) || 0 }))}
+                  className="input w-24 text-right text-sm"
+                />
+              </div>
+            ))}
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={cancelEditMarkups}
+                disabled={savingMarkups}
+                className="btn-secondary flex items-center gap-1 text-sm"
+              >
+                <X className="h-3.5 w-3.5" /> Cancel
+              </button>
+              <button
+                onClick={saveMarkups}
+                disabled={savingMarkups}
+                className="btn-primary flex items-center gap-1 text-sm"
+              >
+                <Check className="h-3.5 w-3.5" /> {savingMarkups ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {markups.map((m) => (
+              <div key={m.label} className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">{m.label}</span>
+                <span className="font-semibold">{fmt$(m.amount)}</span>
+              </div>
+            ))}
+            <div className="border-t border-gray-200 pt-3 flex items-center justify-between">
+              <span className="font-bold">Total Bid</span>
+              <span className="text-lg font-bold text-apex-600">{fmt$(est.total_bid_amount)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Exclusions and Assumptions */}

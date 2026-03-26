@@ -31,6 +31,7 @@ connected WebSocket clients via ws_manager.broadcast_sync().  Events:
 """
 
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
@@ -141,6 +142,12 @@ class AgentOrchestrator:
         failed_at: int | None = None
         effective_mode = pipeline_mode
 
+        # Mark project as running
+        project = self.db.query(Project).filter(Project.id == self.project_id).first()
+        if project and project.status not in ("estimating",):
+            project.status = "estimating"
+            self.db.commit()
+
         # In-memory agent status table used for WS broadcasts.
         # Uses agent_number / agent_name to stay consistent with the REST API.
         ws_status: dict[int, dict] = {}
@@ -233,70 +240,94 @@ class AgentOrchestrator:
             _broadcast("running", agent_num)
 
             log = self._log_start(agent_name, agent_num)
-            try:
-                import importlib
-                module = importlib.import_module(module_path)
-                agent_fn = getattr(module, fn_name)
-                result = agent_fn(self.db, self.project_id)
+            max_retries = int(os.getenv("AGENT_MAX_RETRIES", "1")) if agent_num >= 2 else 0
+            last_error = None
 
-                # After Agent 1: check if it detected a WinEst import
-                if agent_num == 1 and result.get("pipeline_mode") == "winest_import":
-                    if effective_mode != "winest_import":
-                        logger.info(
-                            "Agent 1 detected WinEst import — "
-                            "switching to winest_import pipeline mode"
+            for attempt in range(1 + max_retries):
+                try:
+                    import importlib
+                    module = importlib.import_module(module_path)
+                    agent_fn = getattr(module, fn_name)
+                    result = agent_fn(self.db, self.project_id)
+
+                    # After Agent 1: check if it detected a WinEst import
+                    if agent_num == 1 and result.get("pipeline_mode") == "winest_import":
+                        if effective_mode != "winest_import":
+                            logger.info(
+                                "Agent 1 detected WinEst import — "
+                                "switching to winest_import pipeline mode"
+                            )
+                        effective_mode = "winest_import"
+
+                    # Summarise result for the log
+                    summary_keys = (
+                        "documents_processed", "sections_parsed", "total_gaps",
+                        "items_created", "estimates_created", "estimate_id",
+                    )
+                    summary = next(
+                        (f"{k}={result[k]}" for k in summary_keys if k in result),
+                        str(result)[:200],
+                    )
+                    if attempt > 0:
+                        summary = f"[retry {attempt}] {summary}"
+                    self._log_complete(log, summary, output_data=result)
+                    results[key] = result
+
+                    duration_ms = int(
+                        (datetime.now(timezone.utc) - agent_start_time).total_seconds() * 1000
+                    )
+                    ws_status[agent_num].update({
+                        "status":      "completed",
+                        "duration_ms": duration_ms,
+                    })
+                    _broadcast("running")
+                    last_error = None
+                    break  # success
+
+                except ContractViolation as exc:
+                    last_error = f"Contract violation: {exc.detail}"
+                    if attempt < max_retries:
+                        logger.warning(
+                            "Agent %d contract violation (attempt %d/%d), retrying: %s",
+                            agent_num, attempt + 1, 1 + max_retries, exc.detail,
                         )
-                    effective_mode = "winest_import"
+                        continue
+                    # Final attempt failed
+                    self._log_error(log, last_error)
+                    logger.error(f"Agent {agent_num} contract violation: {exc.detail}")
 
-                # Summarise result for the log
-                summary_keys = (
-                    "documents_processed", "sections_parsed", "total_gaps",
-                    "items_created", "estimates_created", "estimate_id",
-                )
-                summary = next(
-                    (f"{k}={result[k]}" for k in summary_keys if k in result),
-                    str(result)[:200],
-                )
-                self._log_complete(log, summary, output_data=result)
-                results[key] = result
+                except Exception as exc:
+                    last_error = str(exc)
+                    if attempt < max_retries:
+                        logger.warning(
+                            "Agent %d failed (attempt %d/%d), retrying: %s",
+                            agent_num, attempt + 1, 1 + max_retries, exc,
+                        )
+                        continue
+                    # Final attempt failed
+                    self._log_error(log, last_error)
+                    logger.error(f"Agent {agent_num} failed: {exc}")
 
-                duration_ms = int(
-                    (datetime.now(timezone.utc) - agent_start_time).total_seconds() * 1000
-                )
-                ws_status[agent_num].update({
-                    "status":      "completed",
-                    "duration_ms": duration_ms,
-                })
-                _broadcast("running")
-
-            except ContractViolation as exc:
-                error_msg = f"Contract violation: {exc.detail}"
-                self._log_error(log, error_msg)
-                logger.error(f"Agent {agent_num} contract violation: {exc.detail}")
-                results[key] = {"error": error_msg, "status": "failed"}
+            if last_error is not None:
+                results[key] = {"error": last_error, "status": "failed"}
                 failed_at = agent_num
                 ws_status[agent_num].update({
                     "status":        "failed",
-                    "error_message": error_msg,
-                })
-                _broadcast("running", agent_num)
-
-            except Exception as exc:
-                error_msg = str(exc)
-                self._log_error(log, error_msg)
-                logger.error(f"Agent {agent_num} failed: {exc}")
-                results[key] = {"error": error_msg, "status": "failed"}
-                failed_at = agent_num
-                ws_status[agent_num].update({
-                    "status":        "failed",
-                    "error_message": error_msg,
+                    "error_message": last_error,
                 })
                 _broadcast("running", agent_num)
 
         # Update project status
         project = self.db.query(Project).filter(Project.id == self.project_id).first()
         if project:
-            project.status = "estimating" if failed_at is None else project.status
+            if failed_at is None:
+                project.status = "estimating"
+            else:
+                project.status = "failed"
+                logger.error(
+                    "Pipeline failed at Agent %d for project %d",
+                    failed_at, self.project_id,
+                )
             self.db.commit()
 
         pipeline_final_status = (
@@ -304,6 +335,29 @@ class AgentOrchestrator:
         )
         results["pipeline_status"] = pipeline_final_status
         results["pipeline_mode"] = effective_mode
+
+        # Send email notification
+        try:
+            from apex.backend.services.email_service import send_pipeline_complete
+            project = self.db.query(Project).filter(Project.id == self.project_id).first()
+            if project and project.owner:
+                success = failed_at is None
+                error_msg = None
+                if not success:
+                    # Find first failed agent
+                    for k, v in results.items():
+                        if isinstance(v, dict) and v.get("status") == "failed":
+                            error_msg = v.get("error", "Unknown error")
+                            break
+                send_pipeline_complete(
+                    to=project.owner.email,
+                    project_name=project.name,
+                    project_number=project.project_number,
+                    success=success,
+                    error_msg=error_msg,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to send pipeline notification: {e}")
 
         # Final WebSocket event
         if failed_at is None:

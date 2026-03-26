@@ -5,10 +5,14 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import ProductivityPage from './pages/ProductivityPage';
+import AdminPage from './pages/AdminPage';
+import MaterialsPage from './pages/MaterialsPage';
+import ComparePage from './pages/ComparePage';
+import FieldActualsPage from './pages/FieldActualsPage';
 import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
   if (!token) {
     return (
@@ -28,6 +32,12 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
           <Route path="/productivity" element={<ProductivityPage />} />
+          <Route path="/materials" element={<MaterialsPage />} />
+          <Route path="/compare" element={<ComparePage />} />
+          <Route path="/field-entry" element={<FieldActualsPage />} />
+          {user?.role === 'admin' && (
+            <Route path="/admin" element={<AdminPage />} />
+          )}
         </Route>
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

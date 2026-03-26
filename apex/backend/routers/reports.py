@@ -10,18 +10,20 @@ from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.labor_estimate import LaborEstimate
 from apex.backend.models.spec_section import SpecSection
-from apex.backend.utils.auth import require_auth
+from apex.backend.models.user import User
+from apex.backend.utils.auth import require_auth, get_authorized_project
 from apex.backend.utils.schemas import (
     GapReportOut, TakeoffItemOut, TakeoffItemUpdate, EstimateOut,
     VarianceReportOut, ProjectActualOut, AgentRunLogOut, LaborEstimateOut,
-    SpecSectionOut, APIResponse,
+    SpecSectionOut, APIResponse, EstimateMarkupUpdate,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["reports"], dependencies=[Depends(require_auth)])
 
 
 @router.get("/{project_id}/spec-sections", response_model=APIResponse)
-def get_spec_sections(project_id: int, db: Session = Depends(get_db)):
+def get_spec_sections(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
     sections = db.query(SpecSection).filter(
         SpecSection.project_id == project_id,
         SpecSection.is_deleted == False,  # noqa: E712
@@ -45,7 +47,8 @@ def get_spec_sections(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{project_id}/gap-report", response_model=APIResponse)
-def get_gap_report(project_id: int, db: Session = Depends(get_db)):
+def get_gap_report(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
     report = db.query(GapReport).filter(
         GapReport.project_id == project_id,
         GapReport.is_deleted == False,  # noqa: E712
@@ -61,7 +64,8 @@ def get_gap_report(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{project_id}/takeoff", response_model=APIResponse)
-def get_takeoff(project_id: int, db: Session = Depends(get_db)):
+def get_takeoff(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
     items = db.query(TakeoffItem).filter(
         TakeoffItem.project_id == project_id,
         TakeoffItem.is_deleted == False,  # noqa: E712
@@ -79,7 +83,9 @@ def update_takeoff_item(
     item_id: int,
     data: TakeoffItemUpdate,
     db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
 ):
+    get_authorized_project(project_id, user, db)
     item = db.query(TakeoffItem).filter(
         TakeoffItem.id == item_id,
         TakeoffItem.project_id == project_id,
@@ -101,8 +107,41 @@ def update_takeoff_item(
     )
 
 
+@router.put("/{project_id}/takeoff/bulk-update", response_model=APIResponse)
+def bulk_update_takeoff(
+    project_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """Bulk update takeoff items (e.g., mark as manual override, update notes)."""
+    get_authorized_project(project_id, user, db)
+    item_ids = data.get("item_ids", [])
+    updates = data.get("updates", {})
+    if not item_ids:
+        raise HTTPException(status_code=400, detail="No item IDs provided")
+
+    allowed_fields = {"quantity", "unit_of_measure", "notes", "description"}
+    count = 0
+    for item_id in item_ids:
+        item = db.query(TakeoffItem).filter(
+            TakeoffItem.id == item_id,
+            TakeoffItem.project_id == project_id,
+            TakeoffItem.is_deleted == False,  # noqa: E712
+        ).first()
+        if item:
+            for field, value in updates.items():
+                if field in allowed_fields:
+                    setattr(item, field, value)
+            item.is_manual_override = 1
+            count += 1
+    db.commit()
+    return APIResponse(success=True, message=f"Updated {count} takeoff items", data={"updated": count})
+
+
 @router.get("/{project_id}/labor-estimates", response_model=APIResponse)
-def get_labor_estimates(project_id: int, db: Session = Depends(get_db)):
+def get_labor_estimates(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
     items = db.query(LaborEstimate).filter(
         LaborEstimate.project_id == project_id,
         LaborEstimate.is_deleted == False,  # noqa: E712
@@ -114,7 +153,8 @@ def get_labor_estimates(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{project_id}/estimate", response_model=APIResponse)
-def get_estimate(project_id: int, db: Session = Depends(get_db)):
+def get_estimate(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
     estimate = db.query(Estimate).filter(
         Estimate.project_id == project_id,
         Estimate.is_deleted == False,  # noqa: E712
@@ -129,8 +169,46 @@ def get_estimate(project_id: int, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/{project_id}/estimates", response_model=APIResponse)
+def list_estimate_versions(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
+    estimates = db.query(Estimate).filter(
+        Estimate.project_id == project_id,
+        Estimate.is_deleted == False,  # noqa: E712
+    ).order_by(Estimate.version.desc()).all()
+
+    data = []
+    for e in estimates:
+        data.append({
+            "id": e.id,
+            "version": e.version,
+            "status": e.status,
+            "total_bid_amount": e.total_bid_amount,
+            "total_direct_cost": e.total_direct_cost,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        })
+    return APIResponse(success=True, data=data)
+
+
+@router.get("/{project_id}/estimates/{version}", response_model=APIResponse)
+def get_estimate_by_version(project_id: int, version: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
+    estimate = db.query(Estimate).filter(
+        Estimate.project_id == project_id,
+        Estimate.version == version,
+        Estimate.is_deleted == False,  # noqa: E712
+    ).first()
+    if not estimate:
+        raise HTTPException(status_code=404, detail=f"Estimate version {version} not found")
+    return APIResponse(
+        success=True,
+        data=EstimateOut.model_validate(estimate).model_dump(mode="json"),
+    )
+
+
 @router.get("/{project_id}/variance", response_model=APIResponse)
-def get_variance_report(project_id: int, db: Session = Depends(get_db)):
+def get_variance_report(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
     actuals = db.query(ProjectActual).filter(
         ProjectActual.project_id == project_id,
         ProjectActual.is_deleted == False,  # noqa: E712
@@ -169,7 +247,8 @@ def get_variance_report(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{project_id}/agent-logs", response_model=APIResponse)
-def get_agent_logs(project_id: int, db: Session = Depends(get_db)):
+def get_agent_logs(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    get_authorized_project(project_id, user, db)
     logs = db.query(AgentRunLog).filter(
         AgentRunLog.project_id == project_id,
         AgentRunLog.is_deleted == False,  # noqa: E712
@@ -178,4 +257,47 @@ def get_agent_logs(project_id: int, db: Session = Depends(get_db)):
     return APIResponse(
         success=True,
         data=[AgentRunLogOut.model_validate(log).model_dump(mode="json") for log in logs],
+    )
+
+
+@router.put("/{project_id}/estimate/{estimate_id}/markups", response_model=APIResponse)
+def update_estimate_markups(
+    project_id: int,
+    estimate_id: int,
+    data: EstimateMarkupUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    get_authorized_project(project_id, user, db)
+    estimate = db.query(Estimate).filter(
+        Estimate.id == estimate_id,
+        Estimate.project_id == project_id,
+        Estimate.is_deleted == False,  # noqa: E712
+    ).first()
+    if not estimate:
+        raise HTTPException(status_code=404, detail="Estimate not found")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(estimate, field, value)
+
+    # Recalculate amounts from direct cost
+    estimate.gc_markup_amount = estimate.total_direct_cost * (estimate.gc_markup_pct / 100)
+    estimate.overhead_amount = estimate.total_direct_cost * (estimate.overhead_pct / 100)
+    estimate.profit_amount = estimate.total_direct_cost * (estimate.profit_pct / 100)
+    estimate.contingency_amount = estimate.total_direct_cost * (estimate.contingency_pct / 100)
+    estimate.total_bid_amount = (
+        estimate.total_direct_cost
+        + estimate.gc_markup_amount
+        + estimate.overhead_amount
+        + estimate.profit_amount
+        + estimate.contingency_amount
+    )
+
+    db.commit()
+    db.refresh(estimate)
+
+    return APIResponse(
+        success=True,
+        message="Estimate markups updated",
+        data=EstimateOut.model_validate(estimate).model_dump(mode="json"),
     )

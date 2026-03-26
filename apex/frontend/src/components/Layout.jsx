@@ -6,13 +6,22 @@ import {
   Library,
   LogOut,
   Zap,
+  Shield,
+  DollarSign,
+  ArrowLeftRight,
+  ClipboardList,
 } from 'lucide-react';
 import LLMStatus from './LLMStatus';
 
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/productivity', icon: Library, label: 'Productivity Library' },
+  { to: '/materials', icon: DollarSign, label: 'Material Prices' },
+  { to: '/compare', icon: ArrowLeftRight, label: 'Compare' },
+  { to: '/field-entry', icon: ClipboardList, label: 'Field Entry' },
 ];
+
+const ADMIN_NAV = { to: '/admin', icon: Shield, label: 'Admin' };
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -36,7 +45,7 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
-          {NAV.map(({ to, icon: Icon, label }) => (
+          {[...NAV, ...(user?.role === 'admin' ? [ADMIN_NAV] : [])].map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}

@@ -18,7 +18,7 @@ async function request(path, options = {}) {
   if (res.status === 401) {
     localStorage.removeItem('apex_token');
     window.location.href = '/login';
-    return;
+    throw new Error('Session expired — please log in again');
   }
 
   if (!res.ok) {
@@ -92,12 +92,31 @@ export const uploadChunk = (projectId, uploadId, chunkNumber, chunkBlob) => {
 export const completeChunkedUpload = (projectId, uploadId) =>
   request(`/projects/${projectId}/documents/upload/${uploadId}/complete`, { method: 'POST' });
 
+export function getDocumentFileUrl(projectId, docId) {
+  const token = localStorage.getItem('apex_token');
+  return `${BASE}/projects/${projectId}/documents/${docId}/file?token=${token}`;
+}
+
 // ── Delete ────────────────────────────────────────────
 export const deleteProject = (id) =>
   request(`/projects/${id}`, { method: 'DELETE' });
 
 export const deleteDocument = (projectId, docId) =>
   request(`/projects/${projectId}/documents/${docId}`, { method: 'DELETE' });
+
+export async function bulkDeleteDocuments(projectId, documentIds) {
+  return request(`/projects/${projectId}/documents/bulk-delete`, {
+    method: 'POST',
+    body: JSON.stringify({ document_ids: documentIds }),
+  });
+}
+
+export async function bulkUpdateTakeoff(projectId, itemIds, updates) {
+  return request(`/projects/${projectId}/takeoff/bulk-update`, {
+    method: 'PUT',
+    body: JSON.stringify({ item_ids: itemIds, updates }),
+  });
+}
 
 // ── Agent Pipeline ────────────────────────────────────
 export const runAgents = (projectId) =>
@@ -144,8 +163,26 @@ export const getLaborEstimates = (projectId) =>
 export const getEstimate = (projectId) =>
   request(`/projects/${projectId}/estimate`);
 
+export async function updateEstimateMarkups(projectId, estimateId, data) {
+  return request(`/projects/${projectId}/estimate/${estimateId}/markups`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 export const getVariance = (projectId) =>
   request(`/projects/${projectId}/variance`);
+
+export async function getEstimateVersions(projectId) {
+  return request(`/projects/${projectId}/estimates`);
+}
+export async function getEstimateByVersion(projectId, version) {
+  return request(`/projects/${projectId}/estimates/${version}`);
+}
+
+export async function cloneProject(projectId) {
+  return request(`/projects/${projectId}/clone`, { method: 'POST' });
+}
 
 // ── Actuals ───────────────────────────────────────────
 export const uploadActuals = (projectId, file) => {
@@ -156,6 +193,13 @@ export const uploadActuals = (projectId, file) => {
     body: form,
   });
 };
+
+export async function submitActualEntry(projectId, data) {
+  return request(`/projects/${projectId}/actuals/entry`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
 
 // ── Spec Sections ─────────────────────────────────────
 export const getSpecSections = (projectId) =>
@@ -171,7 +215,7 @@ async function downloadBlob(path, filename) {
   if (res.status === 401) {
     localStorage.removeItem('apex_token');
     window.location.href = '/login';
-    return;
+    throw new Error('Session expired — please log in again');
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -195,6 +239,12 @@ export const exportEstimatePdf = (projectId, projectNumber) =>
 export const exportEstimateXlsx = (projectId, projectNumber) =>
   downloadBlob(`/exports/projects/${projectId}/estimate/xlsx`, `${projectNumber}_estimate.xlsx`);
 
+export const exportEstimateCsv = (projectId, projectNumber) =>
+  downloadBlob(`/exports/projects/${projectId}/estimate/csv`, `${projectNumber}_estimate.csv`);
+
+export const exportEstimateQb = (projectId, projectNumber) =>
+  downloadBlob(`/exports/projects/${projectId}/estimate/qb`, `${projectNumber}_estimate.iif`);
+
 // ── Token Usage / Cost Tracking ───────────────────────
 export const getProjectTokenUsage = (projectId) =>
   request(`/projects/${projectId}/token-usage`);
@@ -215,3 +265,41 @@ export const updateProductivityRate = (csiCode, data) =>
     method: 'PUT',
     body: JSON.stringify(data),
   });
+
+// ── Admin - Users ────────────────────────────────────
+export async function listUsers(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  return request(`/admin/users${query ? '?' + query : ''}`);
+}
+export async function updateUser(userId, data) {
+  return request(`/admin/users/${userId}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+// ── Admin - Organizations ────────────────────────────
+export async function listOrganizations() {
+  return request('/admin/organizations');
+}
+export async function createOrganization(data) {
+  return request('/admin/organizations', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function updateOrganization(orgId, data) {
+  return request(`/admin/organizations/${orgId}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+export async function deleteOrganization(orgId) {
+  return request(`/admin/organizations/${orgId}`, { method: 'DELETE' });
+}
+
+// ── Material Prices ──────────────────────────────────
+export async function getMaterialPrices(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  return request(`/material-prices${query ? '?' + query : ''}`);
+}
+export async function createMaterialPrice(data) {
+  return request('/material-prices', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function updateMaterialPrice(priceId, data) {
+  return request(`/material-prices/${priceId}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+export async function deleteMaterialPrice(priceId) {
+  return request(`/material-prices/${priceId}`, { method: 'DELETE' });
+}

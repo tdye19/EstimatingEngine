@@ -11,18 +11,13 @@ from apex.backend.models.estimate import Estimate
 from apex.backend.models.project import Project
 from apex.backend.models.organization import Organization
 from apex.backend.models.user import User
-from apex.backend.utils.auth import require_auth
+from apex.backend.utils.auth import require_auth, get_authorized_project
 
 router = APIRouter(prefix="/api/exports", tags=["exports"])
 
 
-def _get_estimate_or_404(project_id: int, db: Session):
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.is_deleted == False,  # noqa: E712
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+def _get_estimate_or_404(project_id: int, db: Session, user: User):
+    project = get_authorized_project(project_id, user, db)
 
     estimate = db.query(Estimate).filter(
         Estimate.project_id == project_id,
@@ -51,7 +46,7 @@ def export_estimate_pdf(
         SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable,
     )
 
-    project, estimate, org = _get_estimate_or_404(project_id, db)
+    project, estimate, org = _get_estimate_or_404(project_id, db, current_user)
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -267,7 +262,7 @@ def export_estimate_xlsx(
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-    project, estimate, org = _get_estimate_or_404(project_id, db)
+    project, estimate, org = _get_estimate_or_404(project_id, db, current_user)
 
     wb = Workbook()
     ws = wb.active
@@ -463,5 +458,94 @@ def export_estimate_xlsx(
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ─────────────────────────── CSV ───────────────────────────
+
+@router.get("/projects/{project_id}/estimate/csv")
+def export_estimate_csv(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """Export estimate as CSV for accounting import."""
+    import csv
+
+    project, estimate, org = _get_estimate_or_404(project_id, db, current_user)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Item #", "CSI Code", "Division", "Description",
+        "Quantity", "UOM", "Labor Cost", "Material Cost",
+        "Equipment Cost", "Subcontractor Cost", "Total Cost", "Unit Cost"
+    ])
+    for idx, li in enumerate(estimate.line_items, 1):
+        writer.writerow([
+            idx, li.csi_code, li.division_number, li.description,
+            li.quantity, li.unit_of_measure,
+            f"{li.labor_cost:.2f}", f"{li.material_cost:.2f}",
+            f"{li.equipment_cost:.2f}", f"{li.subcontractor_cost:.2f}",
+            f"{li.total_cost:.2f}", f"{li.unit_cost:.2f}",
+        ])
+    # Summary rows
+    writer.writerow([])
+    writer.writerow(["", "", "", "Subtotal (Direct Cost)", "", "", "", "", "", "", f"{estimate.total_direct_cost:.2f}", ""])
+    writer.writerow(["", "", "", f"Overhead ({estimate.overhead_pct}%)", "", "", "", "", "", "", f"{estimate.overhead_amount:.2f}", ""])
+    writer.writerow(["", "", "", f"Profit ({estimate.profit_pct}%)", "", "", "", "", "", "", f"{estimate.profit_amount:.2f}", ""])
+    writer.writerow(["", "", "", f"Contingency ({estimate.contingency_pct}%)", "", "", "", "", "", "", f"{estimate.contingency_amount:.2f}", ""])
+    writer.writerow(["", "", "", "GRAND TOTAL", "", "", "", "", "", "", f"{estimate.total_bid_amount:.2f}", ""])
+
+    filename = f"{project.project_number}_estimate.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ─────────────────────────── QuickBooks IIF ───────────────────────────
+
+@router.get("/projects/{project_id}/estimate/qb")
+def export_estimate_quickbooks(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """Export estimate in QuickBooks IIF format."""
+    project, estimate, org = _get_estimate_or_404(project_id, db, current_user)
+
+    lines = []
+    lines.append("!TRNS\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO")
+    lines.append("!SPL\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO")
+    lines.append("!ENDTRNS")
+
+    today = date.today().strftime("%m/%d/%Y")
+
+    # Main transaction
+    lines.append(f"TRNS\tESTIMATE\t{today}\tAccounts Receivable\t{project.name}\t{estimate.total_bid_amount:.2f}\tProject Estimate {project.project_number}")
+
+    for li in estimate.line_items:
+        lines.append(f"SPL\tESTIMATE\t{today}\tConstruction Income:{li.division_number}\t{project.name}\t-{li.total_cost:.2f}\t{li.csi_code} {li.description[:50]}")
+
+    # Markup splits
+    if estimate.overhead_amount > 0:
+        lines.append(f"SPL\tESTIMATE\t{today}\tOverhead\t{project.name}\t-{estimate.overhead_amount:.2f}\tOverhead {estimate.overhead_pct}%")
+    if estimate.profit_amount > 0:
+        lines.append(f"SPL\tESTIMATE\t{today}\tProfit\t{project.name}\t-{estimate.profit_amount:.2f}\tProfit {estimate.profit_pct}%")
+    if estimate.contingency_amount > 0:
+        lines.append(f"SPL\tESTIMATE\t{today}\tContingency\t{project.name}\t-{estimate.contingency_amount:.2f}\tContingency {estimate.contingency_pct}%")
+
+    lines.append("ENDTRNS")
+
+    content = "\n".join(lines)
+    filename = f"{project.project_number}_estimate.iif"
+
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/plain",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

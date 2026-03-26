@@ -16,6 +16,7 @@ from apex.backend.models.estimate import Estimate, EstimateLineItem
 from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.models.agent_run_log import AgentRunLog
+from apex.backend.models.equipment_rate import EquipmentRate
 from apex.backend.utils.auth import hash_password
 from apex.backend.db.database import Base
 
@@ -285,6 +286,24 @@ def _seed(db):
         db.add(MaterialPrice(
             csi_code=csi, description=desc, unit_cost=cost,
             unit_of_measure=unit, source=src, region="Denver, CO",
+        ))
+    db.commit()
+
+    # --- Equipment Rates ---
+    equipment_rate_data = [
+        ("03", 0.10, "Concrete — forms, pumps, vibrators"),
+        ("05", 0.10, "Metals — cranes, welding rigs"),
+        ("07", 0.05, "Thermal/Moisture Protection — hoists, sprayers"),
+        ("08", 0.03, "Openings — minimal equipment"),
+        ("09", 0.05, "Finishes — lifts, sprayers"),
+        ("31", 0.15, "Earthwork — excavators, dozers, loaders"),
+        ("32", 0.08, "Exterior Improvements — pavers, compactors"),
+        ("33", 0.12, "Utilities — trenchers, boring machines"),
+    ]
+    for div, pct, desc in equipment_rate_data:
+        db.add(EquipmentRate(
+            division_number=div, equipment_pct=pct,
+            description=desc, region="Denver, CO",
         ))
     db.commit()
 

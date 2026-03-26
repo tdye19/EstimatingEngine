@@ -17,6 +17,7 @@ import {
   Save,
   BookOpen,
   DollarSign,
+  Calendar,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -28,6 +29,7 @@ import AgentLogsTab from '../components/tabs/AgentLogsTab';
 import DocumentsTab from '../components/tabs/DocumentsTab';
 import SpecSectionsTab from '../components/tabs/SpecSectionsTab';
 import CostTrackingTab from '../components/tabs/CostTrackingTab';
+import ScheduleTab from '../components/tabs/ScheduleTab';
 import ErrorBoundary from '../components/ErrorBoundary';
 import PipelineStatus from '../components/PipelineStatus';
 
@@ -39,6 +41,7 @@ const TABS = [
   { path: 'labor', label: 'Labor', icon: HardHat },
   { path: 'estimate', label: 'Estimate', icon: Calculator },
   { path: 'variance', label: 'Variance', icon: TrendingUp },
+  { path: 'schedule', label: 'Schedule', icon: Calendar },
   { path: 'agents', label: 'Agent Logs', icon: Activity },
   { path: 'cost-tracking', label: 'Cost Tracking', icon: DollarSign },
 ];
@@ -257,6 +260,7 @@ export default function ProjectDetailPage() {
         <Route path="labor" element={<ErrorBoundary key="labor"><LaborTab projectId={id} refreshKey={laborRefreshKey} /></ErrorBoundary>} />
         <Route path="estimate" element={<ErrorBoundary key="estimate"><EstimateTab projectId={id} project={project} refreshKey={estimateRefreshKey} /></ErrorBoundary>} />
         <Route path="variance" element={<ErrorBoundary key="variance"><VarianceTab projectId={id} refreshKey={varianceRefreshKey} /></ErrorBoundary>} />
+        <Route path="schedule" element={<ErrorBoundary key="schedule"><ScheduleTab projectId={id} /></ErrorBoundary>} />
         <Route path="agents" element={<ErrorBoundary key="agents"><AgentLogsTab projectId={id} onAgentComplete={handleAgentComplete} /></ErrorBoundary>} />
         <Route path="cost-tracking" element={<ErrorBoundary key="cost-tracking"><CostTrackingTab projectId={id} refreshKey={costRefreshKey} /></ErrorBoundary>} />
         <Route index element={<Navigate to="documents" replace />} />

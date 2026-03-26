@@ -35,6 +35,8 @@ class OrganizationOut(BaseModel):
     name: str
     address: Optional[str] = None
     phone: Optional[str] = None
+    license_number: Optional[str] = None
+    created_at: datetime
 
 
 # --- User ---
@@ -296,6 +298,41 @@ class ProductivityUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+# --- Equipment Rate ---
+class EquipmentRateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    division_number: str
+    csi_code: Optional[str] = None
+    equipment_pct: float
+    description: Optional[str] = None
+    region: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class EquipmentRateCreate(BaseModel):
+    division_number: str
+    csi_code: Optional[str] = None
+    equipment_pct: float
+    description: Optional[str] = None
+    region: Optional[str] = None
+
+class EquipmentRateUpdate(BaseModel):
+    division_number: Optional[str] = None
+    csi_code: Optional[str] = None
+    equipment_pct: Optional[float] = None
+    description: Optional[str] = None
+    region: Optional[str] = None
+
+
+# --- Estimate Markup ---
+class EstimateMarkupUpdate(BaseModel):
+    overhead_pct: Optional[float] = None
+    profit_pct: Optional[float] = None
+    contingency_pct: Optional[float] = None
+    gc_markup_pct: Optional[float] = None
+
+
 # --- Pipeline Status ---
 class AgentStepStatus(BaseModel):
     agent_number: int
@@ -328,3 +365,56 @@ class AgentRunLogOut(BaseModel):
     tokens_used: Optional[int] = None
     output_summary: Optional[str] = None
     error_message: Optional[str] = None
+
+
+# --- User Update (Admin) ---
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+# --- Organization Update (Admin) ---
+class OrganizationUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    license_number: Optional[str] = None
+
+
+# --- Material Price ---
+class MaterialPriceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    csi_code: str
+    description: str
+    unit_cost: float
+    unit_of_measure: str
+    supplier: Optional[str] = None
+    region: Optional[str] = None
+    effective_date: Optional[str] = None
+    source: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MaterialPriceCreate(BaseModel):
+    csi_code: str
+    description: str
+    unit_cost: float
+    unit_of_measure: str
+    supplier: Optional[str] = None
+    region: Optional[str] = None
+    effective_date: Optional[str] = None
+    source: Optional[str] = None
+
+
+class MaterialPriceUpdate(BaseModel):
+    csi_code: Optional[str] = None
+    description: Optional[str] = None
+    unit_cost: Optional[float] = None
+    unit_of_measure: Optional[str] = None
+    supplier: Optional[str] = None
+    region: Optional[str] = None
+    effective_date: Optional[str] = None
+    source: Optional[str] = None

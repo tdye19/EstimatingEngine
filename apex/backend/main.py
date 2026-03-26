@@ -16,8 +16,11 @@ from slowapi.errors import RateLimitExceeded
 # Load .env before anything else so env vars are available during import
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
+from apex.backend.config import APEX_DEV_MODE, CORS_ORIGINS, GLOBAL_RATE_LIMIT, LOG_LEVEL
 from apex.backend.db.database import init_db
 from apex.backend.routers import auth, projects, reports, productivity
+from apex.backend.routers import admin as admin_router
+from apex.backend.routers import materials as materials_router
 from apex.backend.routers import exports
 from apex.backend.routers import token_usage as token_usage_router
 from apex.backend.routers import test_pipeline as test_pipeline_router
@@ -66,8 +69,6 @@ async def lifespan(app: FastAPI):
     logger.info("APEX Platform shutting down.")
 
 
-from apex.backend.config import APEX_DEV_MODE, CORS_ORIGINS, GLOBAL_RATE_LIMIT, LOG_LEVEL
-
 limiter = Limiter(key_func=get_remote_address, default_limits=[GLOBAL_RATE_LIMIT])
 
 app = FastAPI(
@@ -103,10 +104,12 @@ app.add_middleware(
 
 # Routers
 app.include_router(auth.router)
+app.include_router(admin_router.router)
 app.include_router(projects.router)
 app.include_router(reports.router)
 app.include_router(productivity.router)
 app.include_router(exports.router)
+app.include_router(materials_router.router)
 app.include_router(token_usage_router.router)
 app.include_router(ws_router.router)
 

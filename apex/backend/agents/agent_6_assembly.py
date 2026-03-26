@@ -23,6 +23,7 @@ from apex.backend.models.material_price import MaterialPrice
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.estimate import Estimate, EstimateLineItem
 from apex.backend.models.project import Project
+from apex.backend.models.equipment_rate import EquipmentRate
 from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.utils.async_helper import run_async as _run_async
@@ -239,8 +240,12 @@ def run_assembly_agent(db: Session, project_id: int) -> dict:
         if mat:
             material_cost = mat.unit_cost * labor.quantity
 
-        # Equipment estimate (typically 5-15% of labor for heavy divisions)
-        equipment_pct = 0.10 if div_num in ("03", "05", "31") else 0.05
+        # Equipment estimate — look up from DB, fall back to defaults
+        eq_rate = db.query(EquipmentRate).filter(
+            EquipmentRate.division_number == div_num,
+            EquipmentRate.is_deleted == False,  # noqa: E712
+        ).first()
+        equipment_pct = eq_rate.equipment_pct if eq_rate else (0.10 if div_num in ("03", "05", "31") else 0.05)
         equipment_cost = labor.total_labor_cost * equipment_pct
 
         total_cost = labor.total_labor_cost + material_cost + equipment_cost

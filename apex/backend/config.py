@@ -31,3 +31,11 @@ CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:5173,http:
 GLOBAL_RATE_LIMIT: str = os.getenv("RATE_LIMIT_DEFAULT", "120/minute")
 AUTH_LOGIN_RATE_LIMIT: str = os.getenv("RATE_LIMIT_LOGIN", "10/minute")
 AUTH_REGISTER_RATE_LIMIT: str = os.getenv("RATE_LIMIT_REGISTER", "5/minute")
+
+# ── Email / SMTP ──────────────────────────────────────────────────────
+SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER: str = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@apex-platform.com")
+EMAIL_ENABLED: bool = bool(SMTP_HOST and SMTP_USER)

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { listDocuments, deleteDocument, runPipeline, getPipelineStatus } from '../../api';
-import { FileText, Clock, CheckCircle2, XCircle, Loader2, Trash2, Play } from 'lucide-react';
+import { listDocuments, deleteDocument, bulkDeleteDocuments, runPipeline, getPipelineStatus, getDocumentFileUrl } from '../../api';
+import { FileText, Clock, CheckCircle2, XCircle, Loader2, Trash2, Play, Eye } from 'lucide-react';
 import ChunkedUploader from '../ChunkedUploader';
+import PdfViewer from '../PdfViewer';
 
 const STATUS_CONFIG = {
   pending:    { icon: Clock,         color: 'text-gray-400',  label: 'Pending' },
@@ -28,13 +29,28 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
   const [pipelineMsg, setPipelineMsg] = useState('');
   const pollRef = useRef(null);
 
-  useEffect(() => {
+  const [error, setError] = useState('');
+  const [viewingDoc, setViewingDoc] = useState(null);
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const loadDocs = () => {
     setLoading(true);
+    setError('');
     listDocuments(projectId)
-      .then((data) => setDocs(data || []))
-      .catch(() => {})
+      .then((data) => {
+        setDocs(data || []);
+        setSelectedIds(new Set());
+        setSelectAll(false);
+      })
+      .catch((err) => setError(err.message || 'Failed to load documents'))
       .finally(() => setLoading(false));
-  }, [projectId, refreshKey]);
+  };
+
+  useEffect(loadDocs, [projectId, refreshKey]);
 
   // Cleanup poll on unmount
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
@@ -74,6 +90,7 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
   };
 
   const handleRunPipeline = async () => {
+    if (!window.confirm('Run the AI pipeline? This will use LLM API credits.')) return;
     setPipelineRunning(true);
     setPipelineMsg('Starting pipeline…');
     try {
@@ -106,6 +123,11 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
     try {
       await deleteDocument(projectId, docId);
       setDocs((prev) => prev.filter((d) => d.id !== docId));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(docId);
+        return next;
+      });
     } catch (err) {
       setUploadMsg(`Delete failed: ${err.message}`);
     } finally {
@@ -113,12 +135,67 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
     }
   };
 
+  const toggleSelect = (docId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(docId)) {
+        next.delete(docId);
+      } else {
+        next.add(docId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedIds(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedIds(new Set(docs.map((d) => d.id)));
+      setSelectAll(true);
+    }
+  };
+
+  // Keep selectAll in sync
+  useEffect(() => {
+    if (docs.length > 0 && selectedIds.size === docs.length) {
+      setSelectAll(true);
+    } else {
+      setSelectAll(false);
+    }
+  }, [selectedIds, docs]);
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected document(s)?`)) return;
+    setBulkDeleting(true);
+    try {
+      await bulkDeleteDocuments(projectId, [...selectedIds]);
+      setSelectedIds(new Set());
+      setSelectAll(false);
+      loadDocs();
+    } catch (err) {
+      setUploadMsg(`Bulk delete failed: ${err.message}`);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   if (loading) return <div className="text-gray-400 py-8 text-center">Loading documents...</div>;
+  if (error) return <div className="text-red-500 py-8 text-center">{error}<button onClick={loadDocs} className="ml-3 text-sm underline">Retry</button></div>;
 
   const hasDocuments = docs.length > 0;
 
   return (
     <div className="space-y-4">
+      {viewingDoc && (
+        <PdfViewer
+          url={getDocumentFileUrl(projectId, viewingDoc.id)}
+          filename={viewingDoc.filename}
+          onClose={() => setViewingDoc(null)}
+        />
+      )}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">{docs.length} document{docs.length !== 1 ? 's' : ''}</p>
         <div className="flex items-center gap-2">
@@ -159,6 +236,27 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
         </div>
       )}
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-4 bg-apex-50 border border-apex-200 rounded-lg px-4 py-2 text-sm">
+          <span className="font-medium text-apex-700">{selectedIds.size} selected</span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="flex items-center gap-1 text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" />
+            {bulkDeleting ? 'Deleting…' : 'Delete Selected'}
+          </button>
+          <button
+            onClick={() => { setSelectedIds(new Set()); setSelectAll(false); }}
+            className="text-gray-500 hover:text-gray-700 font-medium"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {docs.length === 0 ? (
         <div className="card text-center py-16 text-gray-400">
           <FileText className="h-10 w-10 mx-auto mb-3 opacity-30" />
@@ -170,6 +268,14 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={selectAll}
+                    onChange={toggleSelectAll}
+                    className="rounded border-gray-300"
+                  />
+                </th>
                 <th className="px-4 py-3">File</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Classification</th>
@@ -185,7 +291,15 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
                 const st = STATUS_CONFIG[doc.processing_status] || STATUS_CONFIG.pending;
                 const Icon = st.icon;
                 return (
-                  <tr key={doc.id} className="hover:bg-gray-50">
+                  <tr key={doc.id} className={`hover:bg-gray-50 ${selectedIds.has(doc.id) ? 'bg-apex-50' : ''}`}>
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(doc.id)}
+                        onChange={() => toggleSelect(doc.id)}
+                        className="rounded border-gray-300"
+                      />
+                    </td>
                     <td className="px-4 py-3 font-medium flex items-center gap-2">
                       <FileText className="h-4 w-4 text-gray-400 shrink-0" />
                       {doc.filename}
@@ -203,7 +317,16 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
                     <td className="px-4 py-3 text-xs text-gray-400">
                       {new Date(doc.created_at).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 flex items-center gap-1">
+                      {doc.file_type === 'pdf' && (
+                        <button
+                          onClick={() => setViewingDoc({ id: doc.id, filename: doc.filename })}
+                          className="p-1 rounded text-gray-300 hover:text-apex-600 hover:bg-apex-50 transition-colors"
+                          title="View document"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDelete(doc.id, doc.filename)}
                         disabled={deletingId === doc.id}

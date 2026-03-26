@@ -8,7 +8,7 @@ import uuid
 import csv
 import io
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
 from apex.backend.models.project import Project
@@ -18,7 +18,7 @@ from apex.backend.models.upload_session import UploadSession
 from apex.backend.models.upload_chunk import UploadChunk
 from apex.backend.models.user import User
 from apex.backend.services.crew_orchestrator import get_orchestrator
-from apex.backend.utils.auth import require_auth, get_authorized_project
+from apex.backend.utils.auth import require_auth, get_authorized_project, get_current_user, SECRET_KEY, ALGORITHM
 from apex.backend.utils.schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut, DocumentOut, APIResponse,
     PipelineStatusOut, AgentStepStatus, ChunkedUploadInitRequest,
@@ -411,6 +411,130 @@ def list_documents(project_id: int, db: Session = Depends(get_db), user: User = 
     )
 
 
+@router.post("/{project_id}/documents/bulk-delete", response_model=APIResponse)
+def bulk_delete_documents(
+    project_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """Soft-delete multiple documents at once."""
+    get_authorized_project(project_id, user, db)
+    doc_ids = data.get("document_ids", [])
+    if not doc_ids:
+        raise HTTPException(status_code=400, detail="No document IDs provided")
+
+    count = 0
+    for doc_id in doc_ids:
+        doc = db.query(Document).filter(
+            Document.id == doc_id,
+            Document.project_id == project_id,
+            Document.is_deleted == False,  # noqa: E712
+        ).first()
+        if doc:
+            doc.is_deleted = True
+            count += 1
+    db.commit()
+    return APIResponse(success=True, message=f"Deleted {count} documents", data={"deleted": count})
+
+
+@router.post("/{project_id}/clone", response_model=APIResponse)
+def clone_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """Clone a project with its estimate, line items, takeoff items, and spec sections."""
+    source = get_authorized_project(project_id, user, db)
+
+    new_number = _generate_project_number(db)
+    clone = Project(
+        name=f"{source.name} (Copy)",
+        project_number=new_number,
+        project_type=source.project_type,
+        description=source.description,
+        location=source.location,
+        square_footage=source.square_footage,
+        estimated_value=source.estimated_value,
+        bid_date=source.bid_date,
+        status="draft",
+        owner_id=user.id,
+        organization_id=user.organization_id,
+    )
+    db.add(clone)
+    db.flush()  # get clone.id
+
+    # Clone spec sections
+    from apex.backend.models.spec_section import SpecSection
+    sections = db.query(SpecSection).filter(
+        SpecSection.project_id == project_id, SpecSection.is_deleted == False  # noqa: E712
+    ).all()
+    for s in sections:
+        db.add(SpecSection(
+            project_id=clone.id, document_id=None,
+            division_number=s.division_number, section_number=s.section_number,
+            title=s.title, work_description=s.work_description,
+            materials_referenced=s.materials_referenced,
+            execution_requirements=s.execution_requirements,
+            submittal_requirements=s.submittal_requirements,
+            keywords=s.keywords, raw_text=s.raw_text,
+        ))
+
+    # Clone takeoff items
+    from apex.backend.models.takeoff_item import TakeoffItem
+    items = db.query(TakeoffItem).filter(
+        TakeoffItem.project_id == project_id, TakeoffItem.is_deleted == False  # noqa: E712
+    ).all()
+    for t in items:
+        db.add(TakeoffItem(
+            project_id=clone.id, csi_code=t.csi_code,
+            description=t.description, quantity=t.quantity,
+            unit_of_measure=t.unit_of_measure, drawing_reference=t.drawing_reference,
+            confidence=t.confidence, notes=t.notes,
+        ))
+
+    # Clone latest estimate + line items
+    from apex.backend.models.estimate import Estimate, EstimateLineItem
+    est = db.query(Estimate).filter(
+        Estimate.project_id == project_id, Estimate.is_deleted == False  # noqa: E712
+    ).order_by(Estimate.version.desc()).first()
+    if est:
+        new_est = Estimate(
+            project_id=clone.id, version=1, status="draft",
+            total_direct_cost=est.total_direct_cost,
+            total_labor_cost=est.total_labor_cost,
+            total_material_cost=est.total_material_cost,
+            total_subcontractor_cost=est.total_subcontractor_cost,
+            gc_markup_pct=est.gc_markup_pct, gc_markup_amount=est.gc_markup_amount,
+            overhead_pct=est.overhead_pct, overhead_amount=est.overhead_amount,
+            profit_pct=est.profit_pct, profit_amount=est.profit_amount,
+            contingency_pct=est.contingency_pct, contingency_amount=est.contingency_amount,
+            total_bid_amount=est.total_bid_amount,
+            exclusions=est.exclusions, assumptions=est.assumptions,
+            alternates=est.alternates, executive_summary=est.executive_summary,
+        )
+        db.add(new_est)
+        db.flush()
+        for li in est.line_items:
+            db.add(EstimateLineItem(
+                estimate_id=new_est.id, division_number=li.division_number,
+                csi_code=li.csi_code, description=li.description,
+                quantity=li.quantity, unit_of_measure=li.unit_of_measure,
+                labor_cost=li.labor_cost, material_cost=li.material_cost,
+                equipment_cost=li.equipment_cost, subcontractor_cost=li.subcontractor_cost,
+                total_cost=li.total_cost, unit_cost=li.unit_cost,
+            ))
+
+    db.commit()
+    db.refresh(clone)
+
+    return APIResponse(
+        success=True,
+        message=f"Project cloned as {clone.project_number}",
+        data=ProjectOut.model_validate(clone).model_dump(mode="json"),
+    )
+
+
 @router.delete("/{project_id}", status_code=204)
 def delete_project(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
     project = get_authorized_project(project_id, user, db)
@@ -587,11 +711,64 @@ def run_single_agent(
     )
 
 
+@router.get("/{project_id}/documents/{doc_id}/file")
+def get_document_file(
+    project_id: int,
+    doc_id: int,
+    token: str = Query(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Serve the actual document file for viewing."""
+    from jose import JWTError, jwt as jose_jwt
+
+    # If no user from Authorization header, try the query-string token
+    if user is None and token:
+        try:
+            payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            sub = payload.get("sub")
+            if sub is not None:
+                user = db.query(User).filter(
+                    User.id == int(sub), User.is_deleted == False  # noqa: E712
+                ).first()
+        except (JWTError, ValueError):
+            pass
+
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    get_authorized_project(project_id, user, db)
+    doc = db.query(Document).filter(
+        Document.id == doc_id,
+        Document.project_id == project_id,
+        Document.is_deleted == False,  # noqa: E712
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    file_path = doc.file_path
+    if not os.path.isabs(file_path):
+        file_path = os.path.join(os.getcwd(), file_path)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    from fastapi.responses import FileResponse
+    media_type = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "csv": "text/csv",
+        "txt": "text/plain",
+    }.get(doc.file_type, "application/octet-stream")
+
+    return FileResponse(file_path, media_type=media_type, filename=doc.filename)
+
+
 @router.post("/{project_id}/actuals", response_model=APIResponse)
 async def upload_actuals(
     project_id: int,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    background_tasks: BackgroundTasks = Depends(),
     db: Session = Depends(get_db),
     user: User = Depends(require_auth),
 ):
@@ -650,4 +827,35 @@ async def upload_actuals(
         success=True,
         message=f"Imported {imported} actuals ({skipped} skipped), IMPROVE agent started",
         data={"imported": imported, "skipped": skipped},
+    )
+
+
+@router.post("/{project_id}/actuals/entry", response_model=APIResponse)
+def submit_actual_entry(
+    project_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """Submit a single field actual record (mobile-friendly)."""
+    get_authorized_project(project_id, user, db)
+
+    actual = ProjectActual(
+        project_id=project_id,
+        csi_code=data.get("csi_code", "").strip(),
+        description=data.get("description", ""),
+        actual_quantity=float(data.get("actual_quantity", 0) or 0),
+        actual_labor_hours=float(data.get("actual_labor_hours", 0) or 0),
+        actual_cost=float(data.get("actual_cost", 0) or 0),
+        crew_type=data.get("crew_type", ""),
+        work_type=data.get("work_type", ""),
+    )
+    db.add(actual)
+    db.commit()
+    db.refresh(actual)
+
+    return APIResponse(
+        success=True,
+        message="Actual entry recorded",
+        data={"id": actual.id, "csi_code": actual.csi_code},
     )

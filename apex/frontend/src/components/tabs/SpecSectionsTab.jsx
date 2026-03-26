@@ -37,23 +37,38 @@ const STATUS_COLORS = {
 export default function SpecSectionsTab({ projectId }) {
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [expanded, setExpanded] = useState({});
   const [sortBy, setSortBy] = useState('division');
+  const [divisionFilter, setDivisionFilter] = useState('all');
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setError('');
     getSpecSections(projectId)
       .then((data) => setSections(data || []))
-      .catch(() => {})
+      .catch((err) => setError(err.message || 'Failed to load spec sections'))
       .finally(() => setLoading(false));
-  }, [projectId]);
+  };
+
+  useEffect(load, [projectId]);
 
   if (loading) return <div className="text-gray-400 py-8 text-center">Loading spec sections...</div>;
+  if (error) return <div className="text-red-500 py-8 text-center">{error}<button onClick={load} className="ml-3 text-sm underline">Retry</button></div>;
   if (!sections.length) return <div className="text-gray-400 py-8 text-center">No spec sections found. Run the agent pipeline to parse specification documents.</div>;
 
   const toggleExpand = (id) =>
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  const sorted = [...sections].sort((a, b) => {
+  // Collect unique division numbers for the filter dropdown
+  const uniqueDivisions = [...new Set(sections.map((s) => s.division_number || '00'))].sort();
+
+  // Apply division filter before sort
+  const afterFilter = divisionFilter === 'all'
+    ? sections
+    : sections.filter((s) => (s.division_number || '00') === divisionFilter);
+
+  const sorted = [...afterFilter].sort((a, b) => {
     if (sortBy === 'division') return a.section_number.localeCompare(b.section_number);
     if (sortBy === 'title') return a.title.localeCompare(b.title);
     return 0;
@@ -75,16 +90,33 @@ export default function SpecSectionsTab({ projectId }) {
           <BookOpen className="h-4 w-4" />
           <span>{sections.length} spec sections parsed</span>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-500">Sort by:</label>
-          <select
-            className="input text-sm py-1"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-          >
-            <option value="division">CSI Division</option>
-            <option value="title">Title</option>
-          </select>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-500">Division:</label>
+            <select
+              className="input text-sm py-1"
+              value={divisionFilter}
+              onChange={(e) => setDivisionFilter(e.target.value)}
+            >
+              <option value="all">All Divisions</option>
+              {uniqueDivisions.map((div) => (
+                <option key={div} value={div}>
+                  Division {div} — {DIVISION_LABELS[div] || 'Other'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-500">Sort by:</label>
+            <select
+              className="input text-sm py-1"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="division">CSI Division</option>
+              <option value="title">Title</option>
+            </select>
+          </div>
         </div>
       </div>
 

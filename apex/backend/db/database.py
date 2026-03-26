@@ -47,6 +47,6 @@ def init_db():
         user, organization, project, document, spec_section,
         gap_report, takeoff_item, labor_estimate, material_price,
         estimate, project_actual, productivity_history, agent_run_log,
-        token_usage, upload_session, upload_chunk,
+        token_usage, upload_session, upload_chunk, equipment_rate,
     )
     Base.metadata.create_all(bind=engine)
