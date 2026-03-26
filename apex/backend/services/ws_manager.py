@@ -32,11 +32,16 @@ class ConnectionManager:
     The sync broadcast path (broadcast_sync) uses
     asyncio.run_coroutine_threadsafe so the orchestrator background thread can
     push updates without having its own event loop.
+
+    A separate batch_connections dict handles batch-import channels so that
+    group_id values never collide with project_id keys.
     """
 
     def __init__(self) -> None:
         # project_id -> set of active WebSocket connections
         self._connections: dict[int, set] = defaultdict(set)
+        # group_id -> set of active WebSocket connections (batch-import channel)
+        self._batch_connections: dict[int, set] = defaultdict(set)
         self._lock = asyncio.Lock()
         # Stored during app startup so sync callers can schedule coroutines
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -112,6 +117,58 @@ class ConnectionManager:
             )
         except Exception as exc:
             logger.debug("broadcast_sync scheduling failed: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Batch-import connection lifecycle (async)
+    # ------------------------------------------------------------------
+
+    async def connect_batch(self, group_id: int, websocket) -> None:
+        """Accept a batch-import WebSocket and register it under group_id."""
+        await websocket.accept()
+        async with self._lock:
+            self._batch_connections[group_id].add(websocket)
+        count = len(self._batch_connections[group_id])
+        logger.info("WS batch connected — group %s (active: %d)", group_id, count)
+
+    async def disconnect_batch(self, group_id: int, websocket) -> None:
+        """Remove a batch-import connection from the registry."""
+        async with self._lock:
+            self._batch_connections[group_id].discard(websocket)
+            if not self._batch_connections[group_id]:
+                del self._batch_connections[group_id]
+        logger.info("WS batch disconnected — group %s", group_id)
+
+    async def broadcast_batch(self, group_id: int, message: dict) -> None:
+        """Send *message* as JSON to every client watching *group_id*."""
+        payload = json.dumps(message)
+        async with self._lock:
+            clients = list(self._batch_connections.get(group_id, set()))
+        if not clients:
+            return
+
+        dead: list = []
+        for ws in clients:
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                dead.append(ws)
+
+        if dead:
+            async with self._lock:
+                for ws in dead:
+                    self._batch_connections[group_id].discard(ws)
+
+    def broadcast_batch_sync(self, group_id: int, message: dict) -> None:
+        """Fire-and-forget batch broadcast from a synchronous context."""
+        if self._loop is None or not self._loop.is_running():
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(
+                self.broadcast_batch(group_id, message),
+                self._loop,
+            )
+        except Exception as exc:
+            logger.debug("broadcast_batch_sync scheduling failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Utility

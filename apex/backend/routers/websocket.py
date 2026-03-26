@@ -80,6 +80,43 @@ async def pipeline_websocket(project_id: int, websocket: WebSocket):
         await ws_manager.disconnect(project_id, websocket)
 
 
+@router.websocket("/ws/batch-import/{group_id}")
+async def batch_import_websocket(group_id: int, websocket: WebSocket):
+    await ws_manager.connect_batch(group_id, websocket)
+    try:
+        last_message_at = datetime.now(timezone.utc)
+
+        while True:
+            try:
+                raw = await asyncio.wait_for(
+                    websocket.receive_text(), timeout=HEARTBEAT_INTERVAL
+                )
+                last_message_at = datetime.now(timezone.utc)
+                if raw == "ping":
+                    await websocket.send_text("pong")
+
+            except asyncio.TimeoutError:
+                try:
+                    await websocket.send_json({"type": "ping"})
+                except Exception:
+                    break
+
+                idle_s = (datetime.now(timezone.utc) - last_message_at).total_seconds()
+                if idle_s >= IDLE_TIMEOUT_S:
+                    logger.info(
+                        "Closing idle WS for batch group %s (idle %.0fs)", group_id, idle_s
+                    )
+                    await websocket.close(code=1000)
+                    break
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        logger.error("WS error for batch group %s: %s", group_id, exc)
+    finally:
+        await ws_manager.disconnect_batch(group_id, websocket)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
