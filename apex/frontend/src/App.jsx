@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
@@ -7,10 +8,11 @@ import ProjectDetailPage from './pages/ProjectDetailPage';
 import ProductivityPage from './pages/ProductivityPage';
 import AdminPage from './pages/AdminPage';
 import MaterialsPage from './pages/MaterialsPage';
-import ComparePage from './pages/ComparePage';
 import FieldActualsPage from './pages/FieldActualsPage';
-import BenchmarkingPage from './pages/BenchmarkingPage';
 import ErrorBoundary from './components/ErrorBoundary';
+
+const ComparePage = lazy(() => import('./pages/ComparePage'));
+const BenchmarkingPage = lazy(() => import('./pages/BenchmarkingPage'));
 
 export default function App() {
   const { token, user } = useAuth();
@@ -28,22 +30,24 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
-          <Route path="/productivity" element={<ProductivityPage />} />
-          <Route path="/materials" element={<MaterialsPage />} />
-          <Route path="/compare" element={<ComparePage />} />
-          <Route path="/field-entry" element={<FieldActualsPage />} />
-          <Route path="/benchmarking" element={<BenchmarkingPage />} />
-          {user?.role === 'admin' && (
-            <Route path="/admin" element={<AdminPage />} />
-          )}
-        </Route>
-        <Route path="/login" element={<Navigate to="/" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">Loading…</div>}>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
+            <Route path="/productivity" element={<ProductivityPage />} />
+            <Route path="/materials" element={<MaterialsPage />} />
+            <Route path="/compare" element={<ComparePage />} />
+            <Route path="/field-entry" element={<FieldActualsPage />} />
+            <Route path="/benchmarking" element={<BenchmarkingPage />} />
+            {user?.role === 'admin' && (
+              <Route path="/admin" element={<AdminPage />} />
+            )}
+          </Route>
+          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </ErrorBoundary>
   );
 }

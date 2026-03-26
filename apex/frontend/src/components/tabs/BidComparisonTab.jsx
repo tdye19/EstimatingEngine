@@ -1,7 +1,4 @@
-import { useEffect, useState } from 'react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from 'recharts';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   Plus, Trash2, BarChart2, Upload, X, ChevronDown, ChevronUp,
 } from 'lucide-react';
@@ -9,7 +6,7 @@ import {
   getBidComparisons, createBidComparison, deleteBidComparison, getBidComparisonOverlay,
 } from '../../api';
 
-const SOURCE_COLORS = ['#1e40af', '#16a34a', '#dc2626', '#f59e0b', '#7c3aed', '#0891b2'];
+const BidComparisonChart = lazy(() => import('../charts/BidComparisonChart'));
 
 const FMT = (v) => (v === undefined || v === null ? '—' : `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
 
@@ -131,18 +128,9 @@ export default function BidComparisonTab({ projectId, refreshKey }) {
             <BarChart2 className="h-4 w-4 text-apex-600" />
             Cost by CSI Division
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="division" tick={{ fontSize: 11 }} />
-              <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v) => FMT(v)} />
-              <Legend />
-              {dataKeys.map((key, idx) => (
-                <Bar key={key} dataKey={key} fill={SOURCE_COLORS[idx % SOURCE_COLORS.length]} radius={[2, 2, 0, 0]} />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
+          <Suspense fallback={<div className="h-[300px] flex items-center justify-center text-gray-400 text-sm">Loading chart…</div>}>
+            <BidComparisonChart chartData={chartData} dataKeys={dataKeys} />
+          </Suspense>
         </div>
       )}
 
