@@ -10,7 +10,7 @@ class Document(Base, TimestampMixin):
     __tablename__ = "documents"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     filename = Column(String(500), nullable=False)
     file_path = Column(String(1000), nullable=False)
     file_type = Column(String(50), nullable=False)  # pdf, docx, xlsx

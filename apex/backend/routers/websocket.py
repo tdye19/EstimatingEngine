@@ -26,9 +26,11 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from jose import JWTError, jwt as jose_jwt
 
 from apex.backend.services.ws_manager import ws_manager
+from apex.backend.utils.auth import SECRET_KEY, ALGORITHM
 
 router = APIRouter()
 logger = logging.getLogger("apex.ws")
@@ -37,8 +39,27 @@ HEARTBEAT_INTERVAL = 30    # seconds: how often to ping a silent client
 IDLE_TIMEOUT_S = 300       # 5 minutes: close truly idle connections
 
 
+async def _verify_ws_token(websocket: WebSocket) -> bool:
+    """Verify JWT token from WebSocket query parameter. Returns True if valid."""
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing authentication token")
+        return False
+    try:
+        payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("sub") is None:
+            await websocket.close(code=4001, reason="Invalid token")
+            return False
+    except (JWTError, ValueError):
+        await websocket.close(code=4001, reason="Invalid token")
+        return False
+    return True
+
+
 @router.websocket("/ws/pipeline/{project_id}")
 async def pipeline_websocket(project_id: int, websocket: WebSocket):
+    if not await _verify_ws_token(websocket):
+        return
     await ws_manager.connect(project_id, websocket)
     try:
         # Push current status snapshot immediately so the client has data
@@ -82,6 +103,8 @@ async def pipeline_websocket(project_id: int, websocket: WebSocket):
 
 @router.websocket("/ws/batch-import/{group_id}")
 async def batch_import_websocket(group_id: int, websocket: WebSocket):
+    if not await _verify_ws_token(websocket):
+        return
     await ws_manager.connect_batch(group_id, websocket)
     try:
         last_message_at = datetime.now(timezone.utc)

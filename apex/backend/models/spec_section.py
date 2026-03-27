@@ -10,8 +10,8 @@ class SpecSection(Base, TimestampMixin):
     __tablename__ = "spec_sections"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False, index=True)
     division_number = Column(String(10), nullable=False)  # e.g., "03", "09"
     section_number = Column(String(20), nullable=False)  # e.g., "03 30 00"
     title = Column(String(500), nullable=False)

@@ -10,8 +10,8 @@ class TakeoffItem(Base, TimestampMixin):
     __tablename__ = "takeoff_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    spec_section_id = Column(Integer, ForeignKey("spec_sections.id"), nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    spec_section_id = Column(Integer, ForeignKey("spec_sections.id"), nullable=True, index=True)
     csi_code = Column(String(20), nullable=False)
     description = Column(Text, nullable=False)
     quantity = Column(Float, nullable=False)

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, memo } from 'react';
 import {
   Plus, Trash2, BarChart2, Upload, X, ChevronDown, ChevronUp,
 } from 'lucide-react';
@@ -10,7 +10,7 @@ const BidComparisonChart = lazy(() => import('../charts/BidComparisonChart'));
 
 const FMT = (v) => (v === undefined || v === null ? '—' : `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
 
-export default function BidComparisonTab({ projectId, refreshKey }) {
+const BidComparisonTab = memo(function BidComparisonTab({ projectId, refreshKey }) {
   const [comparisons, setComparisons] = useState([]);
   const [overlay, setOverlay] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -314,7 +314,9 @@ export default function BidComparisonTab({ projectId, refreshKey }) {
       )}
     </div>
   );
-}
+});
+
+export default BidComparisonTab;
 
 function TotalCard({ label, value, color }) {
   return (

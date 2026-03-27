@@ -4,13 +4,13 @@ import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import ProjectDetailPage from './pages/ProjectDetailPage';
-import ProductivityPage from './pages/ProductivityPage';
-import AdminPage from './pages/AdminPage';
-import MaterialsPage from './pages/MaterialsPage';
-import FieldActualsPage from './pages/FieldActualsPage';
 import ErrorBoundary from './components/ErrorBoundary';
 
+const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'));
+const ProductivityPage = lazy(() => import('./pages/ProductivityPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+const MaterialsPage = lazy(() => import('./pages/MaterialsPage'));
+const FieldActualsPage = lazy(() => import('./pages/FieldActualsPage'));
 const ComparePage = lazy(() => import('./pages/ComparePage'));
 const BenchmarkingPage = lazy(() => import('./pages/BenchmarkingPage'));
 

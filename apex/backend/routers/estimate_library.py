@@ -137,43 +137,57 @@ router = APIRouter(
 # GET /stats/summary — must come BEFORE /{entry_id}
 @router.get("/stats/summary", response_model=APIResponse)
 def stats_summary(db: Session = Depends(get_db)):
-    """Aggregate statistics across the library."""
-    entries = (
-        db.query(EstimateLibraryEntry)
-        .filter(EstimateLibraryEntry.is_deleted == False)  # noqa: E712
+    """Aggregate statistics across the library using SQL aggregation."""
+    from sqlalchemy import func as sa_func
+
+    _not_deleted = EstimateLibraryEntry.is_deleted == False  # noqa: E712
+
+    # Total count
+    total = db.query(sa_func.count(EstimateLibraryEntry.id)).filter(_not_deleted).scalar() or 0
+
+    # Avg cost/sqft by project_type — single query
+    type_rows = (
+        db.query(
+            EstimateLibraryEntry.project_type,
+            sa_func.round(sa_func.avg(EstimateLibraryEntry.cost_per_sqft), 2),
+        )
+        .filter(_not_deleted, EstimateLibraryEntry.project_type.isnot(None), EstimateLibraryEntry.cost_per_sqft.isnot(None))
+        .group_by(EstimateLibraryEntry.project_type)
         .all()
     )
+    avg_cost_per_sqft_by_type = {pt: float(avg) for pt, avg in type_rows}
 
-    total = len(entries)
+    # Avg cost/sqft by state — single query
+    state_rows = (
+        db.query(
+            EstimateLibraryEntry.location_state,
+            sa_func.round(sa_func.avg(EstimateLibraryEntry.cost_per_sqft), 2),
+        )
+        .filter(_not_deleted, EstimateLibraryEntry.location_state.isnot(None), EstimateLibraryEntry.cost_per_sqft.isnot(None))
+        .group_by(EstimateLibraryEntry.location_state)
+        .all()
+    )
+    avg_cost_per_sqft_by_state = {st: float(avg) for st, avg in state_rows}
 
-    # cost/sqft by project_type
-    type_buckets: dict[str, list[float]] = {}
-    for e in entries:
-        if e.project_type and e.cost_per_sqft:
-            type_buckets.setdefault(e.project_type, []).append(e.cost_per_sqft)
-
-    avg_cost_per_sqft_by_type = {
-        pt: round(sum(vals) / len(vals), 2)
-        for pt, vals in type_buckets.items()
-    }
-
-    # cost/sqft by state
-    state_buckets: dict[str, list[float]] = {}
-    for e in entries:
-        if e.location_state and e.cost_per_sqft:
-            state_buckets.setdefault(e.location_state, []).append(e.cost_per_sqft)
-
-    avg_cost_per_sqft_by_state = {
-        st: round(sum(vals) / len(vals), 2)
-        for st, vals in state_buckets.items()
-    }
-
-    # Win/loss ratio by project_type
+    # Win/loss by project_type — single query
+    wl_rows = (
+        db.query(
+            EstimateLibraryEntry.project_type,
+            EstimateLibraryEntry.bid_result,
+            sa_func.count().label("cnt"),
+        )
+        .filter(
+            _not_deleted,
+            EstimateLibraryEntry.project_type.isnot(None),
+            EstimateLibraryEntry.bid_result.in_(["won", "lost"]),
+        )
+        .group_by(EstimateLibraryEntry.project_type, EstimateLibraryEntry.bid_result)
+        .all()
+    )
     wl_buckets: dict[str, dict[str, int]] = {}
-    for e in entries:
-        if e.project_type and e.bid_result in ("won", "lost"):
-            bucket = wl_buckets.setdefault(e.project_type, {"won": 0, "lost": 0})
-            bucket[e.bid_result] += 1
+    for pt, result, cnt in wl_rows:
+        bucket = wl_buckets.setdefault(pt, {"won": 0, "lost": 0})
+        bucket[result] = cnt
 
     win_loss_by_type = {}
     for pt, counts in wl_buckets.items():

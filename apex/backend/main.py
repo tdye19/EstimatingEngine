@@ -154,14 +154,18 @@ async def global_exception_handler(request: Request, exc: Exception):
 def health_check():
     """Health check with database connectivity verification."""
     db_ok = True
+    db = None
     try:
         from sqlalchemy import text
         from apex.backend.db.database import SessionLocal
         db = SessionLocal()
         db.execute(text("SELECT 1"))
-        db.close()
-    except Exception:
+    except Exception as exc:
+        logger.warning("Health check DB failure: %s", exc)
         db_ok = False
+    finally:
+        if db:
+            db.close()
 
     status = "healthy" if db_ok else "degraded"
     return {

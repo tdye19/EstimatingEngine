@@ -27,8 +27,8 @@ class EstimateLibraryEntry(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
 
     # Optional links back to live project / estimate records
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
-    estimate_id = Column(Integer, ForeignKey("estimates.id"), nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
+    estimate_id = Column(Integer, ForeignKey("estimates.id"), nullable=True, index=True)
 
     # Core descriptive fields
     name = Column(String(255), nullable=False)

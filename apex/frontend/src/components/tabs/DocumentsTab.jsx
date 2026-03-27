@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { listDocuments, deleteDocument, bulkDeleteDocuments, runPipeline, getPipelineStatus, getDocumentFileUrl } from '../../api';
 import { FileText, Clock, CheckCircle2, XCircle, Loader2, Trash2, Play, Eye } from 'lucide-react';
 import ChunkedUploader from '../ChunkedUploader';
@@ -19,7 +19,7 @@ function fmtBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipelineComplete }) {
+const DocumentsTab = memo(function DocumentsTab({ projectId, refreshKey, onUploaded, onPipelineComplete }) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploadMsg, setUploadMsg] = useState('');
@@ -346,4 +346,6 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
       )}
     </div>
   );
-}
+});
+
+export default DocumentsTab;

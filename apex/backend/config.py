@@ -10,7 +10,7 @@ import os
 UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "./uploads")
 CHUNK_SIZE: int = int(os.getenv("UPLOAD_CHUNK_SIZE", str(1024 * 1024)))  # 1 MB
 SESSION_TTL: int = int(os.getenv("UPLOAD_SESSION_TTL", "1800"))  # 30 minutes
-MAX_UPLOAD_BYTES: int = int(os.getenv("MAX_UPLOAD_MB", "50")) * 1024 * 1024
+MAX_UPLOAD_BYTES: int = int(os.getenv("MAX_UPLOAD_MB", "200")) * 1024 * 1024
 ALLOWED_EXTENSIONS: set[str] = {
     "pdf", "docx", "doc", "xlsx", "xls", "csv", "est", "txt", "rtf",
 }

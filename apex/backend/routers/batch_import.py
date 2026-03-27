@@ -38,8 +38,8 @@ router = APIRouter(
 
 _service = BatchImportService()
 
-# 500 MB hard limit for uploaded zips
-_MAX_ZIP_BYTES: int = 500 * 1024 * 1024
+# Max zip upload size — configurable via MAX_BATCH_ZIP_MB env var
+_MAX_ZIP_BYTES: int = int(os.getenv("MAX_BATCH_ZIP_MB", "1000")) * 1024 * 1024
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ async def upload_zip(
                 if total_bytes > _MAX_ZIP_BYTES:
                     raise HTTPException(
                         status_code=413,
-                        detail="Zip file exceeds the 500 MB limit",
+                        detail=f"Zip file exceeds the {_MAX_ZIP_BYTES // (1024 * 1024)} MB limit",
                     )
                 fh.write(chunk)
 

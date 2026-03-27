@@ -10,8 +10,8 @@ class LaborEstimate(Base, TimestampMixin):
     __tablename__ = "labor_estimates"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    takeoff_item_id = Column(Integer, ForeignKey("takeoff_items.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    takeoff_item_id = Column(Integer, ForeignKey("takeoff_items.id"), nullable=False, index=True)
     csi_code = Column(String(20), nullable=False)
     work_type = Column(String(100), nullable=True)
     crew_type = Column(String(100), nullable=True)

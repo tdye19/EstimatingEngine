@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { Download, Package, Loader } from 'lucide-react';
 import { listSubcontractorPackages, downloadSubcontractorPackage } from '../../api';
 
 const FMT = (v) => `$${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
-export default function SubcontractorPackageTab({ projectId, project, refreshKey }) {
+const SubcontractorPackageTab = memo(function SubcontractorPackageTab({ projectId, project, refreshKey }) {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(null);
@@ -108,4 +108,6 @@ export default function SubcontractorPackageTab({ projectId, project, refreshKey
       )}
     </div>
   );
-}
+});
+
+export default SubcontractorPackageTab;

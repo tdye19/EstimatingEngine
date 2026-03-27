@@ -103,25 +103,6 @@ def require_auth(
     return user
 
 
-def require_role(*roles: str) -> Callable:
-    """Return a FastAPI dependency that enforces role-based access.
-
-    Usage::
-
-        @router.get("/admin-only")
-        def admin_endpoint(user: User = Depends(require_role("admin"))):
-            ...
-    """
-
-    def _dependency(user: User = Depends(require_auth)) -> User:
-        if user.role not in roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
-        return user
-
-    return _dependency
 
 
 def get_authorized_project(project_id: int, user: User, db: Session):

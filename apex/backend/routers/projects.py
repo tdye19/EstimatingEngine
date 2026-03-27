@@ -9,7 +9,7 @@ import csv
 import io
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from apex.backend.db.database import get_db
 from apex.backend.models.project import Project
 from apex.backend.models.document import Document
@@ -118,7 +118,10 @@ def list_projects(
     db: Session = Depends(get_db),
     user: User = Depends(require_auth),
 ):
-    query = db.query(Project).filter(
+    query = db.query(Project).options(
+        joinedload(Project.owner),
+        joinedload(Project.organization),
+    ).filter(
         Project.is_deleted == False,  # noqa: E712
         Project.owner_id == user.id,
     ).order_by(Project.id.desc())
@@ -540,6 +543,7 @@ def delete_project(project_id: int, db: Session = Depends(get_db), user: User = 
     project = get_authorized_project(project_id, user, db)
     project.is_deleted = True
     db.commit()
+    return
 
 
 @router.delete("/{project_id}/documents/{doc_id}", status_code=204)
@@ -554,6 +558,7 @@ def delete_document(project_id: int, doc_id: int, db: Session = Depends(get_db),
         raise HTTPException(status_code=404, detail="Document not found")
     doc.is_deleted = True
     db.commit()
+    return
 
 
 def _detect_pipeline_mode(db: Session, project_id: int, document_id: int = None) -> str:

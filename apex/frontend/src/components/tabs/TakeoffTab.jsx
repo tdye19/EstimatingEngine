@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, memo } from 'react';
 import { getTakeoff, updateTakeoffItem, bulkUpdateTakeoff } from '../../api';
 import { Ruler, Pencil, Check, X, ChevronUp, ChevronDown, Search, StickyNote, AlertTriangle } from 'lucide-react';
 
-export default function TakeoffTab({ projectId }) {
+const TakeoffTab = memo(function TakeoffTab({ projectId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -341,7 +341,9 @@ export default function TakeoffTab({ projectId }) {
       )}
     </div>
   );
-}
+});
+
+export default TakeoffTab;
 
 function ConfBadge({ value }) {
   const pct = Math.round((value || 0) * 100);

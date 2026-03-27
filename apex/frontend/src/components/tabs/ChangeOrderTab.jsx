@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import {
   Plus, Edit2, Check, X, Clock, AlertTriangle, TrendingUp, Calendar,
 } from 'lucide-react';
@@ -26,7 +26,7 @@ const BLANK_FORM = {
   requested_by: '', cost_impact: '', schedule_impact_days: '', status: 'pending',
 };
 
-export default function ChangeOrderTab({ projectId, refreshKey }) {
+const ChangeOrderTab = memo(function ChangeOrderTab({ projectId, refreshKey }) {
   const [orders, setOrders] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -322,7 +322,9 @@ export default function ChangeOrderTab({ projectId, refreshKey }) {
       )}
     </div>
   );
-}
+});
+
+export default ChangeOrderTab;
 
 function SummaryCard({ label, value, unit, color = 'text-gray-900' }) {
   return (

@@ -13,7 +13,16 @@ connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False)
+_engine_kwargs = dict(connect_args=connect_args, echo=False)
+if not DATABASE_URL.startswith("sqlite"):
+    _engine_kwargs.update(
+        pool_size=20,
+        max_overflow=10,
+        pool_recycle=3600,
+        pool_pre_ping=True,
+    )
+
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 # Enable WAL mode for SQLite to allow concurrent reads alongside a single writer,
 # which is a prerequisite for safe parallel agent execution (Agents 3 & 4).

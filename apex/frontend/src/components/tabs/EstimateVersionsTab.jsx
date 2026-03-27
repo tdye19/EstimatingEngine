@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { GitBranch, Plus, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { getEstimateVersions, snapshotEstimate, getEstimateVersion } from '../../api';
 
@@ -11,7 +11,7 @@ const STATUS_COLORS = {
   awarded: 'bg-green-100 text-green-700',
 };
 
-export default function EstimateVersionsTab({ projectId, refreshKey }) {
+const EstimateVersionsTab = memo(function EstimateVersionsTab({ projectId, refreshKey }) {
   const [versions, setVersions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [snapshotting, setSnapshotting] = useState(false);
@@ -162,7 +162,9 @@ export default function EstimateVersionsTab({ projectId, refreshKey }) {
       </div>
     </div>
   );
-}
+});
+
+export default EstimateVersionsTab;
 
 function DetailRow({ label, value }) {
   return (

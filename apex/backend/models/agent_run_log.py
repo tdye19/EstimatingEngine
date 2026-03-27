@@ -10,7 +10,7 @@ class AgentRunLog(Base, TimestampMixin):
     __tablename__ = "agent_run_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     agent_name = Column(String(100), nullable=False)
     agent_number = Column(Integer, nullable=False)  # 1-7
     status = Column(String(50), default="queued")  # queued, running, completed, error

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, NavLink, Routes, Route, Navigate } from 'react-router-dom';
 import { getProject, runAgents, uploadDocument, updateProject } from '../api';
 import {
@@ -74,22 +74,17 @@ export default function ProjectDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
   const [editForm, setEditForm] = useState(null);
-  const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
-  const [specRefreshKey, setSpecRefreshKey] = useState(0);
-  const [gapRefreshKey, setGapRefreshKey] = useState(0);
-  const [takeoffRefreshKey, setTakeoffRefreshKey] = useState(0);
-  const [laborRefreshKey, setLaborRefreshKey] = useState(0);
-  const [estimateRefreshKey, setEstimateRefreshKey] = useState(0);
-  const [varianceRefreshKey, setVarianceRefreshKey] = useState(0);
-  const [costRefreshKey, setCostRefreshKey] = useState(0);
-  const [bidCompareRefreshKey, setBidCompareRefreshKey] = useState(0);
-  const [changeOrderRefreshKey, setChangeOrderRefreshKey] = useState(0);
-  const [subPackageRefreshKey, setSubPackageRefreshKey] = useState(0);
-  const [versionsRefreshKey, setVersionsRefreshKey] = useState(0);
+  const [refreshKeys, setRefreshKeys] = useState({});
   const fileInputRef = useRef(null);
 
+  const refreshTab = useCallback((tab) => {
+    setRefreshKeys((prev) => ({ ...prev, [tab]: (prev[tab] || 0) + 1 }));
+  }, []);
+
   const loadProject = () => {
-    getProject(id).then(setProject).catch(() => {});
+    getProject(id).then(setProject).catch((err) => {
+      console.error('Failed to load project:', err);
+    });
   };
 
   useEffect(() => {
@@ -117,7 +112,7 @@ export default function ProjectDetailPage() {
     try {
       await uploadDocument(id, file);
       setRunMsg(`Document "${file.name}" uploaded successfully.`);
-      setDocumentsRefreshKey((key) => key + 1);
+      refreshTab('documents');
     } catch (err) {
       setRunMsg(`Upload error: ${err.message}`);
     } finally {
@@ -126,32 +121,21 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const refreshAllTabs = () => {
-    setDocumentsRefreshKey((k) => k + 1);
-    setSpecRefreshKey((k) => k + 1);
-    setGapRefreshKey((k) => k + 1);
-    setTakeoffRefreshKey((k) => k + 1);
-    setLaborRefreshKey((k) => k + 1);
-    setEstimateRefreshKey((k) => k + 1);
-    setVarianceRefreshKey((k) => k + 1);
-    setCostRefreshKey((k) => k + 1);
-    setSubPackageRefreshKey((k) => k + 1);
-    setVersionsRefreshKey((k) => k + 1);
-  };
+  const refreshAllTabs = useCallback(() => {
+    setRefreshKeys((prev) => {
+      const next = { ...prev };
+      for (const tab of ['documents', 'spec', 'gap', 'takeoff', 'labor', 'estimate', 'variance', 'cost', 'bidCompare', 'changeOrder', 'subPackage', 'versions']) {
+        next[tab] = (next[tab] || 0) + 1;
+      }
+      return next;
+    });
+  }, []);
 
-  const handleAgentComplete = (agentNumber) => {
-    // Refresh the relevant tab data after an agent re-run
-    const refreshMap = {
-      1: () => setDocumentsRefreshKey((k) => k + 1),
-      2: () => setSpecRefreshKey((k) => k + 1),
-      3: () => setGapRefreshKey((k) => k + 1),
-      4: () => setTakeoffRefreshKey((k) => k + 1),
-      5: () => setLaborRefreshKey((k) => k + 1),
-      6: () => setEstimateRefreshKey((k) => k + 1),
-      7: () => setVarianceRefreshKey((k) => k + 1),
-    };
-    refreshMap[agentNumber]?.();
-  };
+  const handleAgentComplete = useCallback((agentNumber) => {
+    const agentTabMap = { 1: 'documents', 2: 'spec', 3: 'gap', 4: 'takeoff', 5: 'labor', 6: 'estimate', 7: 'variance' };
+    const tab = agentTabMap[agentNumber];
+    if (tab) refreshTab(tab);
+  }, [refreshTab]);
 
   if (!project) {
     return <div className="p-8 text-gray-400">Loading project...</div>;
@@ -272,26 +256,26 @@ export default function ProjectDetailPage() {
             <ErrorBoundary key="documents">
               <DocumentsTab
                 projectId={id}
-                refreshKey={documentsRefreshKey}
-                onUploaded={() => setDocumentsRefreshKey((key) => key + 1)}
+                refreshKey={refreshKeys.documents || 0}
+                onUploaded={() => refreshTab('documents')}
                 onPipelineComplete={refreshAllTabs}
               />
             </ErrorBoundary>
           }
         />
-        <Route path="spec-sections" element={<ErrorBoundary key="spec-sections"><SpecSectionsTab projectId={id} refreshKey={specRefreshKey} /></ErrorBoundary>} />
-        <Route path="gap-report" element={<ErrorBoundary key="gap-report"><GapReportTab projectId={id} refreshKey={gapRefreshKey} /></ErrorBoundary>} />
-        <Route path="takeoff" element={<ErrorBoundary key="takeoff"><TakeoffTab projectId={id} refreshKey={takeoffRefreshKey} /></ErrorBoundary>} />
-        <Route path="labor" element={<ErrorBoundary key="labor"><LaborTab projectId={id} refreshKey={laborRefreshKey} /></ErrorBoundary>} />
-        <Route path="estimate" element={<ErrorBoundary key="estimate"><EstimateTab projectId={id} project={project} refreshKey={estimateRefreshKey} /></ErrorBoundary>} />
-        <Route path="estimate-versions" element={<ErrorBoundary key="estimate-versions"><EstimateVersionsTab projectId={id} refreshKey={versionsRefreshKey} /></ErrorBoundary>} />
-        <Route path="bid-comparison" element={<ErrorBoundary key="bid-comparison"><BidComparisonTab projectId={id} refreshKey={bidCompareRefreshKey} /></ErrorBoundary>} />
-        <Route path="sub-packages" element={<ErrorBoundary key="sub-packages"><SubcontractorPackageTab projectId={id} project={project} refreshKey={subPackageRefreshKey} /></ErrorBoundary>} />
-        <Route path="change-orders" element={<ErrorBoundary key="change-orders"><ChangeOrderTab projectId={id} refreshKey={changeOrderRefreshKey} /></ErrorBoundary>} />
-        <Route path="variance" element={<ErrorBoundary key="variance"><VarianceTab projectId={id} refreshKey={varianceRefreshKey} /></ErrorBoundary>} />
+        <Route path="spec-sections" element={<ErrorBoundary key="spec-sections"><SpecSectionsTab projectId={id} refreshKey={refreshKeys.spec || 0} /></ErrorBoundary>} />
+        <Route path="gap-report" element={<ErrorBoundary key="gap-report"><GapReportTab projectId={id} refreshKey={refreshKeys.gap || 0} /></ErrorBoundary>} />
+        <Route path="takeoff" element={<ErrorBoundary key="takeoff"><TakeoffTab projectId={id} refreshKey={refreshKeys.takeoff || 0} /></ErrorBoundary>} />
+        <Route path="labor" element={<ErrorBoundary key="labor"><LaborTab projectId={id} refreshKey={refreshKeys.labor || 0} /></ErrorBoundary>} />
+        <Route path="estimate" element={<ErrorBoundary key="estimate"><EstimateTab projectId={id} project={project} refreshKey={refreshKeys.estimate || 0} /></ErrorBoundary>} />
+        <Route path="estimate-versions" element={<ErrorBoundary key="estimate-versions"><EstimateVersionsTab projectId={id} refreshKey={refreshKeys.versions || 0} /></ErrorBoundary>} />
+        <Route path="bid-comparison" element={<ErrorBoundary key="bid-comparison"><BidComparisonTab projectId={id} refreshKey={refreshKeys.bidCompare || 0} /></ErrorBoundary>} />
+        <Route path="sub-packages" element={<ErrorBoundary key="sub-packages"><SubcontractorPackageTab projectId={id} project={project} refreshKey={refreshKeys.subPackage || 0} /></ErrorBoundary>} />
+        <Route path="change-orders" element={<ErrorBoundary key="change-orders"><ChangeOrderTab projectId={id} refreshKey={refreshKeys.changeOrder || 0} /></ErrorBoundary>} />
+        <Route path="variance" element={<ErrorBoundary key="variance"><VarianceTab projectId={id} refreshKey={refreshKeys.variance || 0} /></ErrorBoundary>} />
         <Route path="schedule" element={<ErrorBoundary key="schedule"><ScheduleTab projectId={id} /></ErrorBoundary>} />
         <Route path="agents" element={<ErrorBoundary key="agents"><AgentLogsTab projectId={id} onAgentComplete={handleAgentComplete} /></ErrorBoundary>} />
-        <Route path="cost-tracking" element={<ErrorBoundary key="cost-tracking"><CostTrackingTab projectId={id} refreshKey={costRefreshKey} /></ErrorBoundary>} />
+        <Route path="cost-tracking" element={<ErrorBoundary key="cost-tracking"><CostTrackingTab projectId={id} refreshKey={refreshKeys.cost || 0} /></ErrorBoundary>} />
         <Route
           path="estimate-library"
           element={

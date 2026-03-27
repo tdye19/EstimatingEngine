@@ -10,7 +10,7 @@ class GapReport(Base, TimestampMixin):
     __tablename__ = "gap_reports"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     overall_score = Column(Float, nullable=True)
     total_gaps = Column(Integer, default=0)
     critical_count = Column(Integer, default=0)
@@ -27,7 +27,7 @@ class GapReportItem(Base, TimestampMixin):
     __tablename__ = "gap_report_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    gap_report_id = Column(Integer, ForeignKey("gap_reports.id"), nullable=False)
+    gap_report_id = Column(Integer, ForeignKey("gap_reports.id"), nullable=False, index=True)
     division_number = Column(String(10), nullable=False)
     section_number = Column(String(20), nullable=True)
     title = Column(String(500), nullable=False)

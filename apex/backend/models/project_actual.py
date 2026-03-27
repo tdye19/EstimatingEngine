@@ -10,7 +10,7 @@ class ProjectActual(Base, TimestampMixin):
     __tablename__ = "project_actuals"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     csi_code = Column(String(20), nullable=False)
     description = Column(Text, nullable=True)
     estimated_quantity = Column(Float, nullable=True)

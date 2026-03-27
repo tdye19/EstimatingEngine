@@ -19,8 +19,8 @@ class Project(Base, TimestampMixin):
     square_footage = Column(Float, nullable=True)
     estimated_value = Column(Float, nullable=True)
     bid_date = Column(String(50), nullable=True)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
     owner = relationship("User", back_populates="projects")
     organization = relationship("Organization", back_populates="projects")

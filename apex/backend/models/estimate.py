@@ -10,7 +10,7 @@ class Estimate(Base, TimestampMixin):
     __tablename__ = "estimates"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     version = Column(Integer, default=1)
     status = Column(String(50), default="draft")  # draft, reviewed, submitted, awarded
     total_direct_cost = Column(Float, default=0.0)
@@ -43,7 +43,7 @@ class EstimateLineItem(Base, TimestampMixin):
     __tablename__ = "estimate_line_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    estimate_id = Column(Integer, ForeignKey("estimates.id"), nullable=False)
+    estimate_id = Column(Integer, ForeignKey("estimates.id"), nullable=False, index=True)
     division_number = Column(String(10), nullable=False)
     csi_code = Column(String(20), nullable=False)
     description = Column(Text, nullable=False)
