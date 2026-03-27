@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { useEffect, useRef, useState, lazy, Suspense, memo } from 'react';
 import { getVariance, uploadActuals } from '../../api';
 import { TrendingUp, TrendingDown, Minus, Upload } from 'lucide-react';
 
@@ -8,7 +8,7 @@ function fmt$(val) {
   return '$' + Number(val || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-export default function VarianceTab({ projectId }) {
+const VarianceTab = memo(function VarianceTab({ projectId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -179,7 +179,9 @@ export default function VarianceTab({ projectId }) {
       </div>
     </div>
   );
-}
+});
+
+export default VarianceTab;
 
 function SummaryCard({ label, value, prefix, color = 'text-gray-900' }) {
   return (

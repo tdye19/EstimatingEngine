@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { getLaborEstimates } from '../../api';
 import { HardHat } from 'lucide-react';
 
@@ -6,7 +6,7 @@ function fmt$(val) {
   return '$' + Number(val || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-export default function LaborTab({ projectId }) {
+const LaborTab = memo(function LaborTab({ projectId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -75,7 +75,9 @@ export default function LaborTab({ projectId }) {
       </div>
     </div>
   );
-}
+});
+
+export default LaborTab;
 
 function SummaryCard({ label, value }) {
   return (

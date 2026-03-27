@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { getGapReport } from '../../api';
 import { AlertTriangle, AlertCircle, Eye, ShieldAlert } from 'lucide-react';
 
@@ -8,7 +8,7 @@ const SEV_CONFIG = {
   watch:    { badge: 'badge-watch',    icon: Eye,         label: 'Watch' },
 };
 
-export default function GapReportTab({ projectId }) {
+const GapReportTab = memo(function GapReportTab({ projectId }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -123,7 +123,9 @@ export default function GapReportTab({ projectId }) {
       })()}
     </div>
   );
-}
+});
+
+export default GapReportTab;
 
 function ScoreCard({ label, value, sub, color }) {
   return (

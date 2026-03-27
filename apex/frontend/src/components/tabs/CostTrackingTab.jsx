@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, useState, lazy, Suspense, memo } from 'react';
 import { getProjectTokenUsage, getTokenUsageSummary } from '../../api';
 import { DollarSign, Zap, RefreshCw, Database } from 'lucide-react';
 
@@ -22,7 +22,7 @@ function fmtTokens(n) {
   return Number(n || 0).toLocaleString();
 }
 
-export default function CostTrackingTab({ projectId, refreshKey }) {
+const CostTrackingTab = memo(function CostTrackingTab({ projectId, refreshKey }) {
   const [records, setRecords] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -261,4 +261,6 @@ export default function CostTrackingTab({ projectId, refreshKey }) {
       </div>
     </div>
   );
-}
+});
+
+export default CostTrackingTab;

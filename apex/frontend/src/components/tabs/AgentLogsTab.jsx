@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { getAgentLogs, runAgent } from '../../api';
 import { Activity, CheckCircle2, XCircle, Clock, Loader2, RotateCcw } from 'lucide-react';
 
@@ -30,7 +30,7 @@ function ParseMethodBadge({ method }) {
   );
 }
 
-export default function AgentLogsTab({ projectId, onAgentComplete }) {
+const AgentLogsTab = memo(function AgentLogsTab({ projectId, onAgentComplete }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [rerunning, setRerunning] = useState({}); // { [agentNumber]: true }
@@ -194,7 +194,9 @@ export default function AgentLogsTab({ projectId, onAgentComplete }) {
       </div>
     </div>
   );
-}
+});
+
+export default AgentLogsTab;
 
 function StatusBadge({ status }) {
   const cfg = {

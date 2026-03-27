@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, memo } from 'react';
 import { Calendar, Clock, Users, Layers } from 'lucide-react';
 import { getLaborEstimates } from '../../api';
 
@@ -27,7 +27,7 @@ function getDivisionLabel(code) {
   return DIVISION_LABELS[code] || `Division ${code}`;
 }
 
-export default function ScheduleTab({ projectId }) {
+const ScheduleTab = memo(function ScheduleTab({ projectId }) {
   const [laborData, setLaborData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -186,4 +186,6 @@ export default function ScheduleTab({ projectId }) {
       </div>
     </div>
   );
-}
+});
+
+export default ScheduleTab;

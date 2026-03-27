@@ -1,4 +1,4 @@
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useState, Fragment, memo } from 'react';
 import { getSpecSections } from '../../api';
 import { ChevronDown, ChevronRight, BookOpen } from 'lucide-react';
 
@@ -34,7 +34,7 @@ const STATUS_COLORS = {
   error: 'bg-red-100 text-red-700',
 };
 
-export default function SpecSectionsTab({ projectId }) {
+const SpecSectionsTab = memo(function SpecSectionsTab({ projectId }) {
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -213,4 +213,6 @@ export default function SpecSectionsTab({ projectId }) {
       ))}
     </div>
   );
-}
+});
+
+export default SpecSectionsTab;

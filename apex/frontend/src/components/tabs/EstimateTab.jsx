@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, useState, lazy, Suspense, memo } from 'react';
 import { getEstimate, getEstimateVersions, getEstimateByVersion, exportEstimatePdf, exportEstimateXlsx, exportEstimateCsv, exportEstimateQb, updateEstimateMarkups } from '../../api';
 import { Calculator, DollarSign, FileDown, FileSpreadsheet, Pencil, Check, X, ChevronDown } from 'lucide-react';
 
@@ -8,7 +8,7 @@ function fmt$(val) {
   return '$' + Number(val || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-export default function EstimateTab({ projectId, project }) {
+const EstimateTab = memo(function EstimateTab({ projectId, project }) {
   const [est, setEst] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -340,4 +340,6 @@ export default function EstimateTab({ projectId, project }) {
       </div>
     </div>
   );
-}
+});
+
+export default EstimateTab;
