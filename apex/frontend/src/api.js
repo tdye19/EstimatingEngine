@@ -472,3 +472,17 @@ export const updateDocumentAssociation = (assocId, data) =>
 
 export const processWinest = (assocId) =>
   request(`/batch-import/process-winest/${assocId}`, { method: 'POST' });
+
+// ── Benchmarks ────────────────────────────────────────
+export const getBenchmarks = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/benchmarks/${qs ? `?${qs}` : ''}`);
+};
+
+export const getBenchmarkSummary = () => request('/benchmarks/summary');
+
+export const getBenchmarkDetail = (csiCode) =>
+  request(`/benchmarks/${encodeURIComponent(csiCode)}`);
+
+export const recomputeBenchmarks = () =>
+  request('/benchmarks/compute', { method: 'POST' });

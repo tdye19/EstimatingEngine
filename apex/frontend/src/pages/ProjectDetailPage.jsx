@@ -45,6 +45,7 @@ import PipelineStatus from '../components/PipelineStatus';
 
 const EstimateLibraryTab = lazy(() => import('../components/tabs/EstimateLibraryTab'));
 const BatchUploadTab = lazy(() => import('../components/tabs/BatchUploadTab'));
+const BenchmarkDashboardTab = lazy(() => import('../components/tabs/BenchmarkDashboardTab'));
 
 const TABS = [
   { path: 'documents', label: 'Documents', icon: Files },
@@ -63,6 +64,7 @@ const TABS = [
   { path: 'cost-tracking', label: 'Cost Tracking', icon: DollarSign },
   { path: 'estimate-library', label: 'Estimate Library', icon: LibraryBig },
   { path: 'batch-import', label: 'Batch Import', icon: FolderArchive },
+  { path: 'benchmarks', label: 'Benchmarks', icon: BarChart2 },
 ];
 
 export default function ProjectDetailPage() {
@@ -308,6 +310,16 @@ export default function ProjectDetailPage() {
             <ErrorBoundary key="batch-import">
               <Suspense fallback={<div className="p-8 text-gray-400">Loading…</div>}>
                 <BatchUploadTab />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="benchmarks"
+          element={
+            <ErrorBoundary key="benchmarks">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading…</div>}>
+                <BenchmarkDashboardTab />
               </Suspense>
             </ErrorBoundary>
           }
