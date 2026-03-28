@@ -30,6 +30,7 @@ connected WebSocket clients via ws_manager.broadcast_sync().  Events:
   "pipeline_error"    — pipeline stopped due to a failure
 """
 
+import asyncio
 import logging
 import os
 import uuid
@@ -49,6 +50,37 @@ AGENT_DEFINITIONS = {
     6: ("Estimate Assembly Agent",    "apex.backend.agents.agent_6_assembly",    "run_assembly_agent"),
     7: ("IMPROVE Feedback Agent",     "apex.backend.agents.agent_7_improve",     "run_improve_agent"),
 }
+
+# ---------------------------------------------------------------------------
+# Parallel execution helpers for Agents 3 & 4
+#
+# Each helper opens its own isolated DB session (via SessionLocal) so the two
+# agents can execute concurrently under SQLite WAL mode without sharing a
+# connection, transaction, or in-memory state.
+# ---------------------------------------------------------------------------
+
+async def _parallel_run_agent_3(project_id: int) -> dict:
+    """Run Agent 3 (gap analysis) in a thread executor with an isolated DB session."""
+    from apex.backend.agents.agent_3_gap_analysis import run_gap_analysis_agent
+    from apex.backend.db.database import SessionLocal
+    db = SessionLocal()
+    loop = asyncio.get_running_loop()
+    try:
+        return await loop.run_in_executor(None, run_gap_analysis_agent, db, project_id)
+    finally:
+        db.close()
+
+
+async def _parallel_run_agent_4(project_id: int) -> dict:
+    """Run Agent 4 (quantity takeoff) in a thread executor with an isolated DB session."""
+    from apex.backend.agents.agent_4_takeoff import run_takeoff_agent
+    from apex.backend.db.database import SessionLocal
+    db = SessionLocal()
+    loop = asyncio.get_running_loop()
+    try:
+        return await loop.run_in_executor(None, run_takeoff_agent, db, project_id)
+    finally:
+        db.close()
 
 
 class AgentOrchestrator:
@@ -162,6 +194,7 @@ class AgentOrchestrator:
                 "output_summary": None,
             }
         skipped_agents: list[int] = []
+        _parallel_34_ran = False  # set True after Agents 3 & 4 complete in parallel
 
         def _elapsed_ms() -> int:
             return int((datetime.now(timezone.utc) - pipeline_start).total_seconds() * 1000)
@@ -193,6 +226,10 @@ class AgentOrchestrator:
                 results[key] = {"status": "skipped", "skipped_because": skip_reason}
                 ws_status[agent_num]["status"] = "skipped"
                 skipped_agents.append(agent_num)
+                continue
+
+            # Skip Agent 4 normal run if it already completed in the parallel block
+            if agent_num == 4 and _parallel_34_ran:
                 continue
 
             # -----------------------------------------------------------------
@@ -228,6 +265,112 @@ class AgentOrchestrator:
                         skipped_agents.append(agent_num)
                         _broadcast("running")
                         continue
+
+            # -----------------------------------------------------------------
+            # Agents 3 & 4 — attempt parallel execution
+            # -----------------------------------------------------------------
+            if agent_num == 3:
+                # Do not parallelize when Agent 4 would be skipped (winest_import with
+                # quantities already present) — run Agent 3 alone via the normal path below.
+                _a4_would_skip = False
+                if effective_mode == "winest_import":
+                    _a1_items = results.get("agent_1", {}).get("winest_line_items") or []
+                    _a4_would_skip = any(
+                        item.get("quantity") is not None for item in _a1_items
+                    )
+
+                if not _a4_would_skip:
+                    from apex.backend.utils.async_helper import run_async as _run_async
+                    _a3_name = AGENT_DEFINITIONS[3][0]
+                    _a4_name = AGENT_DEFINITIONS[4][0]
+                    _a3_start = datetime.now(timezone.utc)
+
+                    # Broadcast Agent 3 start + Agent 4 start together (Req 5)
+                    ws_status[3].update({"status": "running", "started_at": _a3_start.isoformat()})
+                    ws_status[4].update({"status": "running", "started_at": _a3_start.isoformat()})
+                    _broadcast("running", 3)
+
+                    _log3 = self._log_start(_a3_name, 3)
+                    _log4 = self._log_start(_a4_name, 4)
+
+                    logger.info(
+                        "Agents 3 & 4: attempting parallel execution "
+                        "(WAL mode, isolated sessions)"
+                    )
+                    try:
+                        _a3_res, _a4_res = _run_async(asyncio.gather(
+                            _parallel_run_agent_3(self.project_id),
+                            _parallel_run_agent_4(self.project_id),
+                            return_exceptions=True,
+                        ))
+                    except Exception as _ge:
+                        _a3_res = _ge
+                        _a4_res = _ge
+
+                    _summary_keys = (
+                        "documents_processed", "sections_parsed", "total_gaps",
+                        "items_created", "estimates_created", "estimate_id",
+                    )
+                    _parallel_exc = (
+                        isinstance(_a3_res, Exception) or isinstance(_a4_res, Exception)
+                    )
+
+                    if not _parallel_exc:
+                        # Both succeeded — complete logs, update ws_status, store results
+                        logger.info("Agents 3 & 4 parallel execution succeeded")
+                        _now = datetime.now(timezone.utc)
+                        for _n, _res, _lg, _st in (
+                            (3, _a3_res, _log3, _a3_start),
+                            (4, _a4_res, _log4, _a3_start),
+                        ):
+                            _sm = next(
+                                (f"{k}={_res[k]}" for k in _summary_keys if k in _res),
+                                str(_res)[:200],
+                            )
+                            self._log_complete(_lg, _sm, output_data=_res)
+                            _dur = int((_now - _st).total_seconds() * 1000)
+                            ws_status[_n].update({"status": "completed", "duration_ms": _dur})
+                            results[f"agent_{_n}"] = _res
+                        # Broadcast Agent 3 complete + Agent 4 complete together (Req 5)
+                        _broadcast("running")
+                        _parallel_34_ran = True
+                        continue  # skip normal sequential Agent 3 run below
+
+                    else:
+                        # At least one parallel agent raised — log and fall back to sequential
+                        if isinstance(_a3_res, Exception):
+                            logger.warning(
+                                "Agent 3 parallel run failed: %s — falling back to sequential",
+                                _a3_res,
+                            )
+                            self._log_error(_log3, str(_a3_res))
+                        else:
+                            _sm = next(
+                                (f"{k}={_a3_res[k]}" for k in _summary_keys if k in _a3_res),
+                                str(_a3_res)[:200],
+                            )
+                            self._log_complete(_log3, _sm, output_data=_a3_res)
+
+                        if isinstance(_a4_res, Exception):
+                            logger.warning(
+                                "Agent 4 parallel run failed: %s — falling back to sequential",
+                                _a4_res,
+                            )
+                            self._log_error(_log4, str(_a4_res))
+                        else:
+                            _sm = next(
+                                (f"{k}={_a4_res[k]}" for k in _summary_keys if k in _a4_res),
+                                str(_a4_res)[:200],
+                            )
+                            self._log_complete(_log4, _sm, output_data=_a4_res)
+
+                        logger.info(
+                            "Falling back to sequential execution for Agents 3 & 4"
+                        )
+                        # Reset ws_status so the sequential runs appear clean in the UI
+                        ws_status[3].update({"status": "pending", "started_at": None})
+                        ws_status[4].update({"status": "pending", "started_at": None})
+                        # Fall through to the normal sequential Agent 3 run below
 
             # -----------------------------------------------------------------
             # Run the agent

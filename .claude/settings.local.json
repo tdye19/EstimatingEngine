@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python -c \":*)",
-      "Bash(xargs cat:*)"
+      "Bash(xargs cat:*)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''apex/backend/services/agent_orchestrator.py''\\).read\\(\\)\\); print\\(''syntax OK''\\)\")"
     ]
   }
 }
