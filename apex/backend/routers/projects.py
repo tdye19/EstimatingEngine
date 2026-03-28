@@ -5,6 +5,7 @@ import os
 import shutil
 import time
 import uuid
+from pathlib import Path
 import csv
 import io
 from datetime import datetime, timedelta, timezone
@@ -29,6 +30,7 @@ router = APIRouter(prefix="/api/projects", tags=["projects"], dependencies=[Depe
 from apex.backend.config import (
     UPLOAD_DIR, CHUNK_SIZE, SESSION_TTL, MAX_UPLOAD_BYTES, ALLOWED_EXTENSIONS,
 )
+from apex.backend.utils.upload_utils import get_chunk_path, assemble_chunks, cleanup_chunks
 
 def cleanup_stale_upload_sessions() -> None:
     """Remove upload sessions and temp dirs older than SESSION_TTL. Call on startup."""
@@ -42,9 +44,7 @@ def cleanup_stale_upload_sessions() -> None:
             .all()
         )
         for session in expired_sessions:
-            db.query(UploadChunk).filter(UploadChunk.upload_id == session.upload_id).delete()
-            if session.temp_dir and os.path.isdir(session.temp_dir):
-                shutil.rmtree(session.temp_dir, ignore_errors=True)
+            cleanup_chunks(session.upload_id)
             db.delete(session)
         db.commit()
     finally:
@@ -291,14 +291,7 @@ async def chunked_upload_chunk(
         )
 
     chunk_data = await chunk.read()
-    db.add(
-        UploadChunk(
-            upload_id=upload_id,
-            chunk_number=chunk_number,
-            chunk_data=chunk_data,
-            chunk_size=len(chunk_data),
-        )
-    )
+    get_chunk_path(upload_id, chunk_number).write_bytes(chunk_data)
 
     session.next_chunk = chunk_number + 1
     session.expires_at = datetime.now(timezone.utc) + timedelta(seconds=SESSION_TTL)
@@ -346,21 +339,11 @@ async def chunked_upload_complete(
     unique_name = f"{uuid.uuid4()}{file_ext}"
     file_path = os.path.join(project_dir, unique_name)
 
-    chunk_rows = (
-        db.query(UploadChunk)
-        .filter(UploadChunk.upload_id == upload_id)
-        .order_by(UploadChunk.chunk_number.asc())
-        .all()
-    )
-    if len(chunk_rows) != total_chunks:
+    if not assemble_chunks(upload_id, total_chunks, Path(file_path)):
         raise HTTPException(
             status_code=400,
-            detail=f"Incomplete upload: stored {len(chunk_rows)}/{total_chunks} chunks",
+            detail=f"Incomplete upload: one or more chunks missing on disk",
         )
-
-    with open(file_path, "wb") as out_f:
-        for chunk_row in chunk_rows:
-            out_f.write(chunk_row.chunk_data)
 
     file_size = os.path.getsize(file_path)
     file_type = file_ext.lstrip(".").lower() if file_ext else "unknown"
@@ -378,8 +361,7 @@ async def chunked_upload_complete(
     db.refresh(doc)
 
     # Clean up temp chunks
-    db.query(UploadChunk).filter(UploadChunk.upload_id == upload_id).delete()
-    shutil.rmtree(session.temp_dir, ignore_errors=True)
+    cleanup_chunks(upload_id)
     db.delete(session)
     db.commit()
 
