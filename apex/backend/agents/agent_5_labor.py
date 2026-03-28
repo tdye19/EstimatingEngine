@@ -21,12 +21,15 @@ from typing import Literal, Optional
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
+from apex.backend.models.project import Project
 from apex.backend.models.takeoff_item import TakeoffItem
 from apex.backend.models.labor_estimate import LaborEstimate
 from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.agents.pipeline_contracts import validate_agent_output
+from apex.backend.services.benchmark_engine import query_benchmarks
 from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.utils.async_helper import run_async as _run_async
+from apex.backend.utils.csi_utils import normalize_uom
 from apex.backend.agents.tools.labor_tools import (
     productivity_lookup_tool,
     crew_config_tool,
@@ -354,6 +357,85 @@ def _db_estimate_item(
 
 
 # ---------------------------------------------------------------------------
+# Benchmark helpers
+# ---------------------------------------------------------------------------
+
+def _try_benchmark(db: Session, org_id, item, project_type):
+    """Return a qualifying ProductivityBenchmark for this item, or None.
+
+    Uses normalize_uom to ensure UOM strings match the benchmark index
+    (e.g. "SQ FT" → "SF") before querying so we avoid false cache misses.
+    """
+    if not org_id:
+        return None
+    norm_uom = normalize_uom(item.unit_of_measure)
+    return query_benchmarks(
+        db,
+        organization_id=org_id,
+        csi_code=item.csi_code,
+        unit_of_measure=norm_uom,
+        project_type=project_type,
+        region=None,
+    )
+
+
+def _benchmark_estimate_item(
+    db: Session,
+    project_id: int,
+    item,  # TakeoffItem
+    benchmark,  # ProductivityBenchmark
+) -> tuple[object, dict, float]:
+    """Build a LaborEstimate from benchmark avg rates.
+
+    Python owns ALL arithmetic — the benchmark supplies rate inputs only.
+    Returns (estimate_obj, result_dict, total_man_hours).
+    """
+    lhpu = benchmark.avg_labor_hours_per_unit or 0.0  # labor-hours per unit
+    lcpu = benchmark.avg_labor_cost_per_unit or 0.0   # labor cost per unit
+
+    # Python does the math
+    total_man_hours = round(item.quantity * lhpu, 2)
+    total_labor_cost = round(item.quantity * lcpu, 2)
+    productivity_rate = round(1.0 / lhpu, 4) if lhpu > 0 else 0.0
+    hourly_rate = round(lcpu / lhpu, 2) if lhpu > 0 else 0.0
+    crew_days = round(total_man_hours / 8.0, 2)
+
+    estimate = LaborEstimate(
+        project_id=project_id,
+        takeoff_item_id=item.id,
+        csi_code=item.csi_code,
+        work_type=benchmark.description,
+        crew_type="Benchmark Average",
+        productivity_rate=productivity_rate,
+        productivity_unit=benchmark.unit_of_measure,
+        quantity=item.quantity,
+        labor_hours=total_man_hours,
+        crew_size=1,
+        crew_days=crew_days,
+        hourly_rate=hourly_rate,
+        total_labor_cost=total_labor_cost,
+    )
+
+    result = {
+        "takeoff_item_id": item.id,
+        "csi_code": item.csi_code,
+        "quantity": item.quantity,
+        "rate": productivity_rate,
+        "crew_type": "Benchmark Average",
+        "labor_hours": total_man_hours,
+        "labor_cost": total_labor_cost,
+        "confidence": benchmark.confidence_score or 0.0,
+        "source": "historical_benchmark",
+        "notes": (
+            f"Benchmark: sample_size={benchmark.sample_size}, "
+            f"confidence={benchmark.confidence_score:.2f}"
+        ),
+    }
+
+    return estimate, result, total_man_hours
+
+
+# ---------------------------------------------------------------------------
 # Main agent entry point
 # ---------------------------------------------------------------------------
 
@@ -386,7 +468,46 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
     _out_tok = 0
 
     # -----------------------------------------------------------------------
-    # 1.  Attempt LLM-powered productivity matching
+    # 0.  Load project metadata needed for benchmark lookup
+    # -----------------------------------------------------------------------
+    project = db.query(Project).filter(Project.id == project_id).first()
+    org_id = project.organization_id if project else None
+    proj_type = project.project_type if project else None
+
+    # -----------------------------------------------------------------------
+    # 0b. Benchmark pre-pass — check each item before LLM/DB fallback
+    # -----------------------------------------------------------------------
+    benchmark_hits = 0
+    benchmark_covered_ids: set[int] = set()
+    non_benchmark_items: list = []
+
+    for item in takeoff_items:
+        bm = _try_benchmark(db, org_id, item, proj_type)
+        if bm and (bm.confidence_score or 0.0) >= 0.5 and (bm.sample_size or 0) >= 5:
+            try:
+                est, result, man_hours = _benchmark_estimate_item(db, project_id, item, bm)
+                db.add(est)
+                estimates_created += 1
+                total_labor_cost += result["labor_cost"]
+                total_labor_hours += man_hours
+                item_results.append(result)
+                benchmark_covered_ids.add(item.id)
+                benchmark_hits += 1
+            except Exception as exc:
+                logger.error(f"Agent 5 benchmark: failed for item {item.id}: {exc}")
+                non_benchmark_items.append(item)
+        else:
+            non_benchmark_items.append(item)
+
+    logger.info(
+        f"Agent 5: {benchmark_hits}/{len(takeoff_items)} items used historical benchmarks"
+    )
+    # Commit benchmark estimates if no further processing is needed
+    if not non_benchmark_items and benchmark_hits > 0:
+        db.commit()
+
+    # -----------------------------------------------------------------------
+    # 1.  Attempt LLM-powered productivity matching (non-benchmark items only)
     # -----------------------------------------------------------------------
     provider = None
     llm_available = False
@@ -410,16 +531,16 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
             f"Agent 5: could not initialise LLM provider ({exc}) — using DB lookup fallback"
         )
 
-    if llm_available and provider is not None and takeoff_items:
+    if llm_available and provider is not None and non_benchmark_items:
         # Fetch ALL historical productivity records to give the LLM full context
         all_productivity = db.query(ProductivityHistory).filter(
             ProductivityHistory.is_deleted == False,  # noqa: E712
         ).all()
         prod_by_id = {rec.id: rec for rec in all_productivity}
-        items_by_id = {item.id: item for item in takeoff_items}
+        items_by_id = {item.id: item for item in non_benchmark_items}
 
         llm_matches, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
-            _llm_labor_match(takeoff_items, all_productivity, provider)
+            _llm_labor_match(non_benchmark_items, all_productivity, provider)
         )
         tokens_used = _in_tok + _out_tok
 
@@ -482,10 +603,11 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
                     "match_confidence": c["match_confidence"],
                     "matched_productivity_id": c["matched_productivity_id"],
                     "notes": c["notes"],
+                    "source": "bls_default",
                 })
 
             # DB fallback for any items the LLM did not return a match for
-            unmatched = [item for item in takeoff_items if item.id not in matched_item_ids]
+            unmatched = [item for item in non_benchmark_items if item.id not in matched_item_ids]
             if unmatched:
                 logger.warning(
                     f"Agent 5 LLM: {len(unmatched)} items had no LLM match — "
@@ -494,6 +616,7 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
                 for item in unmatched:
                     try:
                         estimate, result, man_hours = _db_estimate_item(db, project_id, item)
+                        result["source"] = "bls_default"
                         db.add(estimate)
                         estimates_created += 1
                         total_labor_cost += result["labor_cost"]
@@ -521,13 +644,14 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
             )
 
     # -----------------------------------------------------------------------
-    # 3.  DB / default-rate fallback — original per-item logic
+    # 3.  DB / default-rate fallback — original per-item logic (non-benchmark items only)
     # -----------------------------------------------------------------------
-    if labor_method == "db":
+    if labor_method == "db" and non_benchmark_items:
         logger.info("Agent 5: using direct DB / default-rate lookup (fallback path)")
-        for item in takeoff_items:
+        for item in non_benchmark_items:
             try:
                 estimate, result, man_hours = _db_estimate_item(db, project_id, item)
+                result["source"] = "bls_default"
                 db.add(estimate)
                 estimates_created += 1
                 total_labor_cost += result["labor_cost"]
@@ -542,9 +666,13 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
                 })
         db.commit()
 
+    benchmark_coverage = (
+        round(benchmark_hits / len(takeoff_items), 4) if takeoff_items else 0.0
+    )
     logger.info(
         f"Agent 5 complete: {estimates_created} estimates, method={labor_method}, "
-        f"tokens_used={tokens_used}, items={len(takeoff_items)}"
+        f"tokens_used={tokens_used}, items={len(takeoff_items)}, "
+        f"benchmark_coverage={benchmark_coverage:.1%}"
     )
 
     return validate_agent_output(5, {
@@ -555,4 +683,5 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
         "results": item_results,
         "labor_method": labor_method,
         "tokens_used": tokens_used,
+        "benchmark_coverage": benchmark_coverage,
     })

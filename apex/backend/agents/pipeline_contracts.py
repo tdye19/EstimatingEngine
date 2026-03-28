@@ -116,6 +116,7 @@ class Agent5ItemResult(BaseModel):
     matched_productivity_id: Optional[int] = None
     notes: Optional[str] = None
     error: Optional[str] = None
+    source: Optional[str] = None   # "historical_benchmark", "bls_default", or "rule_based"
 
 
 class Agent5Output(BaseModel):
@@ -126,6 +127,7 @@ class Agent5Output(BaseModel):
     results: list[Agent5ItemResult] = []
     labor_method: Optional[str] = None    # "llm" or "db"
     tokens_used: Optional[int] = None     # total LLM tokens consumed (0 for DB path)
+    benchmark_coverage: Optional[float] = None  # fraction of items sourced from historical benchmarks
 
 
 # ---------------------------------------------------------------------------
