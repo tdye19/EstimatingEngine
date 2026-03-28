@@ -5,13 +5,15 @@ import { uploadDocument, initChunkedUpload, uploadChunk, completeChunkedUpload }
 const CHUNK_SIZE = 1024 * 1024;          // 1 MB — must match backend CHUNK_SIZE
 const SMALL_FILE_THRESHOLD = 2 * 1024 * 1024; // files <= 2 MB use single-shot upload
 const MAX_RETRIES = 3;
+const CHUNK_UPLOAD_CONCURRENCY = 4;
 
 /**
  * ChunkedUploader
  *
  * Renders an "Upload Document" button. For files <= 2 MB it uses the existing
  * single-POST endpoint. For larger files it splits the file into 1 MB chunks
- * and uploads them sequentially, staying well under the Codespaces 413 limit.
+ * and uploads them through a small worker pool, staying well under the
+ * Codespaces 413 limit.
  *
  * Props:
  *   projectId  – current project ID
@@ -38,33 +40,60 @@ export default function ChunkedUploader({ projectId, onSuccess, onError, disable
       file.type || 'application/octet-stream',
     );
     const { upload_id } = session;
+    const queue = Array.from({ length: totalChunks }, (_, index) => index);
+    const workerCount = Math.min(CHUNK_UPLOAD_CONCURRENCY, totalChunks);
+    let completed = 0;
+    let abortError = null;
 
-    for (let i = 0; i < totalChunks; i++) {
-      setStatusMsg(`Uploading chunk ${i + 1} of ${totalChunks}…`);
-      setProgress(Math.round((i / totalChunks) * 95)); // reserve last 5% for finalize
+    async function uploadChunkWithRetry(chunkIndex) {
+      setStatusMsg(`Uploading chunk ${chunkIndex + 1} of ${totalChunks}…`);
 
-      const start = i * CHUNK_SIZE;
+      const start = chunkIndex * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunkBlob = file.slice(start, end);
 
       let lastErr;
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        if (abortError) throw abortError;
+
         try {
-          await uploadChunk(projectId, upload_id, i, chunkBlob);
-          lastErr = null;
-          break;
+          await uploadChunk(projectId, upload_id, chunkIndex, chunkBlob);
+          return;
         } catch (err) {
           lastErr = err;
+          if (abortError) throw abortError;
           if (attempt < MAX_RETRIES - 1) {
             setStatusMsg(
-              `Chunk ${i + 1} failed, retrying (${attempt + 1}/${MAX_RETRIES - 1})…`,
+              `Chunk ${chunkIndex + 1} failed, retrying (${attempt + 1}/${MAX_RETRIES - 1})…`,
             );
             await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
           }
         }
       }
-      if (lastErr) throw lastErr;
+
+      throw lastErr;
     }
+
+    async function worker() {
+      while (!abortError) {
+        const chunkIndex = queue.shift();
+        if (chunkIndex === undefined) return;
+
+        try {
+          await uploadChunkWithRetry(chunkIndex);
+          if (abortError) return;
+
+          completed += 1;
+          setProgress(Math.round((completed / totalChunks) * 95)); // reserve last 5% for finalize
+        } catch (err) {
+          abortError = abortError || err;
+          return;
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    if (abortError) throw abortError;
 
     setStatusMsg('Finalizing upload…');
     setProgress(99);
