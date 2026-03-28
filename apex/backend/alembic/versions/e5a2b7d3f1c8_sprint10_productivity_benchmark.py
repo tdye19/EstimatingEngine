@@ -3,7 +3,7 @@
 Creates the productivity_benchmarks table introduced in Sprint 10.
 
 Revision ID: e5a2b7d3f1c8
-Revises: d4f7b1c9e2a5
+Revises: f2c9d4e7b3a1
 Create Date: 2026-03-28 00:00:00.000000
 """
 from alembic import op

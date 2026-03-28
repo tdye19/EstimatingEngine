@@ -630,6 +630,7 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
                             "takeoff_item_id": item.id,
                             "csi_code": item.csi_code,
                             "error": str(exc),
+                            "source": None,
                         })
 
             db.commit()
