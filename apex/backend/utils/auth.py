@@ -63,25 +63,6 @@ def get_current_user(
     return user
 
 
-def require_role(*allowed_roles: str):
-    """FastAPI dependency factory — raises 403 if the user's role is not in allowed_roles.
-
-    Usage::
-
-        @router.delete("/{id}", dependencies=[Depends(require_role("admin", "estimator"))])
-        def delete_item(...):
-            ...
-    """
-    def _check(user: User = Depends(require_auth)) -> User:
-        if user.role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{user.role}' is not permitted for this action. Required: {', '.join(allowed_roles)}",
-            )
-        return user
-    return _check
-
-
 def require_auth(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
