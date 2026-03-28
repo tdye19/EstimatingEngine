@@ -26,9 +26,11 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from jose import JWTError, jwt
 
 from apex.backend.services.ws_manager import ws_manager
+from apex.backend.utils.auth import SECRET_KEY, ALGORITHM
 
 router = APIRouter()
 logger = logging.getLogger("apex.ws")
@@ -38,7 +40,19 @@ IDLE_TIMEOUT_S = 300       # 5 minutes: close truly idle connections
 
 
 @router.websocket("/ws/pipeline/{project_id}")
-async def pipeline_websocket(project_id: int, websocket: WebSocket):
+async def pipeline_websocket(project_id: int, websocket: WebSocket, token: str = Query(default=None)):
+    if not token:
+        await websocket.close(code=1008)
+        return
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("sub") is None:
+            await websocket.close(code=1008)
+            return
+    except (JWTError, ValueError):
+        await websocket.close(code=1008)
+        return
+
     await ws_manager.connect(project_id, websocket)
     try:
         # Push current status snapshot immediately so the client has data
