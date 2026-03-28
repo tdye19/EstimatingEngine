@@ -3,6 +3,7 @@
 from datetime import datetime
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 from apex.backend.db.database import Base
 
@@ -18,6 +19,7 @@ class DocumentGroup(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, onupdate=func.now())
 
     associations = relationship("DocumentAssociation", back_populates="group")
 
@@ -49,6 +51,7 @@ class DocumentAssociation(Base):
     parsed_at = Column(DateTime, nullable=True)
     parse_errors = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, onupdate=func.now())
 
     document = relationship("Document")
     library_entry = relationship("EstimateLibraryEntry", back_populates="document_associations")
