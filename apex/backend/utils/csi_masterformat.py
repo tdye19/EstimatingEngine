@@ -1,29 +1,10 @@
-"""CSI MasterFormat division reference data and master scope checklist."""
+"""CSI MasterFormat division reference data and master scope checklist.
 
-CSI_DIVISIONS = {
-    "03": "Concrete",
-    "04": "Masonry",
-    "05": "Metals",
-    "06": "Wood, Plastics, and Composites",
-    "07": "Thermal and Moisture Protection",
-    "08": "Openings",
-    "09": "Finishes",
-    "10": "Specialties",
-    "11": "Equipment",
-    "12": "Furnishings",
-    "13": "Special Construction",
-    "14": "Conveying Equipment",
-    "21": "Fire Suppression",
-    "22": "Plumbing",
-    "23": "HVAC",
-    "25": "Integrated Automation",
-    "26": "Electrical",
-    "27": "Communications",
-    "28": "Electronic Safety and Security",
-    "31": "Earthwork",
-    "32": "Exterior Improvements",
-    "33": "Utilities",
-}
+Division names and lookup are delegated to the canonical csi_utils module.
+"""
+
+from apex.backend.utils.csi_utils import CSI_DIVISION_NAMES as CSI_DIVISIONS
+from apex.backend.utils.csi_utils import get_division_name  # noqa: F401 — re-export
 
 # Master scope checklist by division — key sections a complete spec should address
 MASTER_SCOPE_CHECKLIST = {
@@ -93,10 +74,6 @@ MASTER_SCOPE_CHECKLIST = {
         {"section": "26 50 00", "title": "Lighting", "required": True},
     ],
 }
-
-
-def get_division_name(division_number: str) -> str:
-    return CSI_DIVISIONS.get(division_number, f"Division {division_number}")
 
 
 def get_checklist_for_divisions(divisions: list[str]) -> dict:

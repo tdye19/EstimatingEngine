@@ -27,6 +27,7 @@ from apex.backend.models.equipment_rate import EquipmentRate
 from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.utils.async_helper import run_async as _run_async
+from apex.backend.utils.csi_utils import parse_csi_division
 from apex.backend.agents.tools.assembly_tools import (
     cost_rollup_tool,
     markup_applier_tool,
@@ -263,7 +264,7 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
     # Build line items
     line_items_data = []
     for labor in labor_items:
-        div_num = labor.csi_code[:2].strip()
+        div_num = parse_csi_division(labor.csi_code)
 
         # Look up material cost
         mat = material_map.get(labor.csi_code)

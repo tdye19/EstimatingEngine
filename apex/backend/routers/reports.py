@@ -12,6 +12,7 @@ from apex.backend.models.labor_estimate import LaborEstimate
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.user import User
 from apex.backend.utils.auth import require_auth, get_authorized_project
+from apex.backend.utils.csi_utils import parse_csi_division
 from apex.backend.utils.schemas import (
     GapReportOut, TakeoffItemOut, TakeoffItemUpdate, EstimateOut,
     VarianceReportOut, ProjectActualOut, AgentRunLogOut, LaborEstimateOut,
@@ -227,7 +228,7 @@ def get_variance_report(project_id: int, db: Session = Depends(get_db), user: Us
     # Group by division
     by_division = {}
     for a in actuals:
-        div = a.csi_code[:2].strip() if a.csi_code else "00"
+        div = parse_csi_division(a.csi_code)
         if div not in by_division:
             by_division[div] = {"estimated": 0, "actual": 0, "variance": 0}
         by_division[div]["estimated"] += a.estimated_cost or 0
