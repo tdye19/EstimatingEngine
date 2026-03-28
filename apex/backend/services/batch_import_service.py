@@ -27,7 +27,7 @@ from apex.backend.models.estimate_library import EstimateLibraryEntry
 from apex.backend.models.historical_line_item import HistoricalLineItem
 from apex.backend.models.project import Project
 from apex.backend.services.line_item_normalizer import LineItemNormalizer
-from apex.backend.utils.csi_masterformat import CSI_DIVISIONS
+from apex.backend.utils.csi_utils import CSI_DIVISION_NAMES
 from apex.backend.utils.winest_parser import is_winest_xlsx, parse_winest_file
 
 logger = logging.getLogger("apex.batch_import")
@@ -50,7 +50,7 @@ class BatchImportResult(BaseModel):
 # CSI auto-mapping helpers
 # ---------------------------------------------------------------------------
 
-# Keyword → two-digit CSI division string (keys match CSI_DIVISIONS)
+# Keyword → two-digit CSI division string (keys match CSI_DIVISION_NAMES)
 _CSI_KEYWORD_MAP: dict[str, str] = {
     # Division 03 — Concrete
     "concrete": "03", "rebar": "03", "formwork": "03", "reinforc": "03",
@@ -101,7 +101,7 @@ def _auto_map_csi(
     lower = description.lower()
     for keyword, div in _CSI_KEYWORD_MAP.items():
         if keyword in lower:
-            div_name = CSI_DIVISIONS.get(div)
+            div_name = CSI_DIVISION_NAMES.get(div)
             return (f"{div} 00 00", int(div), div_name)
     return (None, None, None)
 

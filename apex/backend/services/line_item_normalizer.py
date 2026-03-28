@@ -9,7 +9,7 @@ import re
 from typing import Optional
 
 from apex.backend.models.estimate_library import EstimateLibraryEntry
-from apex.backend.utils.csi_masterformat import CSI_DIVISIONS
+from apex.backend.utils.csi_utils import CSI_DIVISION_NAMES, parse_csi_division
 
 logger = logging.getLogger("apex.line_item_normalizer")
 
@@ -144,24 +144,6 @@ _CSI_KEYWORD_MAP: dict[str, str] = {
 
 
 # ---------------------------------------------------------------------------
-# Helper — parse a raw CSI code string like "03 10 00" → division int
-# ---------------------------------------------------------------------------
-
-_CSI_CODE_RE = re.compile(r"^\s*(\d{2})\s*")
-
-
-def _parse_csi_division_from_code(csi_code: str) -> Optional[int]:
-    """Extract the two-digit division integer from a raw CSI code string."""
-    m = _CSI_CODE_RE.match(csi_code)
-    if m:
-        try:
-            return int(m.group(1))
-        except ValueError:
-            pass
-    return None
-
-
-# ---------------------------------------------------------------------------
 # LineItemNormalizer
 # ---------------------------------------------------------------------------
 
@@ -247,7 +229,7 @@ class LineItemNormalizer:
 
             # ------ CSI division name --------------------------------------------
             csi_div_key  = f"{csi_division:02d}" if csi_division is not None else None
-            csi_div_name = CSI_DIVISIONS.get(csi_div_key) if csi_div_key else None
+            csi_div_name = CSI_DIVISION_NAMES.get(csi_div_key) if csi_div_key else None
 
             normalized.append({
                 # Provenance
@@ -356,7 +338,7 @@ class LineItemNormalizer:
         # Strategy 1 — raw CSI code already supplied
         raw_csi = raw.get("csi_code")
         if raw_csi:
-            div_int = _parse_csi_division_from_code(str(raw_csi))
+            div_int = int(parse_csi_division(str(raw_csi))) or None
             return (str(raw_csi), div_int)
 
         # Strategy 2 — keyword match on description
@@ -367,7 +349,7 @@ class LineItemNormalizer:
 
         # Strategy 3 — fuzzy: check if any CSI division name word appears in desc
         desc_words = set(re.findall(r"[a-z]+", lower_desc))
-        for div_str, div_name in CSI_DIVISIONS.items():
+        for div_str, div_name in CSI_DIVISION_NAMES.items():
             for word in re.findall(r"[a-z]+", div_name.lower()):
                 if len(word) >= 4 and word in desc_words:
                     return (f"{div_str} 00 00", int(div_str))
