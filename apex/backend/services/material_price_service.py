@@ -7,6 +7,8 @@ import os
 from datetime import datetime, timezone
 from typing import Optional
 
+from apex.backend.utils.csi_utils import parse_csi_division
+
 logger = logging.getLogger("apex.material_prices")
 
 # ---------------------------------------------------------------------------
@@ -49,7 +51,7 @@ BENCHMARK_RATES: dict[tuple[str, str], dict] = {
 
 
 def _benchmark_lookup(csi_code: str, unit: str) -> Optional[dict]:
-    prefix = (csi_code[:2] if len(csi_code) >= 2 else csi_code).upper().strip()
+    prefix = parse_csi_division(csi_code)
     unit_upper = unit.upper().strip()
     key = (prefix, unit_upper)
     entry = BENCHMARK_RATES.get(key)

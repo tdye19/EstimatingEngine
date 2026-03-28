@@ -13,6 +13,7 @@ from apex.backend.models.takeoff_item import TakeoffItem
 from apex.backend.models.labor_estimate import LaborEstimate
 from apex.backend.models.material_price import MaterialPrice
 from apex.backend.models.estimate import Estimate, EstimateLineItem
+from apex.backend.utils.csi_utils import parse_csi_division
 from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.models.agent_run_log import AgentRunLog
@@ -413,7 +414,7 @@ def _seed(db):
         equip_cost = le.total_labor_cost * 0.07
         total = le.total_labor_cost + mat_cost + equip_cost
         db.add(EstimateLineItem(
-            estimate_id=estimate.id, division_number=le.csi_code[:2],
+            estimate_id=estimate.id, division_number=parse_csi_division(le.csi_code),
             csi_code=le.csi_code, description=f"{le.work_type} - {ti.description}",
             quantity=ti.quantity, unit_of_measure=ti.unit_of_measure,
             labor_cost=le.total_labor_cost, material_cost=round(mat_cost, 2),
