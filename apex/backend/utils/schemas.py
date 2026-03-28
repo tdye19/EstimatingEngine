@@ -520,3 +520,41 @@ class MaterialPriceUpdate(BaseModel):
     region: Optional[str] = None
     effective_date: Optional[str] = None
     source: Optional[str] = None
+
+
+# --- Productivity Benchmark ---
+class ProductivityBenchmarkOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    csi_division: str
+    csi_code: Optional[str] = None
+    description: str
+    project_type: Optional[str] = None
+    region: Optional[str] = None
+    unit_of_measure: str
+    avg_unit_cost: float
+    avg_labor_cost_per_unit: Optional[float] = None
+    avg_material_cost_per_unit: Optional[float] = None
+    avg_equipment_cost_per_unit: Optional[float] = None
+    avg_sub_cost_per_unit: Optional[float] = None
+    avg_labor_hours_per_unit: Optional[float] = None
+    min_unit_cost: Optional[float] = None
+    max_unit_cost: Optional[float] = None
+    std_dev: Optional[float] = None
+    sample_size: int
+    confidence_score: Optional[float] = None
+    last_computed_at: datetime
+    source_project_ids: Optional[str] = None
+    organization_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class BenchmarkQuery(BaseModel):
+    csi_division: Optional[str] = None
+    csi_code: Optional[str] = None
+    project_type: Optional[str] = None
+    region: Optional[str] = None
+    unit_of_measure: Optional[str] = None
+    min_confidence: Optional[float] = None  # filter out low-confidence benchmarks
+    min_sample_size: Optional[int] = None

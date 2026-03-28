@@ -64,9 +64,16 @@ async def lifespan(app: FastAPI):
     from apex.backend.routers.projects import cleanup_stale_upload_sessions
     cleanup_stale_upload_sessions()
 
+    # Initialise shared HTTP client pool
+    from apex.backend.services.llm_provider import (
+        init_http_clients,
+        close_http_clients,
+        get_llm_provider,
+    )
+    await init_http_clients()
+
     # Log active LLM provider
     try:
-        from apex.backend.services.llm_provider import get_llm_provider
         provider = get_llm_provider()
         logger.info(f"LLM provider (default): {provider.provider_name} | model: {provider.model_name}")
     except Exception as e:
@@ -75,6 +82,7 @@ async def lifespan(app: FastAPI):
     logger.info("APEX Platform ready.")
     yield
     logger.info("APEX Platform shutting down.")
+    await close_http_clients()
 
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[GLOBAL_RATE_LIMIT])

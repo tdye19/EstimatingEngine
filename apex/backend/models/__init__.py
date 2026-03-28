@@ -21,6 +21,7 @@ from apex.backend.models.audit_log import AuditLog
 from apex.backend.models.estimate_library import EstimateLibraryEntry, EstimateLibraryTag
 from apex.backend.models.historical_line_item import HistoricalLineItem
 from apex.backend.models.document_association import DocumentGroup, DocumentAssociation
+from apex.backend.models.productivity_benchmark import ProductivityBenchmark
 
 __all__ = [
     "User", "Organization", "Project", "Document", "SpecSection",
@@ -31,4 +32,5 @@ __all__ = [
     "EstimateLibraryEntry", "EstimateLibraryTag",
     "HistoricalLineItem",
     "DocumentGroup", "DocumentAssociation",
+    "ProductivityBenchmark",
 ]

@@ -21,6 +21,39 @@ import httpx
 logger = logging.getLogger("apex.llm_provider")
 
 # ---------------------------------------------------------------------------
+# Shared HTTP client pool
+# ---------------------------------------------------------------------------
+
+_clients: dict = {}
+_health_cache: dict = {}
+_health_cache_ttl = 60  # seconds
+
+
+async def init_http_clients() -> None:
+    """Create shared httpx clients. Call on app startup."""
+    _clients["anthropic"] = httpx.AsyncClient(
+        base_url="https://api.anthropic.com",
+        timeout=httpx.Timeout(300.0, connect=10.0),
+        limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+    )
+    _clients["google"] = httpx.AsyncClient(
+        base_url="https://generativelanguage.googleapis.com",
+        timeout=httpx.Timeout(300.0, connect=10.0),
+        limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+    )
+
+
+async def close_http_clients() -> None:
+    """Close all shared httpx clients. Call on app shutdown."""
+    for client in _clients.values():
+        await client.aclose()
+    _clients.clear()
+
+
+def get_http_client(provider: str) -> httpx.AsyncClient:
+    return _clients.get(provider)
+
+# ---------------------------------------------------------------------------
 # Response dataclass
 # ---------------------------------------------------------------------------
 
@@ -189,10 +222,16 @@ class AnthropicProvider(LLMProvider):
             ],
         }
         start = time.monotonic()
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, json=payload, headers=headers)
+        _pooled = get_http_client("anthropic")
+        if _pooled is not None:
+            resp = await _pooled.post("/v1/messages", json=payload, headers=headers)
             resp.raise_for_status()
             data = resp.json()
+        else:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
 
         duration_ms = (time.monotonic() - start) * 1000
         content = data["content"][0]["text"]
@@ -221,6 +260,11 @@ class AnthropicProvider(LLMProvider):
 
     async def health_check(self) -> bool:
         """Check if Anthropic API is reachable with the configured key."""
+        cached = _health_cache.get("anthropic")
+        if cached:
+            ts, result = cached
+            if time.monotonic() - ts < _health_cache_ttl:
+                return result
         try:
             url = f"{self._base_url}/messages"
             headers = {
@@ -233,10 +277,18 @@ class AnthropicProvider(LLMProvider):
                 "max_tokens": 5,
                 "messages": [{"role": "user", "content": "Hi"}],
             }
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(url, json=payload, headers=headers)
-                return resp.status_code == 200
+            _pooled = get_http_client("anthropic")
+            if _pooled is not None:
+                resp = await _pooled.post("/v1/messages", json=payload, headers=headers)
+                is_healthy = resp.status_code == 200
+            else:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(url, json=payload, headers=headers)
+                    is_healthy = resp.status_code == 200
+            _health_cache["anthropic"] = (time.monotonic(), is_healthy)
+            return is_healthy
         except Exception:
+            _health_cache["anthropic"] = (time.monotonic(), False)
             return False
 
 
@@ -294,10 +346,20 @@ class GeminiProvider(LLMProvider):
             },
         }
         start = time.monotonic()
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, json=payload, params=params)
+        _pooled = get_http_client("google")
+        if _pooled is not None:
+            resp = await _pooled.post(
+                f"/v1beta/models/{self._model}:generateContent",
+                json=payload,
+                params=params,
+            )
             resp.raise_for_status()
             data = resp.json()
+        else:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                resp = await client.post(url, json=payload, params=params)
+                resp.raise_for_status()
+                data = resp.json()
 
         duration_ms = (time.monotonic() - start) * 1000
 
@@ -323,6 +385,11 @@ class GeminiProvider(LLMProvider):
 
     async def health_check(self) -> bool:
         """Ping the model list endpoint to verify key validity."""
+        cached = _health_cache.get("gemini")
+        if cached:
+            ts, result = cached
+            if time.monotonic() - ts < _health_cache_ttl:
+                return result
         try:
             url = f"{self._BASE_URL}/{self._model}:generateContent"
             params = {"key": self._api_key}
@@ -330,10 +397,22 @@ class GeminiProvider(LLMProvider):
                 "contents": [{"role": "user", "parts": [{"text": "Hi"}]}],
                 "generationConfig": {"maxOutputTokens": 5},
             }
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(url, json=payload, params=params)
-                return resp.status_code == 200
+            _pooled = get_http_client("google")
+            if _pooled is not None:
+                resp = await _pooled.post(
+                    f"/v1beta/models/{self._model}:generateContent",
+                    json=payload,
+                    params=params,
+                )
+                is_healthy = resp.status_code == 200
+            else:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(url, json=payload, params=params)
+                    is_healthy = resp.status_code == 200
+            _health_cache["gemini"] = (time.monotonic(), is_healthy)
+            return is_healthy
         except Exception:
+            _health_cache["gemini"] = (time.monotonic(), False)
             return False
 
 
