@@ -2,12 +2,23 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { Calendar, Clock, Users, Layers } from 'lucide-react';
 import { getLaborEstimates } from '../../api';
 
-const BarChart = lazy(() => import('recharts').then(m => ({ default: m.BarChart })));
-const Bar = lazy(() => import('recharts').then(m => ({ default: m.Bar })));
-const XAxis = lazy(() => import('recharts').then(m => ({ default: m.XAxis })));
-const YAxis = lazy(() => import('recharts').then(m => ({ default: m.YAxis })));
-const Tooltip = lazy(() => import('recharts').then(m => ({ default: m.Tooltip })));
-const ResponsiveContainer = lazy(() => import('recharts').then(m => ({ default: m.ResponsiveContainer })));
+const ScheduleBarChart = lazy(() =>
+  import('recharts').then((recharts) => ({
+    default: function RechartsWrapper({ chartData }) {
+      const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } = recharts;
+      return (
+        <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 45)}>
+          <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}>
+            <XAxis type="number" />
+            <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
+            <Tooltip />
+            <Bar dataKey="Crew Days" fill="#4f6d7a" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    },
+  }))
+);
 
 const DIVISION_LABELS = {
   '03': 'Concrete',
@@ -128,14 +139,7 @@ export default function ScheduleTab({ projectId }) {
       <div className="card">
         <h3 className="text-lg font-semibold mb-4">Crew-Days by Division</h3>
         <Suspense fallback={<div className="h-64 flex items-center justify-center text-gray-400">Loading chart...</div>}>
-          <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 45)}>
-            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}>
-              <XAxis type="number" />
-              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Bar dataKey="Crew Days" fill="#4f6d7a" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <ScheduleBarChart chartData={chartData} />
         </Suspense>
       </div>
 

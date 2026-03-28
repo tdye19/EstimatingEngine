@@ -136,11 +136,17 @@ router = APIRouter(
 
 # GET /stats/summary — must come BEFORE /{entry_id}
 @router.get("/stats/summary", response_model=APIResponse)
-def stats_summary(db: Session = Depends(get_db)):
+def stats_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
     """Aggregate statistics across the library."""
     entries = (
         db.query(EstimateLibraryEntry)
-        .filter(EstimateLibraryEntry.is_deleted == False)  # noqa: E712
+        .filter(
+            EstimateLibraryEntry.is_deleted == False,  # noqa: E712
+            EstimateLibraryEntry.organization_id == current_user.organization_id,
+        )
         .all()
     )
 
@@ -200,6 +206,7 @@ def stats_summary(db: Session = Depends(get_db)):
 def compare_entries(
     ids: str = Query(..., description="Comma-separated list of 2–5 entry IDs"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth),
 ):
     """Return 2–5 library entries side-by-side for comparison."""
     raw_ids = [s.strip() for s in ids.split(",") if s.strip()]
@@ -218,6 +225,7 @@ def compare_entries(
         .filter(
             EstimateLibraryEntry.id.in_(entry_ids),
             EstimateLibraryEntry.is_deleted == False,  # noqa: E712
+            EstimateLibraryEntry.organization_id == current_user.organization_id,
         )
         .all()
     )

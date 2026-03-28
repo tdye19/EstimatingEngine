@@ -184,6 +184,7 @@ class Agent7Output(BaseModel):
     variance_method: Optional[str] = None   # "llm" or "statistical"
     variance_tokens_used: Optional[int] = None
     variance_items: list[Agent7VarianceItem] = []
+    message: Optional[str] = None           # informational note (e.g. no actuals found)
 
 
 # ---------------------------------------------------------------------------
