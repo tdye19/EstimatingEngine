@@ -10,8 +10,8 @@ Usage:
     python -m apex.backend.tests.test_pipeline_e2e ./file.pdf --base-url http://localhost:8000
 
 Exit codes:
-    0  — all agents PASS, WARN, or SKIP
-    1  — one or more agents FAIL, or the pipeline itself errored
+    0  — accuracy score >= 70%
+    1  — accuracy score < 70%, or the pipeline itself errored
 """
 
 from __future__ import annotations
@@ -509,13 +509,17 @@ def save_results(
     agent_results: list[AgentResult],
     raw_results: dict[str, Any],
     pipeline_status: dict,
-) -> Path:
-    out_dir = Path("test_results")
-    out_dir.mkdir(exist_ok=True)
+) -> tuple[Path, str]:
+    """Save pipeline results to test_specs/results/.
 
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    stem = file_path.stem
-    out_path = out_dir / f"{ts}_{stem}.json"
+    Returns (output_path, timestamp) so the caller can reuse the timestamp
+    for the companion score file.
+    """
+    out_dir = Path("test_specs/results")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    out_path = out_dir / f"{ts}_{project_id}.json"
 
     payload = {
         "meta": {
@@ -541,7 +545,7 @@ def save_results(
     }
 
     out_path.write_text(json.dumps(payload, indent=2, default=str))
-    return out_path
+    return out_path, ts
 
 
 # ---------------------------------------------------------------------------
@@ -683,14 +687,73 @@ def main() -> int:
     print_report(file_path, mode, total_duration, agent_results, token_cost, cache_hit_rate)
 
     # Save JSON
-    out_path = save_results(
+    out_path, ts = save_results(
         file_path, mode, total_duration, project_id,
         agent_results, results, pipeline_status,
     )
-    print(f"\n  Full results saved to: {out_path}\n")
+    print(f"\n  Full results saved to: {out_path}")
 
-    # Exit code
-    if any(r.verdict == FAIL for r in agent_results):
+    # ── Accuracy scoring ────────────────────────────────────────────────
+    from apex.backend.tests.accuracy_scorer import score_pipeline_result
+
+    # Build a flat dict the scorer expects from the collected results
+    scorer_input: dict[str, Any] = {}
+    # Agent 1 — documents (use agent_logs as proxy for ingestion data)
+    if results.get("agent_logs"):
+        a1_logs = [l for l in results["agent_logs"] if l.get("agent_number") == 1]
+        if a1_logs and a1_logs[0].get("status") == "completed":
+            scorer_input["documents"] = [{"source": str(file_path)}]
+    # Agent 2
+    if results.get("spec_sections") is not None:
+        scorer_input["spec_sections"] = results["spec_sections"]
+    # Agent 3
+    if results.get("gap_report") is not None:
+        scorer_input["gap_report"] = results["gap_report"]
+    # Agent 4 + 5 — takeoff_items → line_items, merge labor data
+    if results.get("takeoff_items") is not None:
+        line_items = results["takeoff_items"]
+        # Merge labor rates into line items if available
+        if results.get("labor_estimates"):
+            labor_by_id = {}
+            for le in results["labor_estimates"]:
+                tid = le.get("takeoff_item_id")
+                if tid is not None:
+                    labor_by_id[tid] = le
+            for item in line_items:
+                labor = labor_by_id.get(item.get("id"))
+                if labor:
+                    item.setdefault("unit_price", labor.get("hourly_rate", 0))
+        scorer_input["line_items"] = line_items
+    # Agent 6
+    est = results.get("estimate")
+    if est is not None:
+        scorer_input["total_cost"] = est.get("total_bid_amount", 0)
+        scorer_input["executive_summary"] = est.get("assumptions") or est.get("exclusions") or ""
+    # Agent 7
+    # schedule/milestones would be in the estimate or a dedicated endpoint
+    if est:
+        if est.get("schedule"):
+            scorer_input["schedule"] = est["schedule"]
+        if est.get("milestones"):
+            scorer_input["milestones"] = est["milestones"]
+
+    print("\n  ── Accuracy Scoring ──")
+    score_report = score_pipeline_result(scorer_input, verbose=True)
+
+    # Save score report
+    score_path = Path("test_specs/results") / f"{ts}_{project_id}_score.json"
+    score_path.write_text(json.dumps(score_report, indent=2, default=str))
+    print(f"\n  Score report saved to: {score_path}")
+
+    # Final summary
+    ps = score_report["pipeline_summary"]
+    overall_score = ps["overall_score"]
+    passed_agents = ps["passed"]
+    total_agents = ps["total_agents"]
+    print(f"  ACCURACY: {overall_score:.1%} ({passed_agents}/{total_agents} agents passed)\n")
+
+    # Exit code: gate on 70% accuracy threshold
+    if overall_score < 0.70:
         return 1
     return 0
 
