@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python -c \":*)",
       "Bash(xargs cat:*)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\(''apex/backend/services/agent_orchestrator.py''\\).read\\(\\)\\); print\\(''syntax OK''\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''apex/backend/services/agent_orchestrator.py''\\).read\\(\\)\\); print\\(''syntax OK''\\)\")",
+      "Bash(python -c \"from apex.backend.tests.accuracy_scorer import score_pipeline_result; print\\(''import OK''\\)\")"
     ]
   }
 }
