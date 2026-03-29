@@ -348,13 +348,25 @@ class GeminiProvider(LLMProvider):
         start = time.monotonic()
         _pooled = get_http_client("google")
         if _pooled is not None:
-            resp = await _pooled.post(
-                f"/v1beta/models/{self._model}:generateContent",
-                json=payload,
-                params=params,
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            try:
+                resp = await _pooled.post(
+                    f"/v1beta/models/{self._model}:generateContent",
+                    json=payload,
+                    params=params,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            except (httpx.TransportError, RuntimeError) as exc:
+                logger.warning(
+                    "Gemini pooled client transport closed — creating fresh client for this request"
+                )
+                fresh = httpx.AsyncClient(timeout=300.0)
+                try:
+                    resp = await fresh.post(url, json=payload, params=params)
+                    resp.raise_for_status()
+                    data = resp.json()
+                finally:
+                    await fresh.aclose()
         else:
             async with httpx.AsyncClient(timeout=300.0) as client:
                 resp = await client.post(url, json=payload, params=params)
