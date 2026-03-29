@@ -181,7 +181,7 @@ class AnthropicProvider(LLMProvider):
         model: Optional[str] = None,
     ):
         self._api_key = api_key
-        self._model = model or os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6-20260101")
+        self._model = model or os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
         self._base_url = "https://api.anthropic.com/v1"
 
     @property
@@ -594,7 +594,7 @@ def _api_key_is_set(provider: str) -> bool:
 
 def _default_model_for(provider: str) -> str:
     defaults = {
-        "anthropic": "claude-sonnet-4-6-20260101",
+        "anthropic": "claude-sonnet-4-6",
         "gemini": "gemini-2.5-flash",
         "ollama": "llama3.2",
     }

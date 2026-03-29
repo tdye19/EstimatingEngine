@@ -1,0 +1,790 @@
+{
+  "meta": {
+    "file": "test_specs/conc.specs.pdf",
+    "mode": "spec",
+    "project_id": 7,
+    "total_duration_seconds": 5.59,
+    "run_at": "2026-03-29T17:01:52.439795+00:00"
+  },
+  "summary": {
+    "Document Ingestion": {
+      "verdict": "PASS",
+      "duration_seconds": 0.348186,
+      "detail": "documents_processed=1"
+    },
+    "Spec Parser": {
+      "verdict": "FAIL",
+      "duration_seconds": 0.491822,
+      "detail": "Completed but 0 spec sections stored"
+    },
+    "Gap Analysis": {
+      "verdict": "PASS",
+      "duration_seconds": 0.078585,
+      "detail": "46 gaps (31 critical, 0 moderate, 15 watch)"
+    },
+    "Quantity Takeoff": {
+      "verdict": "FAIL",
+      "duration_seconds": 0.01258,
+      "detail": "Completed but 0 takeoff items stored"
+    },
+    "Labor Productivity": {
+      "verdict": "FAIL",
+      "duration_seconds": 0.009639,
+      "detail": "Completed but 0 labor estimates stored"
+    },
+    "Estimate Assembly": {
+      "verdict": "WARN",
+      "duration_seconds": 0.027826,
+      "detail": "Estimate created but grand total = $0"
+    },
+    "IMPROVE Feedback": {
+      "verdict": "SKIP",
+      "duration_seconds": 0.0,
+      "detail": "No actuals uploaded"
+    }
+  },
+  "pipeline_status": {
+    "project_id": 7,
+    "agents": [
+      {
+        "agent_number": 1,
+        "agent_name": "Document Ingestion Agent",
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:47.395329",
+        "completed_at": "2026-03-29T17:01:47.742409",
+        "duration_seconds": 0.348186,
+        "error_message": null,
+        "output_summary": "documents_processed=1"
+      },
+      {
+        "agent_number": 2,
+        "agent_name": "Spec Parser Agent",
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:47.745772",
+        "completed_at": "2026-03-29T17:01:48.237177",
+        "duration_seconds": 0.491822,
+        "error_message": null,
+        "output_summary": "documents_processed=1"
+      },
+      {
+        "agent_number": 3,
+        "agent_name": "Scope Gap Analysis Agent",
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:48.252255",
+        "completed_at": "2026-03-29T17:01:48.330461",
+        "duration_seconds": 0.078585,
+        "error_message": null,
+        "output_summary": "total_gaps=46"
+      },
+      {
+        "agent_number": 4,
+        "agent_name": "Quantity Takeoff Agent",
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:48.332901",
+        "completed_at": "2026-03-29T17:01:48.344965",
+        "duration_seconds": 0.01258,
+        "error_message": null,
+        "output_summary": "items_created=0"
+      },
+      {
+        "agent_number": 5,
+        "agent_name": "Labor Productivity Agent",
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:48.348091",
+        "completed_at": "2026-03-29T17:01:48.357703",
+        "duration_seconds": 0.009639,
+        "error_message": null,
+        "output_summary": "estimates_created=0"
+      },
+      {
+        "agent_number": 6,
+        "agent_name": "Estimate Assembly Agent",
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:48.360357",
+        "completed_at": "2026-03-29T17:01:48.387696",
+        "duration_seconds": 0.027826,
+        "error_message": null,
+        "output_summary": "estimate_id=3"
+      }
+    ],
+    "overall": "completed"
+  },
+  "raw": {
+    "spec_sections": [],
+    "gap_report": {
+      "id": 3,
+      "project_id": 7,
+      "overall_score": 100.0,
+      "total_gaps": 46,
+      "critical_count": 31,
+      "moderate_count": 0,
+      "watch_count": 15,
+      "summary": "Analysis of 0 spec sections via rule_based. Found 46 gaps: 31 critical, 0 moderate, 15 watch.",
+      "items": [
+        {
+          "id": 55,
+          "division_number": "03",
+          "section_number": "03 10 00",
+          "title": "Concrete Forming and Accessories",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 03 10 00 (Concrete Forming and Accessories) not found in project specs.",
+          "recommendation": "Request clarification or add required section 03 10 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 56,
+          "division_number": "03",
+          "section_number": "03 20 00",
+          "title": "Concrete Reinforcing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 03 20 00 (Concrete Reinforcing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 03 20 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 57,
+          "division_number": "03",
+          "section_number": "03 30 00",
+          "title": "Cast-in-Place Concrete",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 03 30 00 (Cast-in-Place Concrete) not found in project specs.",
+          "recommendation": "Request clarification or add required section 03 30 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 58,
+          "division_number": "03",
+          "section_number": "03 35 00",
+          "title": "Concrete Finishing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 03 35 00 (Concrete Finishing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 03 35 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 59,
+          "division_number": "03",
+          "section_number": "03 40 00",
+          "title": "Precast Concrete",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 03 40 00 (Precast Concrete) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 03 40 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 60,
+          "division_number": "03",
+          "section_number": "03 45 00",
+          "title": "Precast Architectural Concrete",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 03 45 00 (Precast Architectural Concrete) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 03 45 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 61,
+          "division_number": "03",
+          "section_number": "03 50 00",
+          "title": "Cast Decks and Underlayment",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 03 50 00 (Cast Decks and Underlayment) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 03 50 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 62,
+          "division_number": "03",
+          "section_number": "03 60 00",
+          "title": "Grouting",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 03 60 00 (Grouting) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 03 60 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 63,
+          "division_number": "05",
+          "section_number": "05 10 00",
+          "title": "Structural Metal Framing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 05 10 00 (Structural Metal Framing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 05 10 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 64,
+          "division_number": "05",
+          "section_number": "05 12 00",
+          "title": "Structural Steel Framing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 05 12 00 (Structural Steel Framing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 05 12 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 65,
+          "division_number": "05",
+          "section_number": "05 21 00",
+          "title": "Steel Joist Framing",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 05 21 00 (Steel Joist Framing) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 05 21 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 66,
+          "division_number": "05",
+          "section_number": "05 31 00",
+          "title": "Steel Decking",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 05 31 00 (Steel Decking) not found in project specs.",
+          "recommendation": "Request clarification or add required section 05 31 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 67,
+          "division_number": "05",
+          "section_number": "05 40 00",
+          "title": "Cold-Formed Metal Framing",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 05 40 00 (Cold-Formed Metal Framing) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 05 40 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 68,
+          "division_number": "05",
+          "section_number": "05 50 00",
+          "title": "Metal Fabrications",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 05 50 00 (Metal Fabrications) not found in project specs.",
+          "recommendation": "Request clarification or add required section 05 50 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 69,
+          "division_number": "05",
+          "section_number": "05 51 00",
+          "title": "Metal Stairs",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 05 51 00 (Metal Stairs) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 05 51 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 70,
+          "division_number": "05",
+          "section_number": "05 52 00",
+          "title": "Metal Railings",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 05 52 00 (Metal Railings) not found in project specs.",
+          "recommendation": "Request clarification or add required section 05 52 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 71,
+          "division_number": "07",
+          "section_number": "07 10 00",
+          "title": "Dampproofing and Waterproofing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 10 00 (Dampproofing and Waterproofing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 10 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 72,
+          "division_number": "07",
+          "section_number": "07 21 00",
+          "title": "Thermal Insulation",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 21 00 (Thermal Insulation) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 21 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 73,
+          "division_number": "07",
+          "section_number": "07 26 00",
+          "title": "Vapor Retarders",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 26 00 (Vapor Retarders) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 26 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 74,
+          "division_number": "07",
+          "section_number": "07 27 00",
+          "title": "Air Barriers",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 27 00 (Air Barriers) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 27 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 75,
+          "division_number": "07",
+          "section_number": "07 31 00",
+          "title": "Shingles and Shakes",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 07 31 00 (Shingles and Shakes) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 07 31 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 76,
+          "division_number": "07",
+          "section_number": "07 41 00",
+          "title": "Roof Panels",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 07 41 00 (Roof Panels) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 07 41 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 77,
+          "division_number": "07",
+          "section_number": "07 46 00",
+          "title": "Siding",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 07 46 00 (Siding) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 07 46 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 78,
+          "division_number": "07",
+          "section_number": "07 50 00",
+          "title": "Membrane Roofing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 50 00 (Membrane Roofing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 50 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 79,
+          "division_number": "07",
+          "section_number": "07 60 00",
+          "title": "Flashing and Sheet Metal",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 60 00 (Flashing and Sheet Metal) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 60 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 80,
+          "division_number": "07",
+          "section_number": "07 70 00",
+          "title": "Roof and Wall Specialties",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 70 00 (Roof and Wall Specialties) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 70 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 81,
+          "division_number": "07",
+          "section_number": "07 84 00",
+          "title": "Firestopping",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 84 00 (Firestopping) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 84 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 82,
+          "division_number": "07",
+          "section_number": "07 92 00",
+          "title": "Joint Sealants",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 92 00 (Joint Sealants) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 92 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 83,
+          "division_number": "08",
+          "section_number": "08 11 00",
+          "title": "Metal Doors and Frames",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 11 00 (Metal Doors and Frames) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 11 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 84,
+          "division_number": "08",
+          "section_number": "08 14 00",
+          "title": "Wood Doors",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 14 00 (Wood Doors) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 14 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 85,
+          "division_number": "08",
+          "section_number": "08 31 00",
+          "title": "Access Doors and Panels",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 31 00 (Access Doors and Panels) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 31 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 86,
+          "division_number": "08",
+          "section_number": "08 41 00",
+          "title": "Entrances and Storefronts",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 41 00 (Entrances and Storefronts) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 41 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 87,
+          "division_number": "08",
+          "section_number": "08 44 00",
+          "title": "Curtain Wall and Glazed Assemblies",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 08 44 00 (Curtain Wall and Glazed Assemblies) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 08 44 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 88,
+          "division_number": "08",
+          "section_number": "08 50 00",
+          "title": "Windows",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 50 00 (Windows) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 50 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 89,
+          "division_number": "08",
+          "section_number": "08 71 00",
+          "title": "Door Hardware",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 71 00 (Door Hardware) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 71 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 90,
+          "division_number": "08",
+          "section_number": "08 80 00",
+          "title": "Glazing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 80 00 (Glazing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 80 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 91,
+          "division_number": "09",
+          "section_number": "09 21 00",
+          "title": "Plaster and Gypsum Board Assemblies",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 21 00 (Plaster and Gypsum Board Assemblies) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 21 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 92,
+          "division_number": "09",
+          "section_number": "09 22 00",
+          "title": "Supports for Plaster and Gypsum Board",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 22 00 (Supports for Plaster and Gypsum Board) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 22 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 93,
+          "division_number": "09",
+          "section_number": "09 29 00",
+          "title": "Gypsum Board",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 29 00 (Gypsum Board) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 29 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 94,
+          "division_number": "09",
+          "section_number": "09 30 00",
+          "title": "Tiling",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 30 00 (Tiling) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 30 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 95,
+          "division_number": "09",
+          "section_number": "09 51 00",
+          "title": "Acoustical Ceilings",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 51 00 (Acoustical Ceilings) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 51 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 96,
+          "division_number": "09",
+          "section_number": "09 65 00",
+          "title": "Resilient Flooring",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 09 65 00 (Resilient Flooring) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 09 65 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 97,
+          "division_number": "09",
+          "section_number": "09 68 00",
+          "title": "Carpeting",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 09 68 00 (Carpeting) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 09 68 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 98,
+          "division_number": "09",
+          "section_number": "09 72 00",
+          "title": "Wall Coverings",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 09 72 00 (Wall Coverings) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 09 72 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 99,
+          "division_number": "09",
+          "section_number": "09 91 00",
+          "title": "Painting",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 91 00 (Painting) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 91 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 100,
+          "division_number": "09",
+          "section_number": "09 96 00",
+          "title": "High-Performance Coatings",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 09 96 00 (High-Performance Coatings) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 09 96 00.",
+          "risk_score": 1.0
+        }
+      ],
+      "created_at": "2026-03-29T17:01:48.317159"
+    },
+    "takeoff_items": [],
+    "labor_estimates": [],
+    "estimate": {
+      "id": 3,
+      "project_id": 7,
+      "version": 1,
+      "status": "draft",
+      "total_direct_cost": 0.0,
+      "total_labor_cost": 0.0,
+      "total_material_cost": 0.0,
+      "total_subcontractor_cost": 0.0,
+      "gc_markup_pct": 0.0,
+      "gc_markup_amount": 0.0,
+      "overhead_pct": 10.0,
+      "overhead_amount": 0.0,
+      "profit_pct": 8.0,
+      "profit_amount": 0.0,
+      "contingency_pct": 5.0,
+      "contingency_amount": 0.0,
+      "total_bid_amount": 0.0,
+      "exclusions": [
+        "Hazardous material abatement and disposal",
+        "Overtime and shift premiums unless specifically noted",
+        "Permits and fees by Owner unless noted",
+        "Testing and inspection services by Owner",
+        "Furniture, fixtures, and equipment (FF&E) unless noted",
+        "Security and temporary fencing beyond standard requirements",
+        "Fire suppression systems (Division 21)",
+        "Plumbing systems (Division 22)",
+        "HVAC systems (Division 23)",
+        "Electrical systems (Division 26)",
+        "Earthwork and site grading (Division 31)",
+        "Exterior improvements and paving (Division 32)"
+      ],
+      "assumptions": [
+        "Work performed during normal business hours (7AM-3:30PM, M-F)",
+        "Site access and staging area provided by Owner",
+        "Adequate power and water available on site",
+        "No soil remediation or environmental issues",
+        "All dimensions verified from construction documents",
+        "Subcontractor pricing based on competitive bid market",
+        "Material pricing valid for 30 days from estimate date",
+        "Quantities based on plan takeoff; field verification recommended"
+      ],
+      "alternates": [],
+      "bid_bond_required": 0,
+      "line_items": [],
+      "created_at": "2026-03-29T17:01:48.374653"
+    },
+    "agent_logs": [
+      {
+        "id": 17,
+        "project_id": 7,
+        "agent_name": "Document Ingestion Agent",
+        "agent_number": 1,
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:47.395329",
+        "completed_at": "2026-03-29T17:01:47.742409",
+        "duration_seconds": 0.348186,
+        "tokens_used": 0,
+        "output_summary": "documents_processed=1",
+        "error_message": null
+      },
+      {
+        "id": 18,
+        "project_id": 7,
+        "agent_name": "Spec Parser Agent",
+        "agent_number": 2,
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:47.745772",
+        "completed_at": "2026-03-29T17:01:48.237177",
+        "duration_seconds": 0.491822,
+        "tokens_used": 0,
+        "output_summary": "documents_processed=1",
+        "error_message": null
+      },
+      {
+        "id": 21,
+        "project_id": 7,
+        "agent_name": "Scope Gap Analysis Agent",
+        "agent_number": 3,
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:48.252255",
+        "completed_at": "2026-03-29T17:01:48.330461",
+        "duration_seconds": 0.078585,
+        "tokens_used": 0,
+        "output_summary": "total_gaps=46",
+        "error_message": null
+      },
+      {
+        "id": 19,
+        "project_id": 7,
+        "agent_name": "Scope Gap Analysis Agent",
+        "agent_number": 3,
+        "status": "failed",
+        "started_at": "2026-03-29T17:01:48.240034",
+        "completed_at": "2026-03-29T17:01:48.246155",
+        "duration_seconds": 0.006967,
+        "tokens_used": null,
+        "output_summary": null,
+        "error_message": "There is no current event loop in thread 'AnyIO worker thread'."
+      },
+      {
+        "id": 22,
+        "project_id": 7,
+        "agent_name": "Quantity Takeoff Agent",
+        "agent_number": 4,
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:48.332901",
+        "completed_at": "2026-03-29T17:01:48.344965",
+        "duration_seconds": 0.01258,
+        "tokens_used": 0,
+        "output_summary": "items_created=0",
+        "error_message": null
+      },
+      {
+        "id": 20,
+        "project_id": 7,
+        "agent_name": "Quantity Takeoff Agent",
+        "agent_number": 4,
+        "status": "failed",
+        "started_at": "2026-03-29T17:01:48.243152",
+        "completed_at": "2026-03-29T17:01:48.249751",
+        "duration_seconds": 0.007047,
+        "tokens_used": null,
+        "output_summary": null,
+        "error_message": "There is no current event loop in thread 'AnyIO worker thread'."
+      },
+      {
+        "id": 23,
+        "project_id": 7,
+        "agent_name": "Labor Productivity Agent",
+        "agent_number": 5,
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:48.348091",
+        "completed_at": "2026-03-29T17:01:48.357703",
+        "duration_seconds": 0.009639,
+        "tokens_used": 0,
+        "output_summary": "estimates_created=0",
+        "error_message": null
+      },
+      {
+        "id": 24,
+        "project_id": 7,
+        "agent_name": "Estimate Assembly Agent",
+        "agent_number": 6,
+        "status": "completed",
+        "started_at": "2026-03-29T17:01:48.360357",
+        "completed_at": "2026-03-29T17:01:48.387696",
+        "duration_seconds": 0.027826,
+        "tokens_used": 0,
+        "output_summary": "estimate_id=3",
+        "error_message": null
+      }
+    ],
+    "token_usage": []
+  }
+}

@@ -98,7 +98,7 @@ class AgentOrchestrator:
             agent_name=agent_name,
             agent_number=agent_number,
             status="running",
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.utcnow(),
         )
         self.db.add(log)
         self.db.commit()
@@ -106,20 +106,20 @@ class AgentOrchestrator:
         return log
 
     def _log_complete(self, log: AgentRunLog, summary: str, tokens: int = 0, output_data: dict = None):
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         log.status = "completed"
         log.completed_at = now
-        log.duration_seconds = (datetime.now(timezone.utc) - log.started_at).total_seconds() if log.started_at else 0
+        log.duration_seconds = (datetime.utcnow() - log.started_at).total_seconds() if log.started_at else 0
         log.tokens_used = tokens
         log.output_summary = summary
         log.output_data = output_data
         self.db.commit()
 
     def _log_error(self, log: AgentRunLog, error_msg: str):
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         log.status = "failed"
         log.completed_at = now
-        log.duration_seconds = (datetime.now(timezone.utc) - log.started_at).total_seconds() if log.started_at else 0
+        log.duration_seconds = (datetime.utcnow() - log.started_at).total_seconds() if log.started_at else 0
         log.error_message = error_msg
         self.db.commit()
 
@@ -168,7 +168,7 @@ class AgentOrchestrator:
         from apex.backend.services.ws_manager import ws_manager
 
         pipeline_id = str(uuid.uuid4())
-        pipeline_start = datetime.now(timezone.utc)
+        pipeline_start = datetime.utcnow()
         results: dict[str, dict] = {}
         pipeline_agents = [1, 2, 3, 4, 5, 6]
         failed_at: int | None = None
@@ -197,7 +197,7 @@ class AgentOrchestrator:
         _parallel_34_ran = False  # set True after Agents 3 & 4 complete in parallel
 
         def _elapsed_ms() -> int:
-            return int((datetime.now(timezone.utc) - pipeline_start).total_seconds() * 1000)
+            return int((datetime.utcnow() - pipeline_start).total_seconds() * 1000)
 
         def _broadcast(overall: str, current_agent: int | None = None) -> None:
             ws_manager.broadcast_sync(self.project_id, {
@@ -283,7 +283,7 @@ class AgentOrchestrator:
                     from apex.backend.utils.async_helper import run_async as _run_async
                     _a3_name = AGENT_DEFINITIONS[3][0]
                     _a4_name = AGENT_DEFINITIONS[4][0]
-                    _a3_start = datetime.now(timezone.utc)
+                    _a3_start = datetime.utcnow()
 
                     # Broadcast Agent 3 start + Agent 4 start together (Req 5)
                     ws_status[3].update({"status": "running", "started_at": _a3_start.isoformat()})
@@ -318,7 +318,7 @@ class AgentOrchestrator:
                     if not _parallel_exc:
                         # Both succeeded — complete logs, update ws_status, store results
                         logger.info("Agents 3 & 4 parallel execution succeeded")
-                        _now = datetime.now(timezone.utc)
+                        _now = datetime.utcnow()
                         for _n, _res, _lg, _st in (
                             (3, _a3_res, _log3, _a3_start),
                             (4, _a4_res, _log4, _a3_start),
@@ -375,7 +375,7 @@ class AgentOrchestrator:
             # -----------------------------------------------------------------
             # Run the agent
             # -----------------------------------------------------------------
-            agent_start_time = datetime.now(timezone.utc)
+            agent_start_time = datetime.utcnow()
             ws_status[agent_num].update({
                 "status":     "running",
                 "started_at": agent_start_time.isoformat(),
@@ -417,7 +417,7 @@ class AgentOrchestrator:
                     results[key] = result
 
                     duration_ms = int(
-                        (datetime.now(timezone.utc) - agent_start_time).total_seconds() * 1000
+                        (datetime.utcnow() - agent_start_time).total_seconds() * 1000
                     )
                     ws_status[agent_num].update({
                         "status":      "completed",
