@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Construction Monitor — Real-Time Market Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     DESIGN DIRECTION: Industrial Terminal / Bloomberg aesthetic
+     Dark charcoal base, amber/orange signal accents,
+     monospace data readouts, dense information architecture
+     ============================================================ */
+
+  :root {
+    --bg-base:       #0d0f0e;
+    --bg-panel:      #131715;
+    --bg-panel-2:    #181c1a;
+    --bg-hover:      #1e2420;
+    --border:        #242a27;
+    --border-light:  #2e3632;
+
+    --text-primary:  #e8f0ec;
+    --text-secondary: #7a9085;
+    --text-muted:    #4a5952;
+    --text-data:     #b4d4c4;
+
+    --amber:         #f0a030;
+    --amber-dim:     #6b4712;
+    --green-signal:  #34d399;
+    --green-dim:     #0d3322;
+    --red-signal:    #f87171;
+    --red-dim:       #3d1515;
+    --orange-signal: #fb923c;
+    --orange-dim:    #3d1e0c;
+    --yellow-signal: #fbbf24;
+
+    --mpi-favorable: #34d399;
+    --mpi-moderate:  #fbbf24;
+    --mpi-elevated:  #fb923c;
+    --mpi-critical:  #f87171;
+
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-sans: 'Space Grotesk', sans-serif;
+    --font-display: 'Bebas Neue', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ---- Scanline texture overlay ---- */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ============================================================ HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 52px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 28px;
+    height: 28px;
+    background: var(--amber);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    position: relative;
+    animation: pulse-logo 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-logo {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(240,160,48,0.4); }
+    50% { opacity: 0.85; box-shadow: 0 0 0 8px rgba(240,160,48,0); }
+  }
+
+  .logo-text {
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+  }
+
+  .logo-text span {
+    color: var(--amber);
+  }
+
+  .header-center {
+    display: flex;
+    gap: 4px;
+  }
+
+  .variant-btn {
+    padding: 5px 14px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+
+  .variant-btn:hover, .variant-btn.active {
+    background: var(--amber-dim);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--green-signal);
+    letter-spacing: 1px;
+  }
+
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green-signal);
+    animation: blink 1.5s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  .header-time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+  }
+
+  /* ============================================================ LAYOUT */
+  .app-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr 300px;
+    grid-template-rows: auto 1fr;
+    height: calc(100vh - 52px);
+    overflow: hidden;
+  }
+
+  /* ============================================================ ALERT TICKER */
+  .alert-bar {
+    grid-column: 1 / -1;
+    height: 36px;
+    background: #1a1408;
+    border-bottom: 1px solid var(--amber-dim);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .alert-label {
+    padding: 0 16px;
+    background: var(--amber);
+    color: #000;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .ticker-wrap {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .ticker {
+    display: flex;
+    gap: 60px;
+    animation: ticker-scroll 40s linear infinite;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--amber);
+    letter-spacing: 0.5px;
+  }
+
+  @keyframes ticker-scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .ticker-severity {
+    font-weight: 600;
+  }
+
+  .ticker-severity.critical { color: var(--red-signal); }
+  .ticker-severity.high { color: var(--orange-signal); }
+  .ticker-severity.medium { color: var(--yellow-signal); }
+
+  .ticker-divider {
+    color: var(--text-muted);
+    margin: 0 20px;
+  }
+
+  /* ============================================================ LEFT PANEL */
+  .left-panel {
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .panel-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  /* ---- MPI Cards ---- */
+  .mpi-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .mpi-card {
+    padding: 10px 12px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mpi-card:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-light);
+  }
+
+  .mpi-card.selected {
+    border-color: var(--amber);
+    background: #1a1408;
+  }
+
+  .mpi-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 4px 0 0 4px;
+  }
+
+  .mpi-card.favorable::before { background: var(--mpi-favorable); }
+  .mpi-card.moderate::before  { background: var(--mpi-moderate); }
+  .mpi-card.elevated::before  { background: var(--mpi-elevated); }
+  .mpi-card.critical::before  { background: var(--mpi-critical); }
+
+  .mpi-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 6px;
+  }
+
+  .mpi-city {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+
+  .mpi-state {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .mpi-score-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+  }
+
+  .mpi-score {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .mpi-card.favorable .mpi-score { color: var(--mpi-favorable); }
+  .mpi-card.moderate .mpi-score  { color: var(--mpi-moderate); }
+  .mpi-card.elevated .mpi-score  { color: var(--mpi-elevated); }
+  .mpi-card.critical .mpi-score  { color: var(--mpi-critical); }
+
+  .mpi-tier-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .mpi-bar-wrap {
+    height: 4px;
+    background: var(--bg-base);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .mpi-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s ease;
+  }
+
+  .mpi-card.favorable .mpi-bar-fill { background: var(--mpi-favorable); }
+  .mpi-card.moderate .mpi-bar-fill  { background: var(--mpi-moderate); }
+  .mpi-card.elevated .mpi-bar-fill  { background: var(--mpi-elevated); }
+  .mpi-card.critical .mpi-bar-fill  { background: var(--mpi-critical); }
+
+  .mpi-card-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .mpi-trend {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+
+  .mpi-trend.rising { color: var(--red-signal); }
+  .mpi-trend.falling { color: var(--green-signal); }
+
+  .mpi-alert-count {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: var(--red-dim);
+    color: var(--red-signal);
+    display: none;
+  }
+
+  .mpi-alert-count.visible { display: block; }
+
+  /* ============================================================ CENTER PANEL */
+  .center-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---- Map Placeholder ---- */
+  .map-container {
+    flex: 1;
+    position: relative;
+    background: #0a0f0c;
+    overflow: hidden;
+  }
+
+  /* Simulated map grid */
+  .map-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(36,42,39,0.6) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(36,42,39,0.6) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .map-us-outline {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.06;
+    pointer-events: none;
+  }
+
+  .map-us-outline svg {
+    width: 85%;
+    max-width: 700px;
+    fill: var(--text-primary);
+  }
+
+  /* Map MSA markers */
+  .map-marker {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    z-index: 10;
+  }
+
+  .marker-ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    animation: ring-pulse 2s ease-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes ring-pulse {
+    0% { width: 20px; height: 20px; opacity: 0.7; }
+    100% { width: 40px; height: 40px; opacity: 0; }
+  }
+
+  .marker-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-base);
+    position: relative;
+    z-index: 2;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+
+  .map-marker:hover .marker-dot {
+    transform: scale(1.4);
+  }
+
+  .marker-label {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    pointer-events: none;
+    text-shadow: 0 0 8px var(--bg-base), 0 0 8px var(--bg-base);
+  }
+
+  .marker-score {
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    text-shadow: 0 0 8px var(--bg-base), 0 0 8px var(--bg-base);
+  }
+
+  .favorable .marker-dot, .favorable .marker-ring { background: var(--mpi-favorable); border-color: var(--mpi-favorable); }
+  .moderate .marker-dot, .moderate .marker-ring   { background: var(--mpi-moderate); border-color: var(--mpi-moderate); }
+  .elevated .marker-dot, .elevated .marker-ring   { background: var(--mpi-elevated); border-color: var(--mpi-elevated); }
+  .critical .marker-dot, .critical .marker-ring   { background: var(--mpi-critical); border-color: var(--mpi-critical); }
+
+  .favorable .marker-score { color: var(--mpi-favorable); }
+  .moderate .marker-score  { color: var(--mpi-moderate); }
+  .elevated .marker-score  { color: var(--mpi-elevated); }
+  .critical .marker-score  { color: var(--mpi-critical); }
+
+  /* Map legend */
+  .map-legend {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    background: rgba(13,15,14,0.9);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 14px;
+    backdrop-filter: blur(8px);
+  }
+
+  .legend-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Map layers toggle */
+  .map-layers {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .layer-btn {
+    background: rgba(13,15,14,0.9);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-align: left;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+
+  .layer-btn:hover, .layer-btn.active {
+    background: var(--bg-hover);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  .layer-btn::before {
+    content: '○ ';
+    color: var(--text-muted);
+  }
+
+  .layer-btn.active::before {
+    content: '● ';
+    color: var(--amber);
+  }
+
+  /* ---- Bottom data strip ---- */
+  .data-strip {
+    height: 100px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    overflow: hidden;
+  }
+
+  .data-cell {
+    padding: 12px 14px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .data-cell:hover { background: var(--bg-hover); }
+  .data-cell:last-child { border-right: none; }
+
+  .data-cell-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .data-cell-value {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-data);
+    line-height: 1;
+  }
+
+  .data-cell-change {
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  .change-up { color: var(--red-signal); }
+  .change-down { color: var(--green-signal); }
+  .change-neutral { color: var(--text-muted); }
+
+  /* ============================================================ RIGHT PANEL */
+  .right-panel {
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---- MPI Detail ---- */
+  .mpi-detail {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-city {
+    font-family: var(--font-display);
+    font-size: 28px;
+    letter-spacing: 1px;
+    line-height: 1;
+    margin-bottom: 2px;
+  }
+
+  .detail-score-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 12px 0 8px;
+  }
+
+  .detail-score-big {
+    font-family: var(--font-mono);
+    font-size: 52px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .detail-score-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+  }
+
+  .detail-tier-badge {
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .tier-badge-favorable { background: var(--green-dim); color: var(--mpi-favorable); }
+  .tier-badge-moderate  { background: #2d2200; color: var(--mpi-moderate); }
+  .tier-badge-elevated  { background: var(--orange-dim); color: var(--mpi-elevated); }
+  .tier-badge-critical  { background: var(--red-dim); color: var(--mpi-critical); }
+
+  .detail-recommendation {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    padding: 10px;
+    background: var(--bg-panel-2);
+    border-radius: 4px;
+    border-left: 3px solid var(--amber);
+    margin-top: 10px;
+  }
+
+  /* ---- Component breakdown ---- */
+  .components-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .component-row {
+    margin-bottom: 10px;
+  }
+
+  .component-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .component-name {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .component-weight {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+  }
+
+  .component-score-text {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-data);
+  }
+
+  .component-bar-wrap {
+    height: 6px;
+    background: var(--bg-base);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .component-bar {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--amber-dim), var(--amber));
+    transition: width 1.2s ease;
+  }
+
+  .component-bar.high {
+    background: linear-gradient(90deg, var(--red-dim), var(--red-signal));
+  }
+
+  .component-bar.low {
+    background: linear-gradient(90deg, var(--green-dim), var(--green-signal));
+  }
+
+  /* ---- Convergence Alerts ---- */
+  .alerts-section {
+    padding: 14px 16px;
+    flex: 1;
+  }
+
+  .alert-card {
+    padding: 10px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .alert-card:hover {
+    background: var(--bg-hover);
+  }
+
+  .alert-card.critical { border-left: 3px solid var(--red-signal); background: rgba(248,113,113,0.05); }
+  .alert-card.high { border-left: 3px solid var(--orange-signal); background: rgba(251,146,60,0.05); }
+  .alert-card.medium { border-left: 3px solid var(--yellow-signal); background: rgba(251,191,36,0.05); }
+
+  .alert-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+
+  .alert-card-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  .alert-tag {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: var(--bg-panel-2);
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .alert-impact {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--orange-signal);
+    margin-top: 4px;
+  }
+
+  /* ---- News feed ---- */
+  .news-section {
+    border-top: 1px solid var(--border);
+    padding: 14px 16px;
+  }
+
+  .news-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+
+  .news-item:last-child { border-bottom: none; }
+
+  .news-item:hover .news-title { color: var(--amber); }
+
+  .news-title {
+    font-size: 12px;
+    color: var(--text-primary);
+    line-height: 1.4;
+    margin-bottom: 3px;
+    transition: color 0.15s;
+  }
+
+  .news-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .news-source {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .news-severity-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .severity-critical { background: var(--red-signal); }
+  .severity-high { background: var(--orange-signal); }
+  .severity-medium { background: var(--yellow-signal); }
+  .severity-low { background: var(--text-muted); }
+
+  .news-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg-base); }
+  ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================ HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <span class="logo-text">CONST<span>R</span>UCTION MONITOR</span>
+  </div>
+
+  <div class="header-center">
+    <button class="variant-btn active" onclick="setVariant('estimator', this)">ESTIMATOR</button>
+    <button class="variant-btn" onclick="setVariant('field', this)">FIELD</button>
+    <button class="variant-btn" onclick="setVariant('owner', this)">OWNER</button>
+  </div>
+
+  <div class="header-right">
+    <div class="live-indicator">
+      <div class="live-dot"></div>
+      LIVE
+    </div>
+    <div class="header-time" id="clock">--:--:-- EST</div>
+  </div>
+</header>
+
+<!-- ============================================================ APP GRID -->
+<div class="app-grid">
+
+  <!-- ALERT TICKER -->
+  <div class="alert-bar">
+    <div class="alert-label">⚡ SIGNALS</div>
+    <div class="ticker-wrap">
+      <div class="ticker" id="ticker">
+        <!-- Doubled for seamless loop -->
+        <span class="ticker-item"><span class="ticker-severity critical">CRITICAL</span> Steel tariff increase 25% effective April 1 — structural steel estimates require immediate review</span>
+        <span class="ticker-divider">///</span>
+        <span class="ticker-item"><span class="ticker-severity high">HIGH</span> Ironworker Local 25 CBA expires in 34 days — wage escalation risk for Chicago/Detroit markets</span>
+        <span class="ticker-divider">///</span>
+        <span class="ticker-item"><span class="ticker-severity medium">MEDIUM</span> Ready-mix PPI +3.2% MoM — concrete cost trend accelerating in Midwest region</span>
+        <span class="ticker-divider">///</span>
+        <span class="ticker-item"><span class="ticker-severity high">HIGH</span> Phoenix permit values +31% YoY — sub backlog critically tight, expect premium pricing</span>
+        <span class="ticker-divider">///</span>
+        <span class="ticker-item"><span class="ticker-severity medium">MEDIUM</span> Fed Funds Rate unchanged at 4.25-4.50% — construction loan rates remain elevated</span>
+        <span class="ticker-divider">///</span>
+        <span class="ticker-item"><span class="ticker-severity critical">CRITICAL</span> Steel tariff increase 25% effective April 1 — structural steel estimates require immediate review</span>
+        <span class="ticker-divider">///</span>
+        <span class="ticker-item"><span class="ticker-severity high">HIGH</span> Ironworker Local 25 CBA expires in 34 days — wage escalation risk for Chicago/Detroit markets</span>
+        <span class="ticker-divider">///</span>
+        <span class="ticker-item"><span class="ticker-severity medium">MEDIUM</span> Ready-mix PPI +3.2% MoM — concrete cost trend accelerating in Midwest region</span>
+        <span class="ticker-divider">///</span>
+        <span class="ticker-item"><span class="ticker-severity high">HIGH</span> Phoenix permit values +31% YoY — sub backlog critically tight, expect premium pricing</span>
+        <span class="ticker-divider">///</span>
+        <span class="ticker-item"><span class="ticker-severity medium">MEDIUM</span> Fed Funds Rate unchanged at 4.25-4.50% — construction loan rates remain elevated</span>
+        <span class="ticker-divider">///</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEFT PANEL: MPI Rankings -->
+  <div class="left-panel">
+    <div class="panel-header">
+      <div class="panel-title">Market Pressure Index</div>
+      <div class="panel-subtitle">MSA Rankings — Feb 2026</div>
+    </div>
+    <div class="mpi-list" id="mpi-list">
+      <!-- Rendered by JS -->
+    </div>
+  </div>
+
+  <!-- CENTER PANEL: Map + Data Strip -->
+  <div class="center-panel">
+    <div class="map-container" id="map">
+      <div class="map-grid"></div>
+      <div class="map-us-outline">
+        <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg">
+          <!-- Simplified US outline path -->
+          <path d="M 150 150 L 750 150 L 800 200 L 820 280 L 780 350 L 700 380 L 650 420 L 550 440 L 450 460 L 350 450 L 250 420 L 180 380 L 140 310 L 130 250 Z M 200 420 L 260 480 L 320 500 L 280 520 L 220 490 Z"/>
+        </svg>
+      </div>
+      <!-- Map markers rendered by JS -->
+      <div id="map-markers"></div>
+
+      <div class="map-layers">
+        <button class="layer-btn active" onclick="toggleLayer(this)">MPI Scores</button>
+        <button class="layer-btn" onclick="toggleLayer(this)">Permit Activity</button>
+        <button class="layer-btn" onclick="toggleLayer(this)">Labor Stress</button>
+        <button class="layer-btn" onclick="toggleLayer(this)">Distress Signals</button>
+        <button class="layer-btn" onclick="toggleLayer(this)">Weather Risk</button>
+      </div>
+
+      <div class="map-legend">
+        <div class="legend-title">Market Pressure Index</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-favorable)"></div>Favorable (0–30)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-moderate)"></div>Moderate (31–55)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-elevated)"></div>Elevated (56–75)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-critical)"></div>Critical (76–100)</div>
+      </div>
+    </div>
+
+    <!-- DATA STRIP -->
+    <div class="data-strip">
+      <div class="data-cell">
+        <div class="data-cell-label">PPI Constr. Inputs</div>
+        <div class="data-cell-value" id="ds-ppi-inputs">348.2</div>
+        <div class="data-cell-change change-up" id="ds-ppi-inputs-chg">▲ +3.1% YoY</div>
+      </div>
+      <div class="data-cell">
+        <div class="data-cell-label">Steel Mill Products</div>
+        <div class="data-cell-value" id="ds-ppi-steel">218.4</div>
+        <div class="data-cell-change change-up" id="ds-ppi-steel-chg">▲ +7.8% YoY</div>
+      </div>
+      <div class="data-cell">
+        <div class="data-cell-label">Ready-Mix Concrete</div>
+        <div class="data-cell-value" id="ds-ppi-concrete">392.1</div>
+        <div class="data-cell-change change-up" id="ds-ppi-concrete-chg">▲ +3.2% YoY</div>
+      </div>
+      <div class="data-cell">
+        <div class="data-cell-label">Constr. Employment</div>
+        <div class="data-cell-value" id="ds-employment">8.14M</div>
+        <div class="data-cell-change change-down" id="ds-employment-chg">▼ −24k MoM</div>
+      </div>
+      <div class="data-cell">
+        <div class="data-cell-label">Building Permits</div>
+        <div class="data-cell-value" id="ds-permits">1.483M</div>
+        <div class="data-cell-change change-up" id="ds-permits-chg">▲ +2.8% MoM</div>
+      </div>
+      <div class="data-cell">
+        <div class="data-cell-label">Fed Funds Rate</div>
+        <div class="data-cell-value" id="ds-fedfunds">4.38%</div>
+        <div class="data-cell-change change-neutral" id="ds-fedfunds-chg">— Unchanged</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: Detail + Alerts -->
+  <div class="right-panel" id="right-panel">
+    <!-- Rendered by JS based on selected MSA -->
+  </div>
+
+</div><!-- end app-grid -->
+
+<script>
+// ============================================================
+// Construction Monitor Dashboard — Live Data Edition
+//
+// Data flow:
+//   1. loadLiveData()  →  GET /api/mpi-scores
+//   2. /api/mpi-scores calls BLS + FRED + Census → calculateMPI()
+//   3. Response populates MPI_DATA and data strip
+//   4. Dashboard re-renders with live scores
+//   5. Auto-refresh every 5 minutes
+//
+// Fallback: DEMO_DATA is used when the API is unreachable or
+//   during local development without server-side functions.
+// ============================================================
+
+// ---- Static fallback demo data (used when API unavailable) ----
+const DEMO_DATA = [
+  {
+    id: 'phoenix',    name: 'Phoenix', state: 'AZ', score: 82,
+    tier: 'critical', trend: 'rising', delta: 7,
+    mapX: 18, mapY: 62, alerts: 3,
+    components: { materials: 78, labor: 85, backlog: 92, supply: 71, distress: 42 },
+    topAlert: {
+      title: '🔴 CONVERGENCE: Phoenix — 4 signal categories elevated',
+      body: 'Permit values +31% YoY + labor shortage critical + PPI inputs +4.2% + mega project surge. Structural concrete estimates need 12–15% escalation buffer.',
+      severity: 'critical', tags: ['materials', 'labor', 'backlog', 'supply_chain'],
+      impact: '+10–15% on structural trades'
+    },
+    rec: 'Critical market. Get updated sub quotes. Do not use historical unit prices. Consider escalation clauses in your proposal.'
+  },
+  {
+    id: 'nashville', name: 'Nashville', state: 'TN', score: 74,
+    tier: 'elevated', trend: 'rising', delta: 4,
+    mapX: 58, mapY: 55, alerts: 2,
+    components: { materials: 70, labor: 78, backlog: 80, supply: 58, distress: 32 },
+    topAlert: {
+      title: '🟠 CONVERGENCE: Nashville — Labor + backlog pressure elevated',
+      body: 'Trade unemployment 3.1% (vs 4.8% national) + permit values +22% YoY. Sub backlog saturated.',
+      severity: 'high', tags: ['labor', 'project_activity'],
+      impact: '+7–10% on labor-heavy trades'
+    },
+    rec: 'Elevated pressure. Budget 8–12% escalation. Confirm sub pricing before locking structural numbers.'
+  },
+  {
+    id: 'seattle', name: 'Seattle', state: 'WA', score: 71,
+    tier: 'elevated', trend: 'stable', delta: 1,
+    mapX: 8, mapY: 22, alerts: 1,
+    components: { materials: 72, labor: 76, backlog: 65, supply: 62, distress: 28 },
+    topAlert: {
+      title: '🟠 ELEVATED: Seattle — Structural materials costs trending up',
+      body: 'Regional steel premium 8% above national average. PPI inputs +3.8% YoY. Labor market tight.',
+      severity: 'high', tags: ['materials', 'labor'],
+      impact: '+6–9% on structural steel'
+    },
+    rec: 'Elevated. Budget 8–10% escalation for structural trades. Early steel procurement recommended.'
+  },
+  {
+    id: 'dallas', name: 'Dallas', state: 'TX', score: 62,
+    tier: 'elevated', trend: 'falling', delta: -3,
+    mapX: 38, mapY: 68, alerts: 1,
+    components: { materials: 60, labor: 65, backlog: 72, supply: 45, distress: 38 },
+    topAlert: {
+      title: '🟡 WATCH: Dallas — Backlog density elevated',
+      body: 'Construction spending +18% YoY. Sub capacity tight for MEP and concrete. Materials stabilizing.',
+      severity: 'medium', tags: ['project_activity'],
+      impact: '+4–6% on MEP trades'
+    },
+    rec: 'Moderately elevated. Conditions improving. Budget 6–8% escalation; MEP subs are stretched.'
+  },
+  {
+    id: 'chicago', name: 'Chicago', state: 'IL', score: 55,
+    tier: 'moderate', trend: 'rising', delta: 3,
+    mapX: 60, mapY: 32, alerts: 1,
+    components: { materials: 62, labor: 55, backlog: 50, supply: 44, distress: 28 },
+    topAlert: {
+      title: '🟡 WATCH: Chicago — Labor CBA + tariff convergence forming',
+      body: 'Multiple CBA expirations in Q2. Steel tariff impact beginning to show in regional quotes.',
+      severity: 'medium', tags: ['materials', 'labor'],
+      impact: '+4–6% on structural trades'
+    },
+    rec: 'Moderate pressure. Watch Q2 CBA expirations. Budget 5–7% escalation buffer for projects starting Q3.'
+  },
+  {
+    id: 'detroit', name: 'Detroit', state: 'MI', score: 48,
+    tier: 'moderate', trend: 'rising', delta: 5,
+    mapX: 66, mapY: 30, alerts: 1,
+    components: { materials: 58, labor: 44, backlog: 38, supply: 42, distress: 22 },
+    topAlert: {
+      title: '🟡 WATCH: Detroit — Steel tariff impact + CBA expiry converging',
+      body: 'Ironworker Local 25 CBA expires in 34 days. Steel PPI +7.8% from tariff announcement. Monitor closely.',
+      severity: 'medium', tags: ['materials', 'labor'],
+      impact: '+3–5% on structural steel & concrete'
+    },
+    rec: 'Moderate pressure, rising. Get ironworker sub quotes confirmed before CBA expiry. Watch steel for 60 days.'
+  },
+  {
+    id: 'houston', name: 'Houston', state: 'TX', score: 45,
+    tier: 'moderate', trend: 'stable', delta: 0,
+    mapX: 42, mapY: 72, alerts: 0,
+    components: { materials: 50, labor: 42, backlog: 48, supply: 38, distress: 20 },
+    topAlert: null,
+    rec: 'Moderate. Market active. Confirm sub availability on structural trades before finalizing bid numbers.'
+  },
+  {
+    id: 'denver', name: 'Denver', state: 'CO', score: 42,
+    tier: 'moderate', trend: 'stable', delta: -1,
+    mapX: 30, mapY: 52, alerts: 0,
+    components: { materials: 48, labor: 40, backlog: 44, supply: 35, distress: 18 },
+    topAlert: null,
+    rec: 'Moderate. Standard escalation assumptions apply. Sub pricing competitive across most trades.'
+  },
+  {
+    id: 'atlanta', name: 'Atlanta', state: 'GA', score: 40,
+    tier: 'moderate', trend: 'stable', delta: 1,
+    mapX: 62, mapY: 62, alerts: 0,
+    components: { materials: 46, labor: 38, backlog: 42, supply: 32, distress: 16 },
+    topAlert: null,
+    rec: 'Moderate. Active but manageable market. Review specialty trade availability for Q3 starts.'
+  },
+  {
+    id: 'columbus', name: 'Columbus', state: 'OH', score: 38,
+    tier: 'moderate', trend: 'stable', delta: 0,
+    mapX: 64, mapY: 38, alerts: 0,
+    components: { materials: 42, labor: 36, backlog: 40, supply: 32, distress: 18 },
+    topAlert: null,
+    rec: 'Moderate. Stable conditions. Standard escalation assumptions appropriate. Sub market competitive.'
+  },
+  {
+    id: 'indianapolis', name: 'Indianapolis', state: 'IN', score: 32,
+    tier: 'moderate', trend: 'stable', delta: -1,
+    mapX: 62, mapY: 40, alerts: 0,
+    components: { materials: 38, labor: 30, backlog: 32, supply: 28, distress: 20 },
+    topAlert: null,
+    rec: 'Moderate, slightly improving. Competitive bid market. Standard escalation.'
+  },
+  {
+    id: 'grand-rapids', name: 'Grand Rapids', state: 'MI', score: 28,
+    tier: 'favorable', trend: 'stable', delta: 2,
+    mapX: 63, mapY: 28, alerts: 0,
+    components: { materials: 30, labor: 26, backlog: 28, supply: 24, distress: 15 },
+    topAlert: null,
+    rec: 'Favorable market. Competitive sub pricing. 3–5% escalation contingency appropriate.'
+  },
+];
+
+// ---- Live data state ----
+let MPI_DATA = [...DEMO_DATA];
+let selectedId = MPI_DATA[0]?.id || 'phoenix';
+let isLiveData = false;
+let liveSignals = [];
+
+// ---- Render MPI List ----
+function renderMPIList() {
+  const container = document.getElementById('mpi-list');
+  const sorted = [...MPI_DATA].sort((a, b) => b.score - a.score);
+
+  container.innerHTML = sorted.map(m => `
+    <div class="mpi-card ${m.tier} ${selectedId === m.id ? 'selected' : ''}"
+         onclick="selectMSA('${m.id}')">
+      <div class="mpi-card-top">
+        <div>
+          <div class="mpi-city">${m.name}</div>
+          <div class="mpi-state">${m.state}</div>
+        </div>
+        <div class="mpi-score-wrap">
+          <div class="mpi-score">${m.score}</div>
+          <div class="mpi-tier-label">${m.tier}</div>
+        </div>
+      </div>
+      <div class="mpi-bar-wrap">
+        <div class="mpi-bar-fill" style="width:${m.score}%"></div>
+      </div>
+      <div class="mpi-card-bottom">
+        <span class="mpi-trend ${m.trend}">
+          ${m.trend === 'rising' ? `▲ +${Math.abs(m.delta)} pts` : m.trend === 'falling' ? `▼ ${Math.abs(m.delta)} pts` : '— stable'}
+        </span>
+        <span class="mpi-alert-count ${m.alerts > 0 ? 'visible' : ''}">
+          ${m.alerts} alert${m.alerts !== 1 ? 's' : ''}
+        </span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ---- Render Map Markers ----
+function renderMapMarkers() {
+  const container = document.getElementById('map-markers');
+  container.innerHTML = MPI_DATA.map(m => `
+    <div class="map-marker ${m.tier}"
+         style="left:${m.mapX}%; top:${m.mapY}%"
+         onclick="selectMSA('${m.id}')">
+      <div class="marker-score">${m.score}</div>
+      <div class="marker-ring"></div>
+      <div class="marker-dot"></div>
+      <div class="marker-label">${m.name}</div>
+    </div>
+  `).join('');
+}
+
+// ---- Render Right Panel ----
+function renderDetail(id) {
+  const m = MPI_DATA.find(x => x.id === id);
+  if (!m) return;
+
+  const tierClass = {
+    favorable: 'tier-badge-favorable',
+    moderate:  'tier-badge-moderate',
+    elevated:  'tier-badge-elevated',
+    critical:  'tier-badge-critical',
+  }[m.tier] || 'tier-badge-moderate';
+
+  const componentLabels = {
+    materials: 'Materials Cost Trend',
+    labor:     'Labor Availability',
+    backlog:   'Project Backlog Density',
+    supply:    'Supply Chain Stress',
+    distress:  'Financial Distress',
+  };
+
+  const componentWeights = {
+    materials: '30%', labor: '25%', backlog: '20%', supply: '15%', distress: '10%'
+  };
+
+  const componentHtml = Object.entries(m.components).map(([key, val]) => {
+    const barClass = val > 65 ? 'high' : val < 35 ? 'low' : '';
+    return `
+      <div class="component-row">
+        <div class="component-header">
+          <span class="component-name">
+            ${componentLabels[key] || key}
+            <span class="component-weight">${componentWeights[key] || ''}</span>
+          </span>
+          <span class="component-score-text">${val}</span>
+        </div>
+        <div class="component-bar-wrap">
+          <div class="component-bar ${barClass}" style="width:${val}%"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const alertHtml = m.topAlert ? `
+    <div class="alert-card ${m.topAlert.severity}">
+      <div class="alert-card-title">${m.topAlert.title}</div>
+      <div class="alert-card-meta">
+        ${(m.topAlert.tags || []).map(t => `<span class="alert-tag">${t.replace('_', ' ')}</span>`).join('')}
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:6px;">${m.topAlert.body}</div>
+      <div class="alert-impact">Est. cost impact: ${m.topAlert.impact}</div>
+    </div>
+  ` : '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">No active convergence alerts for this market.</div>';
+
+  // Build signals section from live data or show static placeholders
+  const msaSignals = liveSignals.filter(s => s.msaId === id || s.msaId === 'national');
+  const signalsToShow = msaSignals.length > 0 ? msaSignals.slice(0, 6) : null;
+
+  const signalsHtml = signalsToShow
+    ? signalsToShow.map(s => `
+        <div class="news-item">
+          <div class="news-title">${s.title}</div>
+          <div class="news-meta">
+            <div class="news-severity-dot severity-${s.severity}"></div>
+            <span class="news-source">${s.source.split('—')[0].trim()}</span>
+            <span class="news-time">${isLiveData ? 'live' : 'demo'}</span>
+          </div>
+        </div>
+      `).join('')
+    : [
+        { title: 'Steel tariff increase to 25% — structural estimates need review', source: 'ENR', severity: 'critical', time: '2h ago' },
+        { title: 'BLS: Construction employment signal — see data strip', source: 'BLS', severity: 'medium', time: 'live' },
+        { title: 'Ready-mix concrete PPI — see data strip for current index', source: 'FRED', severity: 'high', time: 'live' },
+        { title: `${m.name} building permit activity — YoY trend in backlog score`, source: 'Census', severity: 'high', time: 'live' },
+        { title: 'Fed Funds Rate — see data strip for current rate environment', source: 'Federal Reserve', severity: 'medium', time: 'live' },
+      ].map(n => `
+        <div class="news-item">
+          <div class="news-title">${n.title}</div>
+          <div class="news-meta">
+            <div class="news-severity-dot severity-${n.severity}"></div>
+            <span class="news-source">${n.source}</span>
+            <span class="news-time">${n.time}</span>
+          </div>
+        </div>
+      `).join('');
+
+  const dataSourceBadge = isLiveData
+    ? `<span style="font-size:10px;color:var(--green-signal);font-family:var(--font-mono);margin-left:8px;">● LIVE</span>`
+    : `<span style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-left:8px;">● DEMO</span>`;
+
+  document.getElementById('right-panel').innerHTML = `
+    <div class="mpi-detail">
+      <div class="detail-city">${m.name.toUpperCase()}, ${m.state}${dataSourceBadge}</div>
+      <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);">Metropolitan Statistical Area</div>
+      <div class="detail-score-row">
+        <div class="detail-score-big" style="color:var(--mpi-${m.tier})">${m.score}</div>
+        <div>
+          <div class="detail-score-label">MPI SCORE</div>
+          <div style="margin-top:4px">
+            <span class="detail-tier-badge ${tierClass}">${m.tier}</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-recommendation">${m.rec}</div>
+    </div>
+
+    <div class="components-section">
+      <div class="panel-title" style="margin-bottom:10px">Component Breakdown</div>
+      ${componentHtml}
+    </div>
+
+    <div class="alerts-section">
+      <div class="panel-title" style="margin-bottom:10px">Convergence Alerts</div>
+      ${alertHtml}
+    </div>
+
+    <div class="news-section">
+      <div class="panel-title" style="margin-bottom:10px">Recent Signals</div>
+      ${signalsHtml}
+    </div>
+  `;
+}
+
+// ---- Data strip updater ----
+function updateDataStrip(ds) {
+  if (!ds) return;
+
+  function fmtChg(pct, label, up, down) {
+    const dir = pct > 0 ? '▲' : pct < 0 ? '▼' : '—';
+    const cls = pct > 0 ? 'change-up' : pct < 0 ? 'change-down' : 'change-neutral';
+    const sign = pct > 0 ? '+' : '';
+    return { text: `${dir} ${sign}${pct.toFixed(1)}% ${label}`, cls };
+  }
+
+  // PPI Construction Inputs
+  if (ds.ppiConstructionInputs) {
+    const el = document.getElementById('ds-ppi-inputs');
+    const chg = document.getElementById('ds-ppi-inputs-chg');
+    if (el && ds.ppiConstructionInputs.value) el.textContent = ds.ppiConstructionInputs.value.toFixed(1);
+    if (chg && ds.ppiConstructionInputs.changeYoY !== undefined) {
+      const { text, cls } = fmtChg(ds.ppiConstructionInputs.changeYoY, 'YoY');
+      chg.textContent = text; chg.className = `data-cell-change ${cls}`;
+    }
+  }
+
+  // PPI Steel
+  if (ds.ppiSteelMill) {
+    const el = document.getElementById('ds-ppi-steel');
+    const chg = document.getElementById('ds-ppi-steel-chg');
+    if (el && ds.ppiSteelMill.value) el.textContent = ds.ppiSteelMill.value.toFixed(1);
+    if (chg && ds.ppiSteelMill.changeYoY !== undefined) {
+      const { text, cls } = fmtChg(ds.ppiSteelMill.changeYoY, 'YoY');
+      chg.textContent = text; chg.className = `data-cell-change ${cls}`;
+    }
+  }
+
+  // PPI Concrete
+  if (ds.ppiReadyMixConcrete) {
+    const el = document.getElementById('ds-ppi-concrete');
+    const chg = document.getElementById('ds-ppi-concrete-chg');
+    if (el && ds.ppiReadyMixConcrete.value) el.textContent = ds.ppiReadyMixConcrete.value.toFixed(1);
+    if (chg && ds.ppiReadyMixConcrete.changeYoY !== undefined) {
+      const { text, cls } = fmtChg(ds.ppiReadyMixConcrete.changeYoY, 'YoY');
+      chg.textContent = text; chg.className = `data-cell-change ${cls}`;
+    }
+  }
+
+  // Construction Employment
+  if (ds.constructionEmployment) {
+    const el = document.getElementById('ds-employment');
+    const chg = document.getElementById('ds-employment-chg');
+    const valK = ds.constructionEmployment.valueThousands;
+    if (el && valK) el.textContent = valK >= 1000 ? `${(valK / 1000).toFixed(2)}M` : `${valK.toFixed(0)}k`;
+    if (chg && ds.constructionEmployment.changeMoM !== undefined) {
+      const pct = ds.constructionEmployment.changeMoM;
+      const dir = pct > 0 ? '▲' : pct < 0 ? '▼' : '—';
+      const cls = pct > 0 ? 'change-up' : pct < 0 ? 'change-down' : 'change-neutral';
+      const sign = pct > 0 ? '+' : '';
+      chg.textContent = `${dir} ${sign}${pct.toFixed(1)}% MoM`;
+      chg.className = `data-cell-change ${cls}`;
+    }
+  }
+
+  // Building Permits
+  if (ds.buildingPermits) {
+    const el = document.getElementById('ds-permits');
+    const chg = document.getElementById('ds-permits-chg');
+    const valK = ds.buildingPermits.valueThousands;
+    if (el && valK) el.textContent = valK >= 1000 ? `${(valK / 1000).toFixed(3)}M` : `${valK.toFixed(0)}k`;
+    if (chg && ds.buildingPermits.changeMoM !== undefined) {
+      const { text, cls } = fmtChg(ds.buildingPermits.changeMoM, 'MoM');
+      chg.textContent = text; chg.className = `data-cell-change ${cls}`;
+    }
+  }
+
+  // Fed Funds Rate
+  if (ds.fedFundsRate) {
+    const el = document.getElementById('ds-fedfunds');
+    const chg = document.getElementById('ds-fedfunds-chg');
+    if (el && ds.fedFundsRate.value) el.textContent = `${ds.fedFundsRate.value.toFixed(2)}%`;
+    if (chg) {
+      if (ds.fedFundsRate.unchanged) {
+        chg.textContent = '— Unchanged'; chg.className = 'data-cell-change change-neutral';
+      } else {
+        chg.textContent = 'Rate changed'; chg.className = 'data-cell-change change-up';
+      }
+    }
+  }
+}
+
+// ---- Live data loader ----
+async function loadLiveData() {
+  try {
+    const res = await fetch('/api/mpi-scores');
+    if (!res.ok) throw new Error(`API returned ${res.status}`);
+    const json = await res.json();
+
+    if (!json.data || !Array.isArray(json.data) || json.data.length === 0) {
+      throw new Error('API returned empty data array');
+    }
+
+    // Apply live data
+    MPI_DATA = json.data;
+    isLiveData = true;
+    liveSignals = json.signals || [];
+
+    // Keep selection valid
+    if (!MPI_DATA.find(m => m.id === selectedId)) {
+      selectedId = MPI_DATA[0].id;
+    }
+
+    // Update data strip with live macro values
+    if (json.dataStrip) {
+      updateDataStrip(json.dataStrip);
+    }
+
+    // Re-render all panels
+    renderMPIList();
+    renderMapMarkers();
+    renderDetail(selectedId);
+
+    console.log(`[Construction Monitor] Live MPI data loaded — ${MPI_DATA.length} MSAs, ${liveSignals.length} signals`);
+
+  } catch (err) {
+    // On failure: keep whatever data is showing (demo or last live), log quietly
+    console.warn('[Construction Monitor] API fetch failed, using existing data:', err.message);
+    if (!isLiveData) {
+      // Still on demo — ensure demo is rendered
+      renderMPIList();
+      renderMapMarkers();
+      renderDetail(selectedId);
+    }
+  }
+}
+
+// ---- Selection handler ----
+function selectMSA(id) {
+  selectedId = id;
+  renderMPIList();
+  renderDetail(id);
+}
+
+// ---- Layer toggle ----
+function toggleLayer(btn) {
+  btn.classList.toggle('active');
+}
+
+// ---- Variant switcher ----
+function setVariant(variant, btn) {
+  document.querySelectorAll('.variant-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ---- Clock ----
+function updateClock() {
+  const now = new Date();
+  const est = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const h = String(est.getHours()).padStart(2,'0');
+  const m = String(est.getMinutes()).padStart(2,'0');
+  const s = String(est.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s} EST`;
+}
+
+// ---- Init ----
+// 1. Render with demo data immediately (zero-latency start)
+renderMPIList();
+renderMapMarkers();
+renderDetail(selectedId);
+setInterval(updateClock, 1000);
+updateClock();
+
+// 2. Attempt to load live data from API
+loadLiveData();
+
+// 3. Refresh live data every 5 minutes
+setInterval(loadLiveData, 5 * 60 * 1000);
+</script>
+</body>
+</html>
