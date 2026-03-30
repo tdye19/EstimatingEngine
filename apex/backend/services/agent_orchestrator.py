@@ -38,6 +38,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.project import Project
+from apex.backend.models.token_usage import TokenUsage
 
 logger = logging.getLogger("apex.orchestrator")
 
@@ -113,6 +114,26 @@ class AgentOrchestrator:
         log.tokens_used = tokens
         log.output_summary = summary
         log.output_data = output_data
+
+        if tokens == 0 and log.started_at is not None:
+            usage_records = (
+                self.db.query(TokenUsage)
+                .filter(
+                    TokenUsage.project_id == self.project_id,
+                    TokenUsage.agent_number == log.agent_number,
+                    TokenUsage.created_at >= log.started_at,
+                )
+                .all()
+            )
+            count = len(usage_records)
+            if count > 0:
+                total_tokens = sum(r.input_tokens + r.output_tokens for r in usage_records)
+                log.tokens_used = total_tokens
+                logger.info(
+                    "Agent %d token usage: %d tokens (auto-filled from %d TokenUsage records)",
+                    log.agent_number, total_tokens, count,
+                )
+
         self.db.commit()
 
     def _log_error(self, log: AgentRunLog, error_msg: str):

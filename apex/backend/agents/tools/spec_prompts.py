@@ -1,7 +1,10 @@
 """Prompt templates for Agent 2's LLM-powered CSI spec parsing."""
 
 import json
+import logging
 import re
+
+logger = logging.getLogger("apex.tools.spec_prompts")
 
 
 SPEC_PARSER_SYSTEM_PROMPT = """You are a construction specification parser specializing in CSI MasterFormat 2016.
@@ -65,6 +68,52 @@ def _clean_llm_json_response(raw_response: str) -> str:
     return cleaned
 
 
+def _try_repair_json(raw: str) -> str:
+    """Attempt to fix common Gemini truncation issues in a JSON array string.
+
+    Handles:
+    - Truncated arrays that cut off mid-object (finds last complete ``}``)
+    - Incomplete string values ending mid-word before the last complete object
+    - Arrays that start with ``[`` but are missing the closing ``]``
+
+    Returns the repaired JSON string.
+    Raises ValueError if the string cannot be meaningfully repaired.
+    """
+    s = raw.strip()
+
+    # Already valid — nothing to do
+    try:
+        json.loads(s)
+        return s
+    except json.JSONDecodeError:
+        pass
+
+    if not s.startswith("["):
+        raise ValueError("Response does not start with '[', cannot repair")
+
+    # Find the position of the last complete '}' in the string
+    last_brace = s.rfind("}")
+    if last_brace == -1:
+        raise ValueError("No closing brace '}' found, cannot salvage any objects")
+
+    # Truncate to just after the last '}' and close the array
+    candidate = s[: last_brace + 1].rstrip()
+
+    # Strip any trailing comma left after the last object
+    candidate = candidate.rstrip(",").rstrip()
+
+    # Close the array if needed
+    if not candidate.endswith("]"):
+        candidate += "]"
+
+    # Validate the repaired candidate
+    try:
+        json.loads(candidate)
+        return candidate
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Repair attempt still invalid JSON: {exc}") from exc
+
+
 def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
     """Parse LLM response into validated section dicts.
 
@@ -72,7 +121,18 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
     """
     cleaned = _clean_llm_json_response(raw_response)
 
-    sections = json.loads(cleaned)  # Raises JSONDecodeError if invalid
+    try:
+        sections = json.loads(cleaned)
+    except json.JSONDecodeError as original_exc:
+        try:
+            repaired = _try_repair_json(cleaned)
+            sections = json.loads(repaired)
+            logger.warning(
+                "Repaired truncated JSON: salvaged %d sections from malformed response",
+                len(sections) if isinstance(sections, list) else 0,
+            )
+        except (ValueError, json.JSONDecodeError):
+            raise original_exc
 
     if not isinstance(sections, list):
         raise ValueError(f"Expected JSON array, got {type(sections).__name__}")

@@ -1,9 +1,14 @@
 """Spec parsing tools for Agent 2."""
 
+import json
+import os
 import re
 import logging
 
 logger = logging.getLogger("apex.tools.spec")
+
+_AGENT_2_CHUNK_PAGES = int(os.environ.get("AGENT_2_CHUNK_PAGES", "40"))
+_TOKEN_CHUNK_THRESHOLD = 500_000  # estimated tokens; trigger chunking above this
 
 # CSI Division ranges
 DIVISION_RANGES = {
@@ -71,26 +76,65 @@ async def llm_parse_spec_sections(
         parse_and_validate_llm_sections,
     )
 
-    if provider.provider_name in ("anthropic", "gemini"):
-        chunks = [document_text]
-    else:
+    estimated_tokens = len(document_text.split()) * 1.3
+    max_words_per_chunk = _AGENT_2_CHUNK_PAGES * 250  # 250 words ≈ 1 page
+
+    if estimated_tokens > _TOKEN_CHUNK_THRESHOLD:
+        chunks = chunk_document(document_text, max_words=max_words_per_chunk)
+        logger.info(
+            "Agent 2: estimated %.0f tokens exceeds threshold %d — using %d chunks "
+            "of ~%d words each (provider=%s)",
+            estimated_tokens,
+            _TOKEN_CHUNK_THRESHOLD,
+            len(chunks),
+            max_words_per_chunk,
+            provider.provider_name,
+        )
+    elif provider.provider_name not in ("anthropic", "gemini"):
         chunks = chunk_document(document_text, max_words=3000)
+    else:
+        chunks = [document_text]
 
     all_sections: dict[str, dict] = {}  # keyed by section_number for deduplication
     total_input_tokens = 0
     total_output_tokens = 0
 
-    for chunk in chunks:
-        user_prompt = SPEC_PARSER_USER_PROMPT.format(document_text=chunk)
+    async def _parse_chunk(text: str) -> list[dict]:
+        """Send one chunk to the LLM and return validated sections."""
+        user_prompt = SPEC_PARSER_USER_PROMPT.format(document_text=text)
         response = await provider.complete(
             system_prompt=SPEC_PARSER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             temperature=0.0,
             max_tokens=4096,
         )
+        nonlocal total_input_tokens, total_output_tokens
         total_input_tokens += response.input_tokens
         total_output_tokens += response.output_tokens
-        sections = parse_and_validate_llm_sections(response.content)
+        return parse_and_validate_llm_sections(response.content)
+
+    for i, chunk in enumerate(chunks):
+        try:
+            sections = await _parse_chunk(chunk)
+        except json.JSONDecodeError:
+            # One level of re-splitting — split the chunk in half and retry each half
+            logger.warning("Chunk %d JSON parse failed, re-splitting into 2 sub-chunks", i)
+            mid = len(chunk) // 2
+            # Snap the split point to the nearest paragraph boundary
+            boundary = chunk.rfind("\n\n", 0, mid)
+            if boundary == -1:
+                boundary = mid
+            sub_chunks = [chunk[:boundary].strip(), chunk[boundary:].strip()]
+            sections = []
+            for j, sub in enumerate(sub_chunks):
+                if not sub:
+                    continue
+                try:
+                    sections.extend(await _parse_chunk(sub))
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "Chunk %d sub-chunk %d also failed JSON parse — skipping", i, j
+                    )
 
         for s in sections:
             key = s["section_number"]
@@ -106,6 +150,14 @@ async def llm_parse_spec_sections(
             "title": s["title"],
             "content": s["content"],
         })
+
+    logger.info(
+        "Agent 2 LLM: %d sections extracted from %d chunks (%d in / %d out tokens)",
+        len(result),
+        len(chunks),
+        total_input_tokens,
+        total_output_tokens,
+    )
 
     return result, total_input_tokens, total_output_tokens
 

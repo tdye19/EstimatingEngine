@@ -46,7 +46,10 @@ async def init_http_clients() -> None:
 async def close_http_clients() -> None:
     """Close all shared httpx clients. Call on app shutdown."""
     for client in _clients.values():
-        await client.aclose()
+        try:
+            await client.aclose()
+        except (RuntimeError, httpx.TransportError):
+            logger.debug("Client already closed during shutdown (expected)")
     _clients.clear()
 
 
