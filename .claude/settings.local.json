@@ -5,7 +5,23 @@
       "Bash(xargs cat:*)",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''apex/backend/services/agent_orchestrator.py''\\).read\\(\\)\\); print\\(''syntax OK''\\)\")",
       "Bash(python -c \"from apex.backend.tests.accuracy_scorer import score_pipeline_result; print\\(''import OK''\\)\")",
-      "Bash(ls -lh /workspaces/EstimatingEngine/test_specs/*.pdf)"
+      "Bash(ls -lh /workspaces/EstimatingEngine/test_specs/*.pdf)",
+      "Bash(curl:*)",
+      "Bash(set -a)",
+      "Bash(source /workspaces/EstimatingEngine/.env)",
+      "Bash(set +a)",
+      "Bash(pkill -f \"uvicorn apex.backend.main:app\")",
+      "Bash(source .env)",
+      "Bash(python -m apex.backend.tests.test_pipeline_e2e \"./test_specs/conc.specs.pdf\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); a2=d.get\\(''''agents'''',{}\\).get\\(''''agent_2'''',{}\\); print\\(json.dumps\\(a2, indent=2\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(list\\(d.keys\\(\\)\\), indent=2\\)\\)\")",
+      "Bash(python3 -c \":*)",
+      "Bash(python3:*)",
+      "Bash(pkill -9 -f \"uvicorn\")",
+      "Bash(lsof -ti:8000)",
+      "Bash(xargs kill:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
