@@ -1,0 +1,908 @@
+{
+  "meta": {
+    "file": "test_specs/conc.specs.pdf",
+    "mode": "spec",
+    "project_id": 14,
+    "total_duration_seconds": 70.65,
+    "run_at": "2026-03-30T19:29:14.313381+00:00"
+  },
+  "summary": {
+    "Document Ingestion": {
+      "verdict": "PASS",
+      "duration_seconds": 0.351136,
+      "detail": "documents_processed=1"
+    },
+    "Spec Parser": {
+      "verdict": "PASS",
+      "duration_seconds": 68.381786,
+      "detail": "Found 2 CSI sections  (Div: 03)"
+    },
+    "Gap Analysis": {
+      "verdict": "PASS",
+      "duration_seconds": 0.115893,
+      "detail": "44 gaps (29 critical, 0 moderate, 15 watch)"
+    },
+    "Quantity Takeoff": {
+      "verdict": "PASS",
+      "duration_seconds": 0.115691,
+      "detail": "2 items"
+    },
+    "Labor Productivity": {
+      "verdict": "PASS",
+      "duration_seconds": 0.026785,
+      "detail": "2 items matched"
+    },
+    "Estimate Assembly": {
+      "verdict": "PASS",
+      "duration_seconds": 0.029129,
+      "detail": "Grand total: $14  (has exec summary)"
+    },
+    "IMPROVE Feedback": {
+      "verdict": "SKIP",
+      "duration_seconds": 0.0,
+      "detail": "No actuals uploaded"
+    }
+  },
+  "pipeline_status": {
+    "project_id": 14,
+    "agents": [
+      {
+        "agent_number": 1,
+        "agent_name": "Document Ingestion Agent",
+        "status": "completed",
+        "started_at": "2026-03-30T19:28:04.138408",
+        "completed_at": "2026-03-30T19:28:04.488464",
+        "duration_seconds": 0.351136,
+        "error_message": null,
+        "output_summary": "documents_processed=1"
+      },
+      {
+        "agent_number": 2,
+        "agent_name": "Spec Parser Agent",
+        "status": "completed",
+        "started_at": "2026-03-30T19:28:04.494843",
+        "completed_at": "2026-03-30T19:29:12.876232",
+        "duration_seconds": 68.381786,
+        "error_message": null,
+        "output_summary": "documents_processed=1"
+      },
+      {
+        "agent_number": 3,
+        "agent_name": "Scope Gap Analysis Agent",
+        "status": "completed",
+        "started_at": "2026-03-30T19:29:12.879299",
+        "completed_at": "2026-03-30T19:29:12.994660",
+        "duration_seconds": 0.115893,
+        "error_message": null,
+        "output_summary": "total_gaps=44"
+      },
+      {
+        "agent_number": 4,
+        "agent_name": "Quantity Takeoff Agent",
+        "status": "completed",
+        "started_at": "2026-03-30T19:29:12.882375",
+        "completed_at": "2026-03-30T19:29:12.997645",
+        "duration_seconds": 0.115691,
+        "error_message": null,
+        "output_summary": "items_created=2"
+      },
+      {
+        "agent_number": 5,
+        "agent_name": "Labor Productivity Agent",
+        "status": "completed",
+        "started_at": "2026-03-30T19:29:13.000466",
+        "completed_at": "2026-03-30T19:29:13.026720",
+        "duration_seconds": 0.026785,
+        "error_message": null,
+        "output_summary": "estimates_created=2"
+      },
+      {
+        "agent_number": 6,
+        "agent_name": "Estimate Assembly Agent",
+        "status": "completed",
+        "started_at": "2026-03-30T19:29:13.029836",
+        "completed_at": "2026-03-30T19:29:13.058614",
+        "duration_seconds": 0.029129,
+        "error_message": null,
+        "output_summary": "estimate_id=10"
+      }
+    ],
+    "overall": "completed"
+  },
+  "raw": {
+    "spec_sections": [
+      {
+        "id": 17,
+        "project_id": 14,
+        "document_id": 14,
+        "division_number": "03",
+        "section_number": "03 10 00",
+        "title": "CONCRETE FORMING AND ACCESSORIES",
+        "work_description": "PART 1 - GENERAL \n1.1 \nSUMMARY \nA. \nSection Includes: \n1. \nForm-facing material for cast-in-place concrete. \n2. \nShoring, bracing, and anchoring. \n1.2 \nPREINSTALLATION MEETINGS \nA. \nPreinstallation Conference: Conduct conference at Project site. \n1.3 \nACTION SUBMITTALS \nA. \nProduct Data: For each of the following: \n1. \nExposed surface form-facing material. \n2. \nWaterstops. \nB. \nSustainable Design Submittals:  \n1. \nRecycled content: For each product. \n2. \nEnvironmental Product Declaration: For each product. \n3. \nHealth Product Declaration: For each product. \n4. \nSourcing of Raw Materials: Corporate sustainability report for each manufacturer. \n5. \nLaboratory Test Reports: For liquid floor treatments and curing and sealing \ncompounds, indicating compliance with requirements for low-emitting materials. \nC. \nShop Drawings: Prepared by, and signed and sealed by, a qualified professional engineer \nresponsible for their preparation, detailing fabrication, assembly, and support of forms. \n1. \nFor exposed vertical concrete walls, indicate dimensions and form tie locations. \n2. \nIndicate dimension and locations of construction and movement joints required to \nconstruct the structure in accordance with ACI 301. \na. \nLocation of construction joints is subject to approval of the Architect. \n3. \nIndicate location of waterstops.\n1.4 \nINFORMATIONAL SUBMITTALS \nA. \nField quality-control reports. \nB. \nMinutes of preinstallation conference.",
+        "materials_referenced": [
+          "ACI 301"
+        ],
+        "execution_requirements": "PART 3 - EXECUTION \n3.1 \nINSTALLATION OF FORMWORK \nA. \nComply with ACI 301. \nB. \nConstruct formwork, so concrete members and structures are of size, shape, alignment, \nelevation, and position indicated, within tolerance limits of ACI 117 and to comply with \nthe Surface Finish designations specified in Section 033000 \"Cast-In-Place Concrete\" for \nas-cast finishes. \nC. \nLimit concrete surface irregularities as follows: \n1. \nSurface Finish-1.0: ACI 117 Class D, 1 inch. \n2. \nSurface Finish-2.0: ACI 117 Class B, 1/4 inch. \n3. \nSurface Finish-3.0: ACI 117 Class A, 1/8 inch. \nD. \nConstruct forms tight enough to prevent loss of concrete mortar. \n1. \nMinimize joints. \n2. \nExposed Concrete: Symmetrically align joints in forms. \nE. \nConstruct removable forms for easy removal without hammering or prying against \nconcrete surfaces. \n1. \nProvide crush or wrecking plates where stripping may damage cast-concrete \nsurfaces. \n2. \nProvide top forms for inclined surfaces steeper than 1.5 horizontal to 1 vertical. \n3. \nInstall keyways, reglets, recesses, and other accessories, for easy removal. \nF. \nDo not use rust-stained, steel, form-facing material. \nG. \nSet edge forms, bulkheads, and intermediate screed strips for slabs to achieve required \nelevations and slopes in finished concrete surfaces. \n1. \nProvide and secure units to support screed strips. \n2. \nUse strike-off templates or compacting-type screeds.\nH. \nProvide temporary openings for cleanouts and inspection ports where interior area of",
+        "submittal_requirements": "A. \nProduct Data: For each of the following: \n1. \nExposed surface form-facing material. \n2. \nWaterstops. \nB. \nSustainable Design Submittals:  \n1. \nRecycled content: For each product. \n2. \nEnvironmental Product Declaration: For each product. \n3. \nHealth Product Declaration: For each product. \n4. \nSourcing of Raw Materials: Corporate sustainability report for each manufacturer. \n5. \nLaboratory Test Reports: For liquid floor treatments and curing and sealing \ncompounds, indicating compliance with r",
+        "keywords": [
+          "cast-in-place",
+          "concrete",
+          "drain",
+          "fabrication",
+          "flashing",
+          "formwork",
+          "mortar",
+          "panel",
+          "reinforcing",
+          "steel",
+          "structural",
+          "testing",
+          "waterproofing"
+        ],
+        "content": "PART 1 - GENERAL \n1.1 \nSUMMARY \nA. \nSection Includes: \n1. \nForm-facing material for cast-in-place concrete. \n2. \nShoring, bracing, and anchoring. \n1.2 \nPREINSTALLATION MEETINGS \nA. \nPreinstallation Conference: Conduct conference at Project site. \n1.3 \nACTION SUBMITTALS \nA. \nProduct Data: For each of the following: \n1. \nExposed surface form-facing material. \n2. \nWaterstops. \nB. \nSustainable Design Submittals:  \n1. \nRecycled content: For each product. \n2. \nEnvironmental Product Declaration: For ea\u2026",
+        "page_reference": null,
+        "status": "parsed"
+      },
+      {
+        "id": 18,
+        "project_id": 14,
+        "document_id": 14,
+        "division_number": "03",
+        "section_number": "03 20 00",
+        "title": "CONCRETE REINFORCING",
+        "work_description": "PART 1 - GENERAL \n1.1 \nSUMMARY \nA. \nSection Includes: \n1. \nSteel reinforcement bars. \n2. \nWelded-wire reinforcement. \n3. \nSteel fiber reinforcement. \n4. \nTwisted Steel Micro Rebar. \n1.2 \nPREINSTALLATION MEETINGS \nA. \nPreinstallation Conference: Conduct conference at Project site. \n1.3 \nACTION SUBMITTALS \nA. \nProduct Data: For the following: \n1. \nEach type of steel reinforcement. \n2. \nBar supports. \n3. \nMechanical splice couplers. \n4. \nSteel fiber / Twisted Steel Micro Rebar (TSMR) reinforcement manufacturer\u2019s \nstandard product description and dosage and mixing instructions.  \nB. \nSustainable Design Submittals: \n1. \nSubmit Environmental Product Declaration (EPD): \na. \nIndependent third-party verified. \nb. \nGlobal Warming Potential (GWP) measured in kgCO2e/kg, tracking \nconstruction materials stages A1-A3 embodied carbon emissions. Indicate \ninclusion or exclusion of stage A4 emissions. \n2. \nMaximum Allowable GWP: \na. \nEmbodied carbon emissions in stages A1-A3 for fabricated reinforcement \nproducts must not exceed 0.650 kilograms of CO2 equivalent per kilogram \nof reinforcement (kgCO2e/kg). \n3. \nProduct Data: For recycled content, indicating postconsumer and preconsumer \nrecycled content and cost. \n4. \nHealth Product Declaration: For each product. \n5. \nSourcing of Raw Materials: Corporate sustainability report for each manufacturer. \nC. \nShop Drawings: Comply with ACI SP-066:\n1. \nInclude placing drawings that detail fabrication, bending, and placement. \n2. \nInclude bar sizes, l",
+        "materials_referenced": [
+          "ASTM A1064",
+          "ASTM A615",
+          "ASTM A706",
+          "ASTM \nA820"
+        ],
+        "execution_requirements": "PART 3 - EXECUTION \n3.1 \nPREPARATION \nA. \nProtection of In-Place Conditions: \n1. \nDo not cut or puncture vapor retarder. \n2. \nRepair damage and reseal vapor retarder before placing concrete. \nB. \nClean reinforcement of loose rust and mill scale, earth, ice, and other foreign materials \nthat reduce bond to concrete. \n3.2 \nINSTALLATION OF STEEL REINFORCEMENT \nA. \nComply with CRSI's \"Manual of Standard Practice\" for placing and supporting \nreinforcement. \nB. \nAccurately position, support, and secure reinforcement against displacement. \n1. \nLocate and support reinforcement with bar supports to maintain minimum concrete \ncover. \n2. \nDo not tack weld crossing reinforcing bars. \nC. \nPreserve clearance between bars of not less than 1 inch, not less than one bar diameter, \nor not less than 1-1/3 times size of large aggregate, whichever is greater. \nD. \nProvide concrete coverage in accordance with ACI 318. \nE. \nSet wire ties with ends directed into concrete, not toward exposed concrete surfaces. \nF. \nSplices: Lap splices as indicated on Drawings. \n1. \nBars indicated to be continuous, and all vertical bars shall be lapped not less than \n36 bar diameters at splices, or 24 inches, whichever is greater. \n2. \nStagger splices in accordance with ACI 318. \nG. \nInstall welded-wire reinforcement in longest practicable lengths. \n1. \nSupport welded-wire reinforcement in accordance with CRSI \"Manual of Standard \nPractice.\" \na. \nFor reinforcement less than W4.0 or D4.0, continuous support spacing sh",
+        "submittal_requirements": "A. \nProduct Data: For the following: \n1. \nEach type of steel reinforcement. \n2. \nBar supports. \n3. \nMechanical splice couplers. \n4. \nSteel fiber / Twisted Steel Micro Rebar (TSMR) reinforcement manufacturer\u2019s \nstandard product description and dosage and mixing instructions.  \nB. \nSustainable Design Submittals: \n1. \nSubmit Environmental Product Declaration (EPD): \na. \nIndependent third-party verified. \nb. \nGlobal Warming Potential (GWP) measured in kgCO2e/kg, tracking \nconstruction materials stag",
+        "keywords": [
+          "coating",
+          "concrete",
+          "fabrication",
+          "precast",
+          "rebar",
+          "reinforcing",
+          "steel",
+          "testing"
+        ],
+        "content": "PART 1 - GENERAL \n1.1 \nSUMMARY \nA. \nSection Includes: \n1. \nSteel reinforcement bars. \n2. \nWelded-wire reinforcement. \n3. \nSteel fiber reinforcement. \n4. \nTwisted Steel Micro Rebar. \n1.2 \nPREINSTALLATION MEETINGS \nA. \nPreinstallation Conference: Conduct conference at Project site. \n1.3 \nACTION SUBMITTALS \nA. \nProduct Data: For the following: \n1. \nEach type of steel reinforcement. \n2. \nBar supports. \n3. \nMechanical splice couplers. \n4. \nSteel fiber / Twisted Steel Micro Rebar (TSMR) reinforcement \u2026",
+        "page_reference": null,
+        "status": "parsed"
+      }
+    ],
+    "gap_report": {
+      "id": 10,
+      "project_id": 14,
+      "overall_score": 100.0,
+      "total_gaps": 44,
+      "critical_count": 29,
+      "moderate_count": 0,
+      "watch_count": 15,
+      "summary": "Analysis of 2 spec sections via rule_based. Found 44 gaps: 29 critical, 0 moderate, 15 watch.",
+      "items": [
+        {
+          "id": 377,
+          "division_number": "03",
+          "section_number": "03 30 00",
+          "title": "Cast-in-Place Concrete",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 03 30 00 (Cast-in-Place Concrete) not found in project specs.",
+          "recommendation": "Request clarification or add required section 03 30 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 378,
+          "division_number": "03",
+          "section_number": "03 35 00",
+          "title": "Concrete Finishing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 03 35 00 (Concrete Finishing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 03 35 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 379,
+          "division_number": "03",
+          "section_number": "03 40 00",
+          "title": "Precast Concrete",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 03 40 00 (Precast Concrete) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 03 40 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 380,
+          "division_number": "03",
+          "section_number": "03 45 00",
+          "title": "Precast Architectural Concrete",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 03 45 00 (Precast Architectural Concrete) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 03 45 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 381,
+          "division_number": "03",
+          "section_number": "03 50 00",
+          "title": "Cast Decks and Underlayment",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 03 50 00 (Cast Decks and Underlayment) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 03 50 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 382,
+          "division_number": "03",
+          "section_number": "03 60 00",
+          "title": "Grouting",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 03 60 00 (Grouting) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 03 60 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 383,
+          "division_number": "05",
+          "section_number": "05 10 00",
+          "title": "Structural Metal Framing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 05 10 00 (Structural Metal Framing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 05 10 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 384,
+          "division_number": "05",
+          "section_number": "05 12 00",
+          "title": "Structural Steel Framing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 05 12 00 (Structural Steel Framing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 05 12 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 385,
+          "division_number": "05",
+          "section_number": "05 21 00",
+          "title": "Steel Joist Framing",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 05 21 00 (Steel Joist Framing) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 05 21 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 386,
+          "division_number": "05",
+          "section_number": "05 31 00",
+          "title": "Steel Decking",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 05 31 00 (Steel Decking) not found in project specs.",
+          "recommendation": "Request clarification or add required section 05 31 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 387,
+          "division_number": "05",
+          "section_number": "05 40 00",
+          "title": "Cold-Formed Metal Framing",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 05 40 00 (Cold-Formed Metal Framing) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 05 40 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 388,
+          "division_number": "05",
+          "section_number": "05 50 00",
+          "title": "Metal Fabrications",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 05 50 00 (Metal Fabrications) not found in project specs.",
+          "recommendation": "Request clarification or add required section 05 50 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 389,
+          "division_number": "05",
+          "section_number": "05 51 00",
+          "title": "Metal Stairs",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 05 51 00 (Metal Stairs) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 05 51 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 390,
+          "division_number": "05",
+          "section_number": "05 52 00",
+          "title": "Metal Railings",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 05 52 00 (Metal Railings) not found in project specs.",
+          "recommendation": "Request clarification or add required section 05 52 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 391,
+          "division_number": "07",
+          "section_number": "07 10 00",
+          "title": "Dampproofing and Waterproofing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 10 00 (Dampproofing and Waterproofing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 10 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 392,
+          "division_number": "07",
+          "section_number": "07 21 00",
+          "title": "Thermal Insulation",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 21 00 (Thermal Insulation) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 21 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 393,
+          "division_number": "07",
+          "section_number": "07 26 00",
+          "title": "Vapor Retarders",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 26 00 (Vapor Retarders) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 26 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 394,
+          "division_number": "07",
+          "section_number": "07 27 00",
+          "title": "Air Barriers",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 27 00 (Air Barriers) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 27 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 395,
+          "division_number": "07",
+          "section_number": "07 31 00",
+          "title": "Shingles and Shakes",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 07 31 00 (Shingles and Shakes) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 07 31 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 396,
+          "division_number": "07",
+          "section_number": "07 41 00",
+          "title": "Roof Panels",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 07 41 00 (Roof Panels) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 07 41 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 397,
+          "division_number": "07",
+          "section_number": "07 46 00",
+          "title": "Siding",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 07 46 00 (Siding) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 07 46 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 398,
+          "division_number": "07",
+          "section_number": "07 50 00",
+          "title": "Membrane Roofing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 50 00 (Membrane Roofing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 50 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 399,
+          "division_number": "07",
+          "section_number": "07 60 00",
+          "title": "Flashing and Sheet Metal",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 60 00 (Flashing and Sheet Metal) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 60 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 400,
+          "division_number": "07",
+          "section_number": "07 70 00",
+          "title": "Roof and Wall Specialties",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 70 00 (Roof and Wall Specialties) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 70 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 401,
+          "division_number": "07",
+          "section_number": "07 84 00",
+          "title": "Firestopping",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 84 00 (Firestopping) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 84 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 402,
+          "division_number": "07",
+          "section_number": "07 92 00",
+          "title": "Joint Sealants",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 07 92 00 (Joint Sealants) not found in project specs.",
+          "recommendation": "Request clarification or add required section 07 92 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 403,
+          "division_number": "08",
+          "section_number": "08 11 00",
+          "title": "Metal Doors and Frames",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 11 00 (Metal Doors and Frames) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 11 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 404,
+          "division_number": "08",
+          "section_number": "08 14 00",
+          "title": "Wood Doors",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 14 00 (Wood Doors) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 14 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 405,
+          "division_number": "08",
+          "section_number": "08 31 00",
+          "title": "Access Doors and Panels",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 31 00 (Access Doors and Panels) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 31 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 406,
+          "division_number": "08",
+          "section_number": "08 41 00",
+          "title": "Entrances and Storefronts",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 41 00 (Entrances and Storefronts) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 41 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 407,
+          "division_number": "08",
+          "section_number": "08 44 00",
+          "title": "Curtain Wall and Glazed Assemblies",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 08 44 00 (Curtain Wall and Glazed Assemblies) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 08 44 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 408,
+          "division_number": "08",
+          "section_number": "08 50 00",
+          "title": "Windows",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 50 00 (Windows) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 50 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 409,
+          "division_number": "08",
+          "section_number": "08 71 00",
+          "title": "Door Hardware",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 71 00 (Door Hardware) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 71 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 410,
+          "division_number": "08",
+          "section_number": "08 80 00",
+          "title": "Glazing",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 08 80 00 (Glazing) not found in project specs.",
+          "recommendation": "Request clarification or add required section 08 80 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 411,
+          "division_number": "09",
+          "section_number": "09 21 00",
+          "title": "Plaster and Gypsum Board Assemblies",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 21 00 (Plaster and Gypsum Board Assemblies) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 21 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 412,
+          "division_number": "09",
+          "section_number": "09 22 00",
+          "title": "Supports for Plaster and Gypsum Board",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 22 00 (Supports for Plaster and Gypsum Board) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 22 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 413,
+          "division_number": "09",
+          "section_number": "09 29 00",
+          "title": "Gypsum Board",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 29 00 (Gypsum Board) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 29 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 414,
+          "division_number": "09",
+          "section_number": "09 30 00",
+          "title": "Tiling",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 30 00 (Tiling) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 30 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 415,
+          "division_number": "09",
+          "section_number": "09 51 00",
+          "title": "Acoustical Ceilings",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 51 00 (Acoustical Ceilings) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 51 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 416,
+          "division_number": "09",
+          "section_number": "09 65 00",
+          "title": "Resilient Flooring",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 09 65 00 (Resilient Flooring) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 09 65 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 417,
+          "division_number": "09",
+          "section_number": "09 68 00",
+          "title": "Carpeting",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 09 68 00 (Carpeting) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 09 68 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 418,
+          "division_number": "09",
+          "section_number": "09 72 00",
+          "title": "Wall Coverings",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 09 72 00 (Wall Coverings) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 09 72 00.",
+          "risk_score": 1.0
+        },
+        {
+          "id": 419,
+          "division_number": "09",
+          "section_number": "09 91 00",
+          "title": "Painting",
+          "gap_type": "missing",
+          "severity": "critical",
+          "description": "Section 09 91 00 (Painting) not found in project specs.",
+          "recommendation": "Request clarification or add required section 09 91 00.",
+          "risk_score": 10.0
+        },
+        {
+          "id": 420,
+          "division_number": "09",
+          "section_number": "09 96 00",
+          "title": "High-Performance Coatings",
+          "gap_type": "missing",
+          "severity": "watch",
+          "description": "Section 09 96 00 (High-Performance Coatings) not found in project specs.",
+          "recommendation": "Request clarification or add optional section 09 96 00.",
+          "risk_score": 1.0
+        }
+      ],
+      "created_at": "2026-03-30T19:29:12.960162"
+    },
+    "takeoff_items": [
+      {
+        "id": 21,
+        "project_id": 14,
+        "spec_section_id": 17,
+        "csi_code": "03 10 00",
+        "description": "CONCRETE FORMING AND ACCESSORIES - PART 1 - GENERAL \n1.1 \nSUMMARY \nA. \nSection Includes: \n1. \nForm-facing material for cast-in-place concrete. \n2. \nShoring, bracing, and anchoring. \n1.2 \nPREINSTALLATION MEETINGS \nA. \nPreinstallation Co",
+        "quantity": 1.0,
+        "unit_of_measure": "LS",
+        "drawing_reference": null,
+        "confidence": 0.3,
+        "notes": null,
+        "is_manual_override": 0
+      },
+      {
+        "id": 22,
+        "project_id": 14,
+        "spec_section_id": 18,
+        "csi_code": "03 20 00",
+        "description": "CONCRETE REINFORCING - PART 1 - GENERAL \n1.1 \nSUMMARY \nA. \nSection Includes: \n1. \nSteel reinforcement bars. \n2. \nWelded-wire reinforcement. \n3. \nSteel fiber reinforcement. \n4. \nTwisted Steel Micro Rebar. \n1.2 \nPREINSTALLATI",
+        "quantity": 1.0,
+        "unit_of_measure": "EA",
+        "drawing_reference": null,
+        "confidence": 0.85,
+        "notes": null,
+        "is_manual_override": 0
+      }
+    ],
+    "labor_estimates": [
+      {
+        "id": 21,
+        "project_id": 14,
+        "takeoff_item_id": 21,
+        "csi_code": "03 10 00",
+        "work_type": "Concrete Forming",
+        "crew_type": "Carpenter Crew",
+        "productivity_rate": 60.7339,
+        "quantity": 1.0,
+        "labor_hours": 0.02,
+        "crew_size": 4,
+        "crew_days": 0.0,
+        "hourly_rate": 72.0,
+        "total_labor_cost": 5.04
+      },
+      {
+        "id": 22,
+        "project_id": 14,
+        "takeoff_item_id": 22,
+        "csi_code": "03 20 00",
+        "work_type": "Rebar Placement",
+        "crew_type": "Ironworker Crew",
+        "productivity_rate": 500.0,
+        "quantity": 1.0,
+        "labor_hours": 0.0,
+        "crew_size": 4,
+        "crew_days": 0.0,
+        "hourly_rate": 92.0,
+        "total_labor_cost": 0.92
+      }
+    ],
+    "estimate": {
+      "id": 10,
+      "project_id": 14,
+      "version": 1,
+      "status": "draft",
+      "total_direct_cost": 10.9,
+      "total_labor_cost": 5.96,
+      "total_material_cost": 4.35,
+      "total_subcontractor_cost": 0.0,
+      "gc_markup_pct": 0.0,
+      "gc_markup_amount": 0.0,
+      "overhead_pct": 10.0,
+      "overhead_amount": 1.09,
+      "profit_pct": 8.0,
+      "profit_amount": 0.96,
+      "contingency_pct": 5.0,
+      "contingency_amount": 0.65,
+      "total_bid_amount": 13.6,
+      "exclusions": [
+        "Hazardous material abatement and disposal",
+        "Overtime and shift premiums unless specifically noted",
+        "Permits and fees by Owner unless noted",
+        "Testing and inspection services by Owner",
+        "Furniture, fixtures, and equipment (FF&E) unless noted",
+        "Security and temporary fencing beyond standard requirements",
+        "Fire suppression systems (Division 21)",
+        "Plumbing systems (Division 22)",
+        "HVAC systems (Division 23)",
+        "Electrical systems (Division 26)",
+        "Earthwork and site grading (Division 31)",
+        "Exterior improvements and paving (Division 32)"
+      ],
+      "assumptions": [
+        "Work performed during normal business hours (7AM-3:30PM, M-F)",
+        "Site access and staging area provided by Owner",
+        "Adequate power and water available on site",
+        "No soil remediation or environmental issues",
+        "All dimensions verified from construction documents",
+        "Subcontractor pricing based on competitive bid market",
+        "Material pricing valid for 30 days from estimate date",
+        "Quantities based on plan takeoff; field verification recommended"
+      ],
+      "alternates": [],
+      "bid_bond_required": 0,
+      "line_items": [
+        {
+          "id": 21,
+          "division_number": "03",
+          "csi_code": "03 10 00",
+          "description": "Concrete Forming - Carpenter Crew",
+          "quantity": 1.0,
+          "unit_of_measure": "SF",
+          "labor_cost": 5.04,
+          "material_cost": 3.5,
+          "equipment_cost": 0.5,
+          "subcontractor_cost": 0.0,
+          "total_cost": 9.04,
+          "unit_cost": 9.04
+        },
+        {
+          "id": 22,
+          "division_number": "03",
+          "csi_code": "03 20 00",
+          "description": "Rebar Placement - Ironworker Crew",
+          "quantity": 1.0,
+          "unit_of_measure": "LB",
+          "labor_cost": 0.92,
+          "material_cost": 0.85,
+          "equipment_cost": 0.09,
+          "subcontractor_cost": 0.0,
+          "total_cost": 1.86,
+          "unit_cost": 1.86
+        }
+      ],
+      "created_at": "2026-03-30T19:29:13.045465"
+    },
+    "agent_logs": [
+      {
+        "id": 63,
+        "project_id": 14,
+        "agent_name": "Document Ingestion Agent",
+        "agent_number": 1,
+        "status": "completed",
+        "started_at": "2026-03-30T19:28:04.138408",
+        "completed_at": "2026-03-30T19:28:04.488464",
+        "duration_seconds": 0.351136,
+        "tokens_used": 0,
+        "output_summary": "documents_processed=1",
+        "error_message": null
+      },
+      {
+        "id": 64,
+        "project_id": 14,
+        "agent_name": "Spec Parser Agent",
+        "agent_number": 2,
+        "status": "completed",
+        "started_at": "2026-03-30T19:28:04.494843",
+        "completed_at": "2026-03-30T19:29:12.876232",
+        "duration_seconds": 68.381786,
+        "tokens_used": 59338,
+        "output_summary": "documents_processed=1",
+        "error_message": null
+      },
+      {
+        "id": 65,
+        "project_id": 14,
+        "agent_name": "Scope Gap Analysis Agent",
+        "agent_number": 3,
+        "status": "completed",
+        "started_at": "2026-03-30T19:29:12.879299",
+        "completed_at": "2026-03-30T19:29:12.994660",
+        "duration_seconds": 0.115893,
+        "tokens_used": 0,
+        "output_summary": "total_gaps=44",
+        "error_message": null
+      },
+      {
+        "id": 66,
+        "project_id": 14,
+        "agent_name": "Quantity Takeoff Agent",
+        "agent_number": 4,
+        "status": "completed",
+        "started_at": "2026-03-30T19:29:12.882375",
+        "completed_at": "2026-03-30T19:29:12.997645",
+        "duration_seconds": 0.115691,
+        "tokens_used": 0,
+        "output_summary": "items_created=2",
+        "error_message": null
+      },
+      {
+        "id": 67,
+        "project_id": 14,
+        "agent_name": "Labor Productivity Agent",
+        "agent_number": 5,
+        "status": "completed",
+        "started_at": "2026-03-30T19:29:13.000466",
+        "completed_at": "2026-03-30T19:29:13.026720",
+        "duration_seconds": 0.026785,
+        "tokens_used": 0,
+        "output_summary": "estimates_created=2",
+        "error_message": null
+      },
+      {
+        "id": 68,
+        "project_id": 14,
+        "agent_name": "Estimate Assembly Agent",
+        "agent_number": 6,
+        "status": "completed",
+        "started_at": "2026-03-30T19:29:13.029836",
+        "completed_at": "2026-03-30T19:29:13.058614",
+        "duration_seconds": 0.029129,
+        "tokens_used": 0,
+        "output_summary": "estimate_id=10",
+        "error_message": null
+      }
+    ],
+    "token_usage": [
+      {
+        "id": 3,
+        "agent_number": 2,
+        "agent_name": "Spec Parser",
+        "provider": "gemini",
+        "model": "gemini-2.5-flash",
+        "input_tokens": 44682,
+        "output_tokens": 14656,
+        "total_tokens": 59338,
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "estimated_cost": 0.0500446,
+        "estimate_id": null,
+        "created_at": "2026-03-30T19:29:12.859871"
+      }
+    ]
+  }
+}

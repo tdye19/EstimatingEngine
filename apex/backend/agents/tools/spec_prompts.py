@@ -124,6 +124,10 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
     try:
         sections = json.loads(cleaned)
     except json.JSONDecodeError as original_exc:
+        logger.warning(
+            "JSON parse failed on cleaned response (first 500 chars): %s",
+            cleaned[:500],
+        )
         try:
             repaired = _try_repair_json(cleaned)
             sections = json.loads(repaired)
@@ -131,7 +135,8 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
                 "Repaired truncated JSON: salvaged %d sections from malformed response",
                 len(sections) if isinstance(sections, list) else 0,
             )
-        except (ValueError, json.JSONDecodeError):
+        except (ValueError, json.JSONDecodeError) as repair_exc:
+            logger.warning("JSON repair also failed: %s", repair_exc)
             raise original_exc
 
     if not isinstance(sections, list):
@@ -139,16 +144,25 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
 
     validated = []
 
+    skipped_fields = 0
+    skipped_numbers = 0
+
     for s in sections:
         # Required fields check
         if not all(k in s for k in ("section_number", "title", "division", "content")):
+            skipped_fields += 1
             continue  # Skip malformed entries
 
         # Normalize section number to "XX XX XX" format
         raw_num = str(s["section_number"]).strip()
         digits = re.sub(r'\D', '', raw_num)
+        # Pad short digit strings with leading zeros (e.g. "33000" -> "033000")
+        if 3 <= len(digits) <= 5:
+            digits = digits.zfill(6)
         if len(digits) != 6:
-            continue  # Skip invalid section numbers
+            skipped_numbers += 1
+            logger.warning("Skipping section with invalid number %r (digits=%r)", raw_num, digits)
+            continue
         num = f"{digits[:2]} {digits[2:4]} {digits[4:6]}"
 
         division = str(s.get("division", digits[:2])).strip().zfill(2)
@@ -160,5 +174,11 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
             "content": str(s["content"]),
             "page_reference": str(s.get("page_reference", "")),
         })
+
+    if skipped_fields or skipped_numbers:
+        logger.warning(
+            "Section validation: %d accepted, %d skipped (missing fields), %d skipped (bad number) out of %d total",
+            len(validated), skipped_fields, skipped_numbers, len(sections),
+        )
 
     return validated

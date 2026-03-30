@@ -106,11 +106,20 @@ async def llm_parse_spec_sections(
             system_prompt=SPEC_PARSER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             temperature=0.0,
-            max_tokens=4096,
+            max_tokens=16384,
         )
         nonlocal total_input_tokens, total_output_tokens
         total_input_tokens += response.input_tokens
         total_output_tokens += response.output_tokens
+        logger.info(
+            "Agent 2 chunk response: %d chars, %d input_tokens, %d output_tokens, "
+            "finish_reason=%s, first 200 chars: %s",
+            len(response.content),
+            response.input_tokens,
+            response.output_tokens,
+            getattr(response, 'finish_reason', 'unknown'),
+            response.content[:200],
+        )
         return parse_and_validate_llm_sections(response.content)
 
     for i, chunk in enumerate(chunks):
