@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "buildCommand": null,
+  "outputDirectory": null,
+  "routes": [
+    { "src": "/api/mpi-scores", "dest": "/api/mpi-scores.ts" },
+    { "src": "/api/projects/census-permits", "dest": "/api/projects/census-permits.ts" },
+    { "src": "/api/bls-employment", "dest": "/bls-employment.ts" },
+    { "src": "/api/fred-rates", "dest": "/fred-rates.ts" },
+    { "src": "/(.*)", "dest": "/construction-monitor-dashboard.html" }
+  ]
+}
