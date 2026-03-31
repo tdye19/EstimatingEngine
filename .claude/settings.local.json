@@ -31,7 +31,8 @@
       "Bash(PYTHONPATH=. alembic -c apex/backend/alembic.ini revision --autogenerate -m \"add_estimated_cost_to_agent_run_log\")",
       "Bash(PYTHONPATH=. alembic -c apex/backend/alembic.ini upgrade head)",
       "Bash(APEX_DEV_MODE=true python -c \"\nfrom apex.backend.routers.auth import router as auth_router\nfrom apex.backend.routers.projects import router as projects_router\nfrom apex.backend.utils.auth import hash_password, verify_password, create_access_token\nfrom apex.backend.config import GLOBAL_RATE_LIMIT, AUTH_LOGIN_RATE_LIMIT, AUTH_REGISTER_RATE_LIMIT, PIPELINE_RATE_LIMIT\nprint\\(f'Global: {GLOBAL_RATE_LIMIT}'\\)\nprint\\(f'Login: {AUTH_LOGIN_RATE_LIMIT}'\\)\nprint\\(f'Register: {AUTH_REGISTER_RATE_LIMIT}'\\)\nprint\\(f'Pipeline: {PIPELINE_RATE_LIMIT}'\\)\nfrom apex.backend.utils.auth import ACCESS_TOKEN_EXPIRE_MINUTES\nprint\\(f'Token expiry: {ACCESS_TOKEN_EXPIRE_MINUTES} min \\({ACCESS_TOKEN_EXPIRE_MINUTES // 60}h\\)'\\)\nprint\\('All imports OK'\\)\n\")",
-      "Bash(find /workspaces/EstimatingEngine -type f -name *agent*7*)"
+      "Bash(find /workspaces/EstimatingEngine -type f -name *agent*7*)",
+      "Bash(find /workspaces/EstimatingEngine/apex/frontend/src -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js -o -name *.jsx \\\\\\))"
     ]
   }
 }

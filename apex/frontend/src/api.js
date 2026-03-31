@@ -144,6 +144,10 @@ export const getPipelineStatus = (projectId) =>
     return res.json();
   });
 
+// ── Shadow Comparison ────────────────────────────────
+export const getComparison = (projectId) =>
+  request(`/projects/${projectId}/comparison`);
+
 // ── Reports ───────────────────────────────────────────
 export const getGapReport = (projectId) =>
   request(`/projects/${projectId}/gap-report`);

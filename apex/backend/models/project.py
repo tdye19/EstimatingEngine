@@ -14,11 +14,14 @@ class Project(Base, TimestampMixin):
     project_number = Column(String(100), unique=True, nullable=False)
     project_type = Column(String(50), nullable=False)  # commercial, industrial, healthcare
     status = Column(String(50), default="draft")  # draft, estimating, bid_submitted, awarded, completed
+    mode = Column(String(20), default="shadow", nullable=False)  # shadow, production
     description = Column(Text, nullable=True)
     location = Column(String(500), nullable=True)
     square_footage = Column(Float, nullable=True)
     estimated_value = Column(Float, nullable=True)
     bid_date = Column(String(50), nullable=True)
+    manual_estimate_total = Column(Float, nullable=True)
+    manual_estimate_notes = Column(Text, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
 

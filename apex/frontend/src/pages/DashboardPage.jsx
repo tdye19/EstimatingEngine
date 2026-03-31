@@ -28,6 +28,7 @@ const EMPTY_FORM = {
   name: '',
   project_number: '',
   project_type: 'commercial',
+  mode: 'shadow',
   location: '',
   square_footage: '',
   bid_date: '',
@@ -90,6 +91,7 @@ export default function DashboardPage() {
       const newProject = await createProject({
         ...form,
         square_footage: form.square_footage ? Number(form.square_footage) : undefined,
+        mode: form.mode,
       });
       setProjects((prev) => [newProject, ...prev]);
       closeModal();
@@ -185,6 +187,11 @@ export default function DashboardPage() {
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
+                  {p.mode === 'shadow' && (
+                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap bg-amber-100 text-amber-800">
+                      shadow
+                    </span>
+                  )}
                   <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap ${STATUS_COLORS[p.status] || 'bg-gray-100 text-gray-800'}`}>
                     {p.status?.replace('_', ' ')}
                   </span>
@@ -284,6 +291,18 @@ export default function DashboardPage() {
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                   <textarea className="input w-full" rows={3} placeholder="Brief project description..." {...field('description')} />
+                </div>
+                <div className="col-span-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.mode === 'shadow'}
+                      onChange={(e) => setForm((f) => ({ ...f, mode: e.target.checked ? 'shadow' : 'production' }))}
+                      className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Shadow Mode</span>
+                    <span className="text-xs text-gray-400">— run alongside human estimate for comparison</span>
+                  </label>
                 </div>
               </div>
 

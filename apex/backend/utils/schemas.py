@@ -73,6 +73,7 @@ class ProjectCreate(BaseModel):
     name: str
     project_number: Optional[str] = None
     project_type: str = "commercial"
+    mode: str = "shadow"
     description: Optional[str] = None
     location: Optional[str] = None
     square_footage: Optional[float] = None
@@ -84,11 +85,14 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     project_type: Optional[str] = None
     status: Optional[str] = None
+    mode: Optional[str] = None
     description: Optional[str] = None
     location: Optional[str] = None
     square_footage: Optional[float] = None
     estimated_value: Optional[float] = None
     bid_date: Optional[str] = None
+    manual_estimate_total: Optional[float] = None
+    manual_estimate_notes: Optional[str] = None
 
 
 class ProjectOut(BaseModel):
@@ -98,13 +102,27 @@ class ProjectOut(BaseModel):
     project_number: str
     project_type: str
     status: str
+    mode: str = "shadow"
     description: Optional[str] = None
     location: Optional[str] = None
     square_footage: Optional[float] = None
     estimated_value: Optional[float] = None
     bid_date: Optional[str] = None
+    manual_estimate_total: Optional[float] = None
+    manual_estimate_notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+
+class ShadowComparisonOut(BaseModel):
+    project_id: int
+    mode: str
+    apex_estimate_total: Optional[float] = None
+    manual_estimate_total: Optional[float] = None
+    manual_estimate_notes: Optional[str] = None
+    variance_absolute: Optional[float] = None
+    variance_pct: Optional[float] = None
+    by_division: Optional[list] = None
 
 
 # --- Document ---

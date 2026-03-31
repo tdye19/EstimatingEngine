@@ -23,6 +23,7 @@ from apex.backend.utils.auth import require_auth, get_authorized_project, get_cu
 from apex.backend.utils.schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut, DocumentOut, APIResponse,
     PipelineStatusOut, AgentStepStatus, ChunkedUploadInitRequest,
+    ShadowComparisonOut,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["projects"], dependencies=[Depends(require_auth)])
@@ -92,10 +93,12 @@ def create_project(
     if existing:
         raise HTTPException(status_code=400, detail="Project number already exists")
 
+    mode = data.mode if data.mode in ("shadow", "production") else "shadow"
     project = Project(
         name=data.name,
         project_number=project_number,
         project_type=data.project_type,
+        mode=mode,
         description=data.description,
         location=data.location,
         square_footage=data.square_footage,
@@ -157,6 +160,68 @@ def update_project(project_id: int, data: ProjectUpdate, db: Session = Depends(g
         success=True,
         message="Project updated",
         data=ProjectOut.model_validate(project).model_dump(mode="json"),
+    )
+
+
+@router.get("/{project_id}/comparison", response_model=APIResponse)
+def get_shadow_comparison(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """Return shadow comparison data: APEX estimate vs manual estimate."""
+    from apex.backend.models.estimate import Estimate, EstimateLineItem
+
+    project = get_authorized_project(project_id, user, db)
+
+    # Get latest APEX estimate
+    latest_estimate = (
+        db.query(Estimate)
+        .filter(Estimate.project_id == project_id, Estimate.is_deleted == False)  # noqa: E712
+        .order_by(Estimate.version.desc())
+        .first()
+    )
+
+    apex_total = latest_estimate.total_bid_amount if latest_estimate else None
+    manual_total = project.manual_estimate_total
+
+    variance_abs = None
+    variance_pct = None
+    if apex_total is not None and manual_total is not None:
+        variance_abs = apex_total - manual_total
+        if manual_total != 0:
+            variance_pct = round((variance_abs / manual_total) * 100, 2)
+
+    # Build by-division breakdown from APEX estimate line items
+    by_division = None
+    if latest_estimate:
+        division_totals = {}
+        line_items = (
+            db.query(EstimateLineItem)
+            .filter(EstimateLineItem.estimate_id == latest_estimate.id)
+            .all()
+        )
+        for item in line_items:
+            div = item.division_number
+            if div not in division_totals:
+                division_totals[div] = {"division": div, "apex_total": 0.0}
+            division_totals[div]["apex_total"] += item.total_cost
+        by_division = sorted(division_totals.values(), key=lambda d: d["division"])
+
+    comparison = ShadowComparisonOut(
+        project_id=project_id,
+        mode=project.mode,
+        apex_estimate_total=apex_total,
+        manual_estimate_total=manual_total,
+        manual_estimate_notes=project.manual_estimate_notes,
+        variance_absolute=variance_abs,
+        variance_pct=variance_pct,
+        by_division=by_division,
+    )
+
+    return APIResponse(
+        success=True,
+        data=comparison.model_dump(mode="json"),
     )
 
 
