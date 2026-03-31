@@ -26,7 +26,10 @@
       "Bash(python:*)",
       "Bash(npm run:*)",
       "Bash(OPENROUTER_API_KEY=\"sk-or-v1-test1234567890\" AGENT_3_PROVIDER=openrouter python -c \"from apex.backend.services.llm_provider import get_llm_provider; p = get_llm_provider\\(agent_number=3\\); print\\(p.provider_name, p._model\\)\")",
-      "Bash(ls -t test_specs/results/*.json)"
+      "Bash(ls -t test_specs/results/*.json)",
+      "Bash(PYTHONPATH=. alembic -c apex/backend/alembic.ini history)",
+      "Bash(PYTHONPATH=. alembic -c apex/backend/alembic.ini revision --autogenerate -m \"add_estimated_cost_to_agent_run_log\")",
+      "Bash(PYTHONPATH=. alembic -c apex/backend/alembic.ini upgrade head)"
     ]
   }
 }

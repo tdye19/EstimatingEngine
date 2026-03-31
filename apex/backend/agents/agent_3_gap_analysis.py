@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.gap_report import GapReport, GapReportItem
-from apex.backend.utils.csi_masterformat import MASTER_SCOPE_CHECKLIST
+from apex.backend.utils.csi_utils import MASTER_SCOPE_CHECKLIST
 from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.services.token_tracker import log_token_usage

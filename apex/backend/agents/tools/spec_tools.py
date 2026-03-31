@@ -248,7 +248,7 @@ def division_mapper_tool(section_number: str) -> dict:
     parts = section_number.strip().split()
     if parts:
         div = parts[0].zfill(2)
-        from apex.backend.utils.csi_masterformat import get_division_name
+        from apex.backend.utils.csi_utils import get_division_name
         return {
             "division_number": div,
             "division_name": get_division_name(div),

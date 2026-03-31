@@ -22,5 +22,6 @@ class AgentRunLog(Base, TimestampMixin):
     error_message = Column(Text, nullable=True)
     input_data = Column(JSON, nullable=True)
     output_data = Column(JSON, nullable=True)
+    estimated_cost = Column(Float, nullable=True)
 
     project = relationship("Project", back_populates="agent_run_logs")
