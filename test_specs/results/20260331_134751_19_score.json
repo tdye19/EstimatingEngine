@@ -1,0 +1,127 @@
+{
+  "agent_scores": {
+    "agent_1": {
+      "status": "pass",
+      "checks": [
+        {
+          "name": "has_documents_key",
+          "passed": true
+        },
+        {
+          "name": "at_least_1_document",
+          "passed": true
+        }
+      ],
+      "score": 1.0
+    },
+    "agent_2": {
+      "status": "pass",
+      "checks": [
+        {
+          "name": "has_spec_sections_key",
+          "passed": true
+        },
+        {
+          "name": "at_least_3_sections",
+          "passed": true
+        }
+      ],
+      "score": 1.0
+    },
+    "agent_3": {
+      "status": "pass",
+      "checks": [
+        {
+          "name": "has_gap_report_key",
+          "passed": true
+        },
+        {
+          "name": "at_least_1_gap_item",
+          "passed": true
+        }
+      ],
+      "score": 1.0
+    },
+    "agent_4": {
+      "status": "pass",
+      "checks": [
+        {
+          "name": "has_line_items_key",
+          "passed": true
+        },
+        {
+          "name": "at_least_1_with_quantity_gt_0",
+          "passed": true
+        }
+      ],
+      "score": 1.0
+    },
+    "agent_5": {
+      "status": "fail",
+      "checks": [
+        {
+          "name": "has_line_items_key",
+          "passed": true
+        },
+        {
+          "name": "at_least_50pct_have_unit_price",
+          "passed": false
+        }
+      ],
+      "score": 0.5
+    },
+    "agent_6": {
+      "status": "pass",
+      "checks": [
+        {
+          "name": "total_cost_gt_0",
+          "passed": true
+        },
+        {
+          "name": "executive_summary_non_empty",
+          "passed": true
+        }
+      ],
+      "score": 1.0
+    },
+    "agent_7": {
+      "status": "skip",
+      "checks": [
+        {
+          "name": "has_schedule_or_milestones_key",
+          "passed": false
+        },
+        {
+          "name": "at_least_1_entry",
+          "passed": false
+        }
+      ],
+      "score": 0.0
+    }
+  },
+  "pipeline_summary": {
+    "total_agents": 7,
+    "passed": 5,
+    "failed": 1,
+    "skipped": 1,
+    "overall_score": 0.7857
+  },
+  "line_item_stats": {
+    "total_items": 25,
+    "items_with_unit_price": 5,
+    "items_with_quantity": 25,
+    "items_with_csi_code": 25,
+    "items_missing_all": 0,
+    "coverage_pct": 20.0
+  },
+  "gap_analysis": {
+    "total_gaps": 17,
+    "gaps_with_csi": 0,
+    "gaps_resolved": 0
+  },
+  "cost_summary": {
+    "total_cost_usd": 248231.54,
+    "has_executive_summary": true,
+    "has_schedule": false
+  }
+}
