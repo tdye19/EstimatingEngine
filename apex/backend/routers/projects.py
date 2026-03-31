@@ -9,7 +9,7 @@ from pathlib import Path
 import csv
 import io
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
 from apex.backend.models.project import Project
@@ -27,9 +27,13 @@ from apex.backend.utils.schemas import (
 
 router = APIRouter(prefix="/api/projects", tags=["projects"], dependencies=[Depends(require_auth)])
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from apex.backend.config import (
     UPLOAD_DIR, CHUNK_SIZE, SESSION_TTL, MAX_UPLOAD_BYTES, ALLOWED_EXTENSIONS,
+    PIPELINE_RATE_LIMIT,
 )
+_limiter = Limiter(key_func=get_remote_address)
 from apex.backend.utils.upload_utils import get_chunk_path, assemble_chunks, cleanup_chunks
 
 def cleanup_stale_upload_sessions() -> None:
@@ -577,7 +581,9 @@ def _run_pipeline(project_id: int, document_id: int = None, pipeline_mode: str =
 
 
 @router.post("/{project_id}/run-agents", response_model=APIResponse)
+@_limiter.limit(PIPELINE_RATE_LIMIT)
 def run_agents(
+    request: Request,
     project_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -595,7 +601,9 @@ def run_agents(
 
 
 @router.post("/{project_id}/pipeline/run", response_model=APIResponse)
+@_limiter.limit(PIPELINE_RATE_LIMIT)
 def pipeline_run(
+    request: Request,
     project_id: int,
     background_tasks: BackgroundTasks,
     document_id: int = None,

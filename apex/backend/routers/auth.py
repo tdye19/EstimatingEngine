@@ -7,7 +7,7 @@ from slowapi.util import get_remote_address
 from apex.backend.db.database import get_db
 from apex.backend.config import AUTH_LOGIN_RATE_LIMIT, AUTH_REGISTER_RATE_LIMIT
 from apex.backend.models.user import User
-from apex.backend.utils.auth import hash_password, verify_password, create_access_token
+from apex.backend.utils.auth import hash_password, verify_password, create_access_token, require_auth
 from apex.backend.utils.schemas import (
     UserCreate, UserOut, LoginRequest, TokenResponse, APIResponse,
 )
@@ -59,4 +59,13 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     return TokenResponse(
         access_token=token,
         user=UserOut.model_validate(user),
+    )
+
+
+@router.get("/me", response_model=APIResponse)
+def me(current_user: User = Depends(require_auth)):
+    """Return the current authenticated user's profile."""
+    return APIResponse(
+        success=True,
+        data=UserOut.model_validate(current_user).model_dump(mode="json"),
     )

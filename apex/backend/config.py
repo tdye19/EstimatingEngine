@@ -28,9 +28,10 @@ APEX_DEV_MODE: bool = os.getenv("APEX_DEV_MODE", "").lower() in ("true", "1", "y
 CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
 
 # ── Rate limiting ─────────────────────────────────────────────────────
-GLOBAL_RATE_LIMIT: str = os.getenv("RATE_LIMIT_DEFAULT", "120/minute")
-AUTH_LOGIN_RATE_LIMIT: str = os.getenv("RATE_LIMIT_LOGIN", "10/minute")
-AUTH_REGISTER_RATE_LIMIT: str = os.getenv("RATE_LIMIT_REGISTER", "5/minute")
+GLOBAL_RATE_LIMIT: str = os.getenv("RATE_LIMIT_DEFAULT", "60/minute")
+AUTH_LOGIN_RATE_LIMIT: str = os.getenv("RATE_LIMIT_LOGIN", "5/minute")
+AUTH_REGISTER_RATE_LIMIT: str = os.getenv("RATE_LIMIT_REGISTER", "3/minute")
+PIPELINE_RATE_LIMIT: str = os.getenv("RATE_LIMIT_PIPELINE", "10/minute")
 
 # ── Email / SMTP ──────────────────────────────────────────────────────
 SMTP_HOST: str = os.getenv("SMTP_HOST", "")
