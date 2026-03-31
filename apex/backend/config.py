@@ -25,7 +25,13 @@ OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.2")
 PORT: int = int(os.getenv("PORT", "8000"))
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
 APEX_DEV_MODE: bool = os.getenv("APEX_DEV_MODE", "").lower() in ("true", "1", "yes")
-CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+
+_cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000")
+CORS_ORIGINS: list[str] = [o.strip() for o in _cors_env.split(",") if o.strip()]
+# Auto-add Railway public domain if provided
+_railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+if _railway_domain:
+    CORS_ORIGINS.append(f"https://{_railway_domain}")
 
 # ── Rate limiting ─────────────────────────────────────────────────────
 GLOBAL_RATE_LIMIT: str = os.getenv("RATE_LIMIT_DEFAULT", "60/minute")

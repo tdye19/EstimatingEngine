@@ -5,9 +5,11 @@ import os
 import logging
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -88,10 +90,12 @@ async def lifespan(app: FastAPI):
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[GLOBAL_RATE_LIMIT])
 
+APEX_VERSION = "0.12.0"
+
 app = FastAPI(
     title="APEX — Automated Project Estimation Exchange",
     description="AI-powered construction estimating platform for general contractors",
-    version="1.0.0",
+    version=APEX_VERSION,
     lifespan=lifespan,
 )
 app.state.limiter = limiter
@@ -177,7 +181,7 @@ def health_check():
     return {
         "status": status,
         "service": "apex-backend",
-        "version": "1.0.0",
+        "version": APEX_VERSION,
         "database": "connected" if db_ok else "unavailable",
     }
 
@@ -249,3 +253,20 @@ async def llm_health_check():
         "agents": agent_config,
         "providers": provider_health,
     }
+
+
+# ── Static file serving (production) ─────────────────────────────
+# Serve the Vite-built frontend from apex/frontend/dist/ when it exists.
+# This must be registered AFTER all API routes so /api/* takes priority.
+_frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _frontend_dist.is_dir():
+    # Serve static assets (JS, CSS, images) at /assets/
+    app.mount("/assets", StaticFiles(directory=_frontend_dist / "assets"), name="frontend-assets")
+
+    # SPA fallback: any non-API route returns index.html
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        file_path = _frontend_dist / full_path
+        if full_path and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(_frontend_dist / "index.html")
