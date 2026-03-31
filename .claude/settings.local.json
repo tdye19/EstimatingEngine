@@ -34,7 +34,11 @@
       "Bash(find /workspaces/EstimatingEngine -type f -name *agent*7*)",
       "Bash(find /workspaces/EstimatingEngine/apex/frontend/src -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js -o -name *.jsx \\\\\\))",
       "Bash(APEX_DEV_MODE=true python -c \"from apex.backend.main import app; print\\(''App OK''\\); print\\(''Routes:'', [r.path for r in app.routes if hasattr\\(r, ''path''\\)][-5:]\\)\")",
-      "Bash(RAILWAY_PUBLIC_DOMAIN=apex-prod.up.railway.app python -c \"from apex.backend.config import CORS_ORIGINS; print\\('CORS:', CORS_ORIGINS\\)\" 2>&1)"
+      "Bash(RAILWAY_PUBLIC_DOMAIN=apex-prod.up.railway.app python -c \"from apex.backend.config import CORS_ORIGINS; print\\('CORS:', CORS_ORIGINS\\)\" 2>&1)",
+      "Bash(sqlite3:*)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(grep -rn \"from ''recharts''\" /workspaces/EstimatingEngine/apex/frontend/src/components/ /workspaces/EstimatingEngine/apex/frontend/src/pages/)",
+      "Bash(APEX_DEV_MODE=true PORT=8095 python << 'PYEOF' 2>&1\nimport uvicorn, threading, time, httpx\n\nfrom apex.backend.main import app\n\ndef run\\(\\):\n    uvicorn.run\\(app, host='127.0.0.1', port=8095, log_level='error'\\)\n\nt = threading.Thread\\(target=run, daemon=True\\)\nt.start\\(\\)\ntime.sleep\\(4\\)\n\nc = httpx.Client\\(base_url='http://127.0.0.1:8095', timeout=10\\)\n\nlr = c.post\\('/api/auth/login', json={'email': 'demo@apex.com', 'password': 'demo1234'}\\)\nif lr.status_code != 200:\n    c.post\\('/api/auth/register', json={'email': 'demo@apex.com', 'password': 'demo1234', 'full_name': 'Demo'}\\)\n    lr = c.post\\('/api/auth/login', json={'email': 'demo@apex.com', 'password': 'demo1234'}\\)\ntoken = lr.json\\(\\).get\\('access_token', ''\\)\nh = {'Authorization': f'Bearer {token}'}\n\npr = c.post\\('/api/projects', headers=h, json={'name': 'PDF Check'}\\)\npid = pr.json\\(\\).get\\('data', {}\\).get\\('id'\\)\n\npdf = c.get\\(f'/api/exports/projects/{pid}/estimate/pdf', headers=h\\)\nprint\\(f'RESULT: status={pdf.status_code} ct={pdf.headers.get\\(\"content-type\", \"?\"\\)} size={len\\(pdf.content\\)}'\\)\nPYEOF)"
     ]
   }
 }
