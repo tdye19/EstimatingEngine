@@ -72,9 +72,12 @@ def _try_repair_json(raw: str) -> str:
     """Attempt to fix common Gemini truncation issues in a JSON array string.
 
     Handles:
-    - Truncated arrays that cut off mid-object (finds last complete ``}``)
+    - Truncated arrays that cut off mid-object (finds last complete top-level ``}``)
     - Incomplete string values ending mid-word before the last complete object
     - Arrays that start with ``[`` but are missing the closing ``]``
+
+    Uses brace-depth tracking that respects JSON string boundaries so it won't
+    be confused by ``}`` characters embedded in content values.
 
     Returns the repaired JSON string.
     Raises ValueError if the string cannot be meaningfully repaired.
@@ -91,24 +94,54 @@ def _try_repair_json(raw: str) -> str:
     if not s.startswith("["):
         raise ValueError("Response does not start with '[', cannot repair")
 
-    # Find the position of the last complete '}' in the string
-    last_brace = s.rfind("}")
-    if last_brace == -1:
-        raise ValueError("No closing brace '}' found, cannot salvage any objects")
+    # Estimate how many sections the raw text intended to contain
+    expected = len(re.findall(r'"section_number"', s))
 
-    # Truncate to just after the last '}' and close the array
-    candidate = s[: last_brace + 1].rstrip()
+    # Walk the string tracking brace depth outside of JSON strings.
+    # Record the position after each top-level object closes (depth 0→1→0).
+    last_complete_obj_end = -1
+    complete_count = 0
+    depth = 0
+    in_string = False
+    escape_next = False
 
-    # Strip any trailing comma left after the last object
-    candidate = candidate.rstrip(",").rstrip()
+    for i in range(1, len(s)):  # skip opening '['
+        c = s[i]
+        if escape_next:
+            escape_next = False
+            continue
+        if in_string:
+            if c == '\\':
+                escape_next = True
+            elif c == '"':
+                in_string = False
+            continue
+        # Outside a string
+        if c == '"':
+            in_string = True
+        elif c == '{':
+            depth += 1
+        elif c == '}':
+            depth -= 1
+            if depth == 0:
+                last_complete_obj_end = i
+                complete_count += 1
 
-    # Close the array if needed
-    if not candidate.endswith("]"):
-        candidate += "]"
+    if last_complete_obj_end == -1:
+        raise ValueError("No complete JSON objects found, cannot salvage")
+
+    # Truncate to just after the last complete top-level object and close array
+    candidate = s[: last_complete_obj_end + 1].rstrip().rstrip(",") + "]"
 
     # Validate the repaired candidate
     try:
-        json.loads(candidate)
+        parsed = json.loads(candidate)
+        salvaged = len(parsed) if isinstance(parsed, list) else 0
+        logger.warning(
+            "Repaired truncated JSON: salvaged %d of ~%d sections from malformed response",
+            salvaged,
+            expected,
+        )
         return candidate
     except json.JSONDecodeError as exc:
         raise ValueError(f"Repair attempt still invalid JSON: {exc}") from exc
@@ -131,10 +164,6 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
         try:
             repaired = _try_repair_json(cleaned)
             sections = json.loads(repaired)
-            logger.warning(
-                "Repaired truncated JSON: salvaged %d sections from malformed response",
-                len(sections) if isinstance(sections, list) else 0,
-            )
         except (ValueError, json.JSONDecodeError) as repair_exc:
             logger.warning("JSON repair also failed: %s", repair_exc)
             raise original_exc

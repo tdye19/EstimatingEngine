@@ -9,6 +9,10 @@ logger = logging.getLogger("apex.tools.spec")
 
 _AGENT_2_CHUNK_PAGES = int(os.environ.get("AGENT_2_CHUNK_PAGES", "40"))
 _TOKEN_CHUNK_THRESHOLD = 500_000  # estimated tokens; trigger chunking above this
+# Output-protection: even large-context providers (Gemini 1M, Anthropic 200K)
+# truncate output at max_tokens.  Chunk large specs so each chunk produces
+# fewer sections → smaller output → no truncation.
+_OUTPUT_SAFE_WORDS = int(os.environ.get("AGENT_2_OUTPUT_SAFE_WORDS", "15000"))
 
 # CSI Division ranges
 DIVISION_RANGES = {
@@ -76,7 +80,8 @@ async def llm_parse_spec_sections(
         parse_and_validate_llm_sections,
     )
 
-    estimated_tokens = len(document_text.split()) * 1.3
+    word_count = len(document_text.split())
+    estimated_tokens = word_count * 1.3
     max_words_per_chunk = _AGENT_2_CHUNK_PAGES * 250  # 250 words ≈ 1 page
 
     if estimated_tokens > _TOKEN_CHUNK_THRESHOLD:
@@ -90,8 +95,20 @@ async def llm_parse_spec_sections(
             max_words_per_chunk,
             provider.provider_name,
         )
-    elif provider.provider_name not in ("anthropic", "gemini"):
+    elif provider.provider_name not in ("anthropic", "gemini", "openrouter"):
         chunks = chunk_document(document_text, max_words=3000)
+    elif word_count > _OUTPUT_SAFE_WORDS:
+        # Input fits in context window but output may truncate at max_tokens
+        # when the spec contains many sections.  Chunk to keep output bounded.
+        chunks = chunk_document(document_text, max_words=_OUTPUT_SAFE_WORDS)
+        logger.info(
+            "Agent 2: %d words exceeds output-safe threshold %d — splitting into "
+            "%d chunks to prevent output truncation (provider=%s)",
+            word_count,
+            _OUTPUT_SAFE_WORDS,
+            len(chunks),
+            provider.provider_name,
+        )
     else:
         chunks = [document_text]
 
@@ -111,15 +128,25 @@ async def llm_parse_spec_sections(
         nonlocal total_input_tokens, total_output_tokens
         total_input_tokens += response.input_tokens
         total_output_tokens += response.output_tokens
+        finish = response.finish_reason or "unknown"
         logger.info(
             "Agent 2 chunk response: %d chars, %d input_tokens, %d output_tokens, "
             "finish_reason=%s, first 200 chars: %s",
             len(response.content),
             response.input_tokens,
             response.output_tokens,
-            getattr(response, 'finish_reason', 'unknown'),
+            finish,
             response.content[:200],
         )
+        logger.debug(
+            "Agent 2 chunk response last 200 chars: %s",
+            response.content[-200:],
+        )
+        if finish == "MAX_TOKENS":
+            logger.warning(
+                "Agent 2: Gemini hit MAX_TOKENS — response likely truncated "
+                "(%d output tokens)", response.output_tokens,
+            )
         return parse_and_validate_llm_sections(response.content)
 
     for i, chunk in enumerate(chunks):
@@ -160,12 +187,14 @@ async def llm_parse_spec_sections(
             "content": s["content"],
         })
 
+    section_nums = [s["section_number"] for s in result]
     logger.info(
-        "Agent 2 LLM: %d sections extracted from %d chunks (%d in / %d out tokens)",
+        "Agent 2 LLM: %d sections extracted from %d chunks (%d in / %d out tokens): %s",
         len(result),
         len(chunks),
         total_input_tokens,
         total_output_tokens,
+        ", ".join(section_nums) if section_nums else "(none)",
     )
 
     return result, total_input_tokens, total_output_tokens

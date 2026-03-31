@@ -75,6 +75,7 @@ class LLMResponse:
     duration_ms: float      # Wall clock time for the call
     cache_creation_input_tokens: int = 0  # Anthropic: tokens written to cache
     cache_read_input_tokens: int = 0      # Anthropic: tokens read from cache
+    finish_reason: str = ""               # "STOP", "MAX_TOKENS", etc.
 
 
 # ---------------------------------------------------------------------------
@@ -522,6 +523,7 @@ class GeminiProvider(LLMProvider):
         if not candidates:
             raise ValueError(f"Gemini returned no candidates: {data}")
         content = candidates[0]["content"]["parts"][0]["text"]
+        finish_reason = candidates[0].get("finishReason", "unknown")
 
         # Token usage
         usage = data.get("usageMetadata", {})
@@ -535,6 +537,7 @@ class GeminiProvider(LLMProvider):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             duration_ms=duration_ms,
+            finish_reason=finish_reason,
         )
 
     async def health_check(self) -> bool:
