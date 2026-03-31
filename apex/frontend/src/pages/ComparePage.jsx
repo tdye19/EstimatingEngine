@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listProjects, getEstimate } from '../api';
 import { ArrowLeftRight, BarChart3 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 function fmt(val) {
   if (val == null) return '—';
@@ -28,6 +27,11 @@ export default function ComparePage() {
   const [loadingB, setLoadingB] = useState(false);
   const [errorA, setErrorA] = useState('');
   const [errorB, setErrorB] = useState('');
+  const [rc, setRc] = useState(null);
+
+  useEffect(() => {
+    import('recharts').then(setRc);
+  }, []);
 
   useEffect(() => {
     listProjects()
@@ -269,16 +273,20 @@ export default function ComparePage() {
               <h3 className="text-sm font-semibold text-gray-700">Cost Comparison Chart</h3>
             </div>
             <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} barGap={8}>
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(value) => fmt(value)} />
-                  <Legend />
-                  <Bar dataKey={nameA} fill="#4f46e5" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey={nameB} fill="#06b6d4" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {rc ? (
+                <rc.ResponsiveContainer width="100%" height="100%">
+                  <rc.BarChart data={chartData} barGap={8}>
+                    <rc.XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <rc.YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                    <rc.Tooltip formatter={(value) => fmt(value)} />
+                    <rc.Legend />
+                    <rc.Bar dataKey={nameA} fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                    <rc.Bar dataKey={nameB} fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                  </rc.BarChart>
+                </rc.ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-400">Loading chart...</div>
+              )}
             </div>
           </div>
         </div>

@@ -1,13 +1,4 @@
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
+import { useEffect, useState } from 'react';
 
 const AGENT_COLORS = {
   2: '#3b82f6',
@@ -33,6 +24,16 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function CostBarChart({ chartData }) {
+  const [rc, setRc] = useState(null);
+
+  useEffect(() => {
+    import('recharts').then(setRc);
+  }, []);
+
+  if (!rc) return <div className="h-56 flex items-center justify-center text-gray-400">Loading chart...</div>;
+
+  const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } = rc;
+
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={chartData} margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>

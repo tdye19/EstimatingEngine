@@ -1,16 +1,16 @@
-import {
-  BarChart,
-  Bar,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from 'recharts';
+import { useEffect, useState } from 'react';
 
 export default function VarianceChart({ chartData }) {
+  const [rc, setRc] = useState(null);
+
+  useEffect(() => {
+    import('recharts').then(setRc);
+  }, []);
+
+  if (!rc) return <div className="h-72 flex items-center justify-center text-gray-400">Loading chart...</div>;
+
+  const { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } = rc;
+
   return (
     <ResponsiveContainer width="100%" height={280}>
       <BarChart data={chartData}>

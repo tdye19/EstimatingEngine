@@ -1,15 +1,4 @@
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
+import { useEffect, useState } from 'react';
 
 function fmt$(val) {
   return '$' + Number(val || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -18,6 +7,16 @@ function fmt$(val) {
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function EstimateCharts({ divData, pieData }) {
+  const [rc, setRc] = useState(null);
+
+  useEffect(() => {
+    import('recharts').then(setRc);
+  }, []);
+
+  if (!rc) return <div className="h-64 flex items-center justify-center text-gray-400">Loading chart...</div>;
+
+  const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } = rc;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div className="card">

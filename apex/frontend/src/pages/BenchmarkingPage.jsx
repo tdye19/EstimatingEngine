@@ -1,8 +1,4 @@
 import { useEffect, useState } from 'react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ScatterChart, Scatter, ResponsiveContainer,
-} from 'recharts';
 import { TrendingUp, Building2, DollarSign, Filter } from 'lucide-react';
 import { getBenchmarkProjects, getDivisionTrends } from '../api';
 
@@ -15,6 +11,11 @@ export default function BenchmarkingPage() {
   const [trends, setTrends] = useState({});
   const [loading, setLoading] = useState(true);
   const [projectType, setProjectType] = useState('');
+  const [rc, setRc] = useState(null);
+
+  useEffect(() => {
+    import('recharts').then(setRc);
+  }, []);
 
   const load = (type) => {
     setLoading(true);
@@ -32,11 +33,6 @@ export default function BenchmarkingPage() {
   };
 
   useEffect(() => { load(projectType); }, [projectType]);
-
-  // Chart data: cost per SF per project
-  const scatterData = projects
-    .filter((p) => p.square_footage && p.cost_per_sf)
-    .map((p) => ({ name: p.project_number, sf: p.square_footage, cost_per_sf: p.cost_per_sf }));
 
   // Division trend chart
   const divChartData = Object.entries(trends).map(([div, t]) => ({
@@ -137,18 +133,22 @@ export default function BenchmarkingPage() {
               <p className="text-sm text-gray-500 mb-4">
                 Each bar shows the average % of total bid cost allocated to that division across all projects.
               </p>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={divChartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="division" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(v) => `${v.toFixed(0)}%`} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
-                  <Legend />
-                  <Bar dataKey="avg_pct" name="Avg %" fill="#1e40af" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="min_pct" name="Min %" fill="#93c5fd" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="max_pct" name="Max %" fill="#60a5fa" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {rc ? (
+                <rc.ResponsiveContainer width="100%" height={280}>
+                  <rc.BarChart data={divChartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                    <rc.CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <rc.XAxis dataKey="division" tick={{ fontSize: 11 }} />
+                    <rc.YAxis tickFormatter={(v) => `${v.toFixed(0)}%`} tick={{ fontSize: 11 }} />
+                    <rc.Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
+                    <rc.Legend />
+                    <rc.Bar dataKey="avg_pct" name="Avg %" fill="#1e40af" radius={[3, 3, 0, 0]} />
+                    <rc.Bar dataKey="min_pct" name="Min %" fill="#93c5fd" radius={[3, 3, 0, 0]} />
+                    <rc.Bar dataKey="max_pct" name="Max %" fill="#60a5fa" radius={[3, 3, 0, 0]} />
+                  </rc.BarChart>
+                </rc.ResponsiveContainer>
+              ) : (
+                <div className="h-72 flex items-center justify-center text-gray-400">Loading chart...</div>
+              )}
             </div>
           )}
 

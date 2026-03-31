@@ -1,11 +1,19 @@
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from 'recharts';
+import { useEffect, useState } from 'react';
 
 const SOURCE_COLORS = ['#1e40af', '#16a34a', '#dc2626', '#f59e0b', '#7c3aed', '#0891b2'];
 const FMT = (v) => (v === undefined || v === null ? '—' : `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
 
 export default function BidComparisonChart({ chartData, dataKeys }) {
+  const [rc, setRc] = useState(null);
+
+  useEffect(() => {
+    import('recharts').then(setRc);
+  }, []);
+
+  if (!rc) return <div className="h-72 flex items-center justify-center text-gray-400">Loading chart...</div>;
+
+  const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = rc;
+
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
