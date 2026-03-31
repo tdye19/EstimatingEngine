@@ -312,8 +312,9 @@ class OpenRouterProvider(AnthropicProvider):
     """
 
     def __init__(self, api_key: str, model: Optional[str] = None):
-        super().__init__(api_key=api_key, model=model)
+        super().__init__(api_key=api_key.strip(), model=model)
         self._base_url = "https://openrouter.ai/api/v1"
+        logger.info("OpenRouter API key loaded: %d chars", len(self._api_key))
 
     @property
     def provider_name(self) -> str:
@@ -337,6 +338,11 @@ class OpenRouterProvider(AnthropicProvider):
             "HTTP-Referer": "https://github.com/tdye19/EstimatingEngine",
             "X-Title": "APEX Estimating Engine",
         }
+        logger.debug(
+            "OpenRouter auth header present: %s, key prefix: %s...",
+            bool(headers.get("Authorization")),
+            self._api_key[:8],
+        )
         payload = {
             "model": self._model,
             "max_tokens": max_tokens,
@@ -355,9 +361,22 @@ class OpenRouterProvider(AnthropicProvider):
         start = time.monotonic()
         _pooled = get_http_client("openrouter")
         if _pooled is not None:
-            resp = await _pooled.post("/messages", json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+            try:
+                resp = await _pooled.post("/messages", json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+            except (httpx.TransportError, RuntimeError) as exc:
+                logger.warning(
+                    "OpenRouter pooled client error (%s) — creating fresh client for this request",
+                    exc,
+                )
+                fresh = httpx.AsyncClient(timeout=300.0)
+                try:
+                    resp = await fresh.post(url, json=payload, headers=headers)
+                    resp.raise_for_status()
+                    data = resp.json()
+                finally:
+                    await fresh.aclose()
         else:
             async with httpx.AsyncClient(timeout=300.0) as client:
                 resp = await client.post(url, json=payload, headers=headers)
@@ -397,8 +416,13 @@ class OpenRouterProvider(AnthropicProvider):
         try:
             _pooled = get_http_client("openrouter")
             if _pooled is not None:
-                resp = await _pooled.get("/models")
-                is_healthy = resp.status_code == 200
+                try:
+                    resp = await _pooled.get("/models")
+                    is_healthy = resp.status_code == 200
+                except (httpx.TransportError, RuntimeError):
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        resp = await client.get("https://openrouter.ai/api/v1/models")
+                        is_healthy = resp.status_code == 200
             else:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.get("https://openrouter.ai/api/v1/models")
@@ -559,7 +583,7 @@ def _build_provider(provider_name: str, model: Optional[str]) -> LLMProvider:
             raise ValueError("ANTHROPIC_API_KEY is required when provider=anthropic")
         return AnthropicProvider(api_key=api_key, model=model)
     elif name == "openrouter":
-        api_key = os.getenv("OPENROUTER_API_KEY")
+        api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
         if not api_key:
             raise ValueError("OPENROUTER_API_KEY is required when provider=openrouter")
         return OpenRouterProvider(api_key=api_key, model=model)
