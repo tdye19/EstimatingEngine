@@ -1,7 +1,7 @@
 """LLM Provider abstraction layer.
 
-Supports Ollama (local), Anthropic Claude API, and Google Gemini API via a
-unified interface.  Provider selection uses a three-level fallback chain:
+Supports Ollama (local), Anthropic Claude API, OpenRouter (Anthropic-compatible
+proxy), and Google Gemini API via a unified interface.  Provider selection uses a three-level fallback chain:
 
   1. Per-agent env vars  → AGENT_{N}_PROVIDER / AGENT_{N}_MODEL
      (or AGENT_{N}_{SUFFIX}_PROVIDER for sub-roles like AGENT_6_SUMMARY)
@@ -38,6 +38,11 @@ async def init_http_clients() -> None:
     )
     _clients["google"] = httpx.AsyncClient(
         base_url="https://generativelanguage.googleapis.com",
+        timeout=httpx.Timeout(300.0, connect=10.0),
+        limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+    )
+    _clients["openrouter"] = httpx.AsyncClient(
+        base_url="https://openrouter.ai/api/v1",
         timeout=httpx.Timeout(300.0, connect=10.0),
         limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
     )
@@ -296,6 +301,116 @@ class AnthropicProvider(LLMProvider):
 
 
 # ---------------------------------------------------------------------------
+# OpenRouter (Anthropic-compatible proxy)
+# ---------------------------------------------------------------------------
+
+class OpenRouterProvider(AnthropicProvider):
+    """Route Anthropic-format requests through OpenRouter.
+
+    Reuses AnthropicProvider logic — only the base URL, auth headers, and
+    health check differ.  Prompt caching passes through to Anthropic.
+    """
+
+    def __init__(self, api_key: str, model: Optional[str] = None):
+        super().__init__(api_key=api_key, model=model)
+        self._base_url = "https://openrouter.ai/api/v1"
+
+    @property
+    def provider_name(self) -> str:
+        return "openrouter"
+
+    # -- Override complete() only to swap headers and client key -----------
+
+    async def complete(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.0,
+        max_tokens: int = 4096,
+    ) -> LLMResponse:
+        url = f"{self._base_url}/messages"
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "anthropic-version": "2023-06-01",
+            "anthropic-beta": "prompt-caching-2024-07-31",
+            "content-type": "application/json",
+            "HTTP-Referer": "https://github.com/tdye19/EstimatingEngine",
+            "X-Title": "APEX Estimating Engine",
+        }
+        payload = {
+            "model": self._model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "system": [
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            "messages": [
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        start = time.monotonic()
+        _pooled = get_http_client("openrouter")
+        if _pooled is not None:
+            resp = await _pooled.post("/messages", json=payload, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        else:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+
+        duration_ms = (time.monotonic() - start) * 1000
+        content = data["content"][0]["text"]
+        usage = data.get("usage", {})
+
+        cache_creation = usage.get("cache_creation_input_tokens", 0)
+        cache_read = usage.get("cache_read_input_tokens", 0)
+
+        if cache_read > 0:
+            logger.info("Cache HIT: %d tokens read from cache (openrouter)", cache_read)
+        elif cache_creation > 0:
+            logger.info("Cache CREATED: %d tokens written to cache (openrouter)", cache_creation)
+
+        return LLMResponse(
+            content=content,
+            model=self._model,
+            provider="openrouter",
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            duration_ms=duration_ms,
+            cache_creation_input_tokens=cache_creation,
+            cache_read_input_tokens=cache_read,
+        )
+
+    async def health_check(self) -> bool:
+        """Ping OpenRouter models endpoint (public, no auth required)."""
+        cached = _health_cache.get("openrouter")
+        if cached:
+            ts, result = cached
+            if time.monotonic() - ts < _health_cache_ttl:
+                return result
+        try:
+            _pooled = get_http_client("openrouter")
+            if _pooled is not None:
+                resp = await _pooled.get("/models")
+                is_healthy = resp.status_code == 200
+            else:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.get("https://openrouter.ai/api/v1/models")
+                    is_healthy = resp.status_code == 200
+            _health_cache["openrouter"] = (time.monotonic(), is_healthy)
+            return is_healthy
+        except Exception:
+            _health_cache["openrouter"] = (time.monotonic(), False)
+            return False
+
+
+# ---------------------------------------------------------------------------
 # Google Gemini
 # ---------------------------------------------------------------------------
 
@@ -443,6 +558,11 @@ def _build_provider(provider_name: str, model: Optional[str]) -> LLMProvider:
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY is required when provider=anthropic")
         return AnthropicProvider(api_key=api_key, model=model)
+    elif name == "openrouter":
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY is required when provider=openrouter")
+        return OpenRouterProvider(api_key=api_key, model=model)
     elif name == "gemini":
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
@@ -451,7 +571,7 @@ def _build_provider(provider_name: str, model: Optional[str]) -> LLMProvider:
     elif name == "ollama":
         return OllamaProvider(model=model)
     else:
-        raise ValueError(f"Unknown LLM provider: '{provider_name}'. Valid: anthropic, gemini, ollama")
+        raise ValueError(f"Unknown LLM provider: '{provider_name}'. Valid: anthropic, openrouter, gemini, ollama")
 
 
 # ---------------------------------------------------------------------------
@@ -601,6 +721,8 @@ def get_agent_provider_config() -> dict:
 def _api_key_is_set(provider: str) -> bool:
     if provider == "anthropic":
         return bool(os.getenv("ANTHROPIC_API_KEY"))
+    elif provider == "openrouter":
+        return bool(os.getenv("OPENROUTER_API_KEY"))
     elif provider == "gemini":
         return bool(os.getenv("GEMINI_API_KEY"))
     else:  # ollama / python
@@ -610,6 +732,7 @@ def _api_key_is_set(provider: str) -> bool:
 def _default_model_for(provider: str) -> str:
     defaults = {
         "anthropic": "claude-sonnet-4-6",
+        "openrouter": "claude-sonnet-4-6",
         "gemini": "gemini-2.5-flash",
         "ollama": "llama3.2",
     }
