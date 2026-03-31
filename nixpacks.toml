@@ -2,7 +2,14 @@
 nixPkgs = ["python311", "nodejs_20"]
 
 [phases.install]
-cmds = ["python -m ensurepip --upgrade", "python -m pip install -r requirements.txt", "cd apex/frontend && npm install"]
+cmds = [
+  "python -m venv /opt/venv",
+  "/opt/venv/bin/pip install -r requirements.txt",
+  "cd apex/frontend && npm install"
+]
 
 [phases.build]
 cmds = ["cd apex/frontend && npm run build"]
+
+[start]
+cmd = "PYTHONPATH=. /opt/venv/bin/alembic -c apex/backend/alembic.ini upgrade head && /opt/venv/bin/uvicorn apex.backend.main:app --host 0.0.0.0 --port $PORT"
