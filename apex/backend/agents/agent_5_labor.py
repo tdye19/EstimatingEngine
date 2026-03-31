@@ -179,6 +179,7 @@ def _parse_llm_labor_response(raw_content: str) -> list[LLMProductivityMatch]:
     validated: list[LLMProductivityMatch] = []
     skipped = 0
     for i, item in enumerate(data):
+        logger.debug("Agent 5 LLM raw item [%d]: %s", i, item)
         try:
             validated.append(LLMProductivityMatch.model_validate(item))
         except Exception as exc:
@@ -252,26 +253,13 @@ def _verified_compute(
     prod = prod_by_id.get(match.matched_productivity_id)
 
     if prod is None:
-        # No match — zero out and flag for manual review
-        notes = (match.notes or "").strip()
-        flag = "FLAGGED FOR MANUAL REVIEW"
-        notes = f"{notes} | {flag}" if notes else flag
-        return {
-            "rate": 0.0,
-            "unit": item.unit_of_measure,
-            "crew_type": "Manual Review Required",
-            "work_type": "No Match",
-            "labor_hours": 0.0,
-            "crew_days": 0.0,
-            "total_man_hours": 0.0,
-            "crew_size": 0,
-            "hourly_rate": 0.0,
-            "total_labor_cost": 0.0,
-            "confidence": _MATCH_CONFIDENCE_TO_FLOAT["estimated"],
-            "matched_productivity_id": None,
-            "match_confidence": "estimated",
-            "notes": notes,
-        }
+        logger.warning(
+            "Agent 5: LLM returned matched_productivity_id=%s for item %d (%s) "
+            "but no DB record found — signalling fallback",
+            match.matched_productivity_id, item.id, item.csi_code,
+        )
+        # Return sentinel so the caller can fall back to DB lookup
+        return None
 
     # Pull authoritative values from the DB record — ignore LLM's numeric guesses
     rate = prod.productivity_rate if prod.productivity_rate > 0 else 1.0
@@ -559,6 +547,7 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
             labor_method = "llm"
             matched_item_ids: set[int] = set()
 
+            llm_fallback_count = 0
             for match in llm_matches:
                 item = items_by_id.get(match.takeoff_item_id)
                 if item is None:
@@ -570,6 +559,36 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
                 # 2. Python verifies / recomputes all arithmetic from DB record
                 c = _verified_compute(match, item, prod_by_id)
                 matched_item_ids.add(item.id)
+
+                # If _verified_compute returned None (bad match ID), fall back
+                # to DB lookup so the item gets a real rate instead of $0.
+                if c is None:
+                    try:
+                        estimate, result, man_hours = _db_estimate_item(db, project_id, item)
+                        result["source"] = "db_fallback_from_llm"
+                        db.add(estimate)
+                        estimates_created += 1
+                        total_labor_cost += result["labor_cost"]
+                        total_labor_hours += man_hours
+                        item_results.append(result)
+                        llm_fallback_count += 1
+                        logger.info(
+                            "Agent 5: item '%s' (%s) LLM returned invalid match — "
+                            "using db_fallback rate: $%.2f",
+                            item.description[:50], item.csi_code,
+                            result["labor_cost"],
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            f"Agent 5 DB fallback for LLM item {item.id}: {exc}"
+                        )
+                        item_results.append({
+                            "takeoff_item_id": item.id,
+                            "csi_code": item.csi_code,
+                            "error": str(exc),
+                            "source": None,
+                        })
+                    continue
 
                 estimate = LaborEstimate(
                     project_id=project_id,
@@ -603,8 +622,15 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
                     "match_confidence": c["match_confidence"],
                     "matched_productivity_id": c["matched_productivity_id"],
                     "notes": c["notes"],
-                    "source": "bls_default",
+                    "source": "llm_verified",
                 })
+
+            if llm_fallback_count:
+                logger.warning(
+                    "Agent 5: %d/%d LLM matches had invalid productivity IDs — "
+                    "used DB fallback rates",
+                    llm_fallback_count, len(llm_matches),
+                )
 
             # DB fallback for any items the LLM did not return a match for
             unmatched = [item for item in non_benchmark_items if item.id not in matched_item_ids]
