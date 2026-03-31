@@ -245,6 +245,7 @@ class EstimateOut(BaseModel):
     exclusions: Optional[list] = None
     assumptions: Optional[list] = None
     alternates: Optional[list] = None
+    executive_summary: Optional[str] = None
     bid_bond_required: int
     line_items: list[EstimateLineItemOut] = []
     created_at: datetime

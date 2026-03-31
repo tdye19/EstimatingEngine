@@ -412,7 +412,7 @@ def evaluate_agents(
     estimate: dict | None = results.get("estimate")
     if status6 == "completed" and estimate and (estimate.get("total_bid_amount") or 0) > 0:
         grand_total = estimate["total_bid_amount"]
-        has_summary = bool(estimate.get("assumptions") or estimate.get("exclusions"))
+        has_summary = bool((estimate.get("executive_summary") or "").strip())
         note = "  (has exec summary)" if has_summary else ""
         evaluations.append(AgentResult(
             6, PASS, _log_duration(log6),
@@ -728,7 +728,7 @@ def main() -> int:
     est = results.get("estimate")
     if est is not None:
         scorer_input["total_cost"] = est.get("total_bid_amount", 0)
-        scorer_input["executive_summary"] = est.get("assumptions") or est.get("exclusions") or ""
+        scorer_input["executive_summary"] = est.get("executive_summary") or ""
     # Agent 7
     # schedule/milestones would be in the estimate or a dedicated endpoint
     if est:
