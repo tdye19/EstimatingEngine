@@ -24,11 +24,13 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/recharts/')) return 'recharts-core';
-          if (id.includes('node_modules/victory-vendor/')) return 'recharts-d3';
-          if (id.includes('node_modules/d3-')) return 'recharts-d3';
-          if (id.includes('node_modules/react-smooth/')) return 'recharts-d3';
-          if (id.includes('node_modules/react-transition-group/')) return 'recharts-d3';
+          if (
+            id.includes('node_modules/recharts/') ||
+            id.includes('node_modules/victory-vendor/') ||
+            id.includes('node_modules/d3-') ||
+            id.includes('node_modules/react-smooth/') ||
+            id.includes('node_modules/react-transition-group/')
+          ) return 'recharts';
         },
       },
     },
