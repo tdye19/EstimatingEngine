@@ -8,21 +8,23 @@ def run_async(coro):
     """Run an async coroutine from a synchronous context.
 
     Safe to call from any thread, including AnyIO worker threads that have
-    no current event loop (e.g. FastAPI background tasks).
+    no current event loop (e.g. FastAPI background tasks on Railway).
     """
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Already inside a running event loop (e.g. Jupyter / some test runners)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
-        if loop.is_closed():
-            raise RuntimeError("loop is closed")
+        loop = asyncio.get_running_loop()
     except RuntimeError:
-        # No event loop in this thread (common in AnyIO worker threads) or the
-        # existing loop is closed — create a fresh one and register it so that
-        # any asyncio calls inside the coroutine can find it via get_event_loop().
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
+        loop = None
+
+    if loop and loop.is_running():
+        # Already inside a running event loop (e.g. nested call from async
+        # context, Jupyter, or AnyIO worker thread that inherited a loop).
+        # Cannot use asyncio.run() here — it would conflict with the running
+        # loop.  Offload to a fresh thread that owns its own loop.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+    else:
+        # No running loop in this thread — the common case for AnyIO worker
+        # threads on Railway.  asyncio.run() creates a fresh, isolated loop,
+        # runs the coroutine, then tears the loop down cleanly.
+        return asyncio.run(coro)
