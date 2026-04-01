@@ -490,3 +490,30 @@ export const getBenchmarkDetail = (csiCode) =>
 
 export const recomputeBenchmarks = () =>
   request('/benchmarks/compute', { method: 'POST' });
+
+// ── Productivity Brain ──────────────────────────────
+export const pbUploadFiles = (files) => {
+  const form = new FormData();
+  files.forEach((f) => form.append('files', f));
+  return request('/productivity-brain/upload', { method: 'POST', body: form });
+};
+
+export const pbGetStats = () => request('/productivity-brain/stats');
+
+export const pbGetRates = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/productivity-brain/rates${qs ? `?${qs}` : ''}`);
+};
+
+export const pbCompareEstimate = (items) =>
+  request('/productivity-brain/compare', {
+    method: 'POST',
+    body: JSON.stringify(items),
+  });
+
+export const pbGetProjects = () => request('/productivity-brain/projects');
+
+export const pbMatchActivity = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/productivity-brain/match${qs ? `?${qs}` : ''}`);
+};

@@ -25,6 +25,7 @@ import {
   LibraryBig,
   FolderArchive,
   Search,
+  Brain,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -48,6 +49,7 @@ import PipelineStatus from '../components/PipelineStatus';
 const EstimateLibraryTab = lazy(() => import('../components/tabs/EstimateLibraryTab'));
 const BatchUploadTab = lazy(() => import('../components/tabs/BatchUploadTab'));
 const BenchmarkDashboardTab = lazy(() => import('../components/tabs/BenchmarkDashboardTab'));
+const ProductivityBrainTab = lazy(() => import('../components/tabs/ProductivityBrainTab'));
 
 const TABS = [
   { path: 'documents', label: 'Documents', icon: Files },
@@ -68,6 +70,7 @@ const TABS = [
   { path: 'estimate-library', label: 'Estimate Library', icon: LibraryBig },
   { path: 'batch-import', label: 'Batch Import', icon: FolderArchive },
   { path: 'benchmarks', label: 'Benchmarks', icon: BarChart2 },
+  { path: 'productivity-brain', label: 'Productivity Brain', icon: Brain },
 ];
 
 export default function ProjectDetailPage() {
@@ -347,6 +350,16 @@ export default function ProjectDetailPage() {
             <ErrorBoundary key="benchmarks">
               <Suspense fallback={<div className="p-8 text-gray-400">Loading…</div>}>
                 <BenchmarkDashboardTab />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="productivity-brain"
+          element={
+            <ErrorBoundary key="productivity-brain">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
+                <ProductivityBrainTab projectId={id} />
               </Suspense>
             </ErrorBoundary>
           }
