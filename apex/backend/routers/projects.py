@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 import csv
 import io
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
@@ -39,7 +39,7 @@ from apex.backend.utils.upload_utils import get_chunk_path, assemble_chunks, cle
 
 def cleanup_stale_upload_sessions() -> None:
     """Remove upload sessions and temp dirs older than SESSION_TTL. Call on startup."""
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     from apex.backend.db.database import SessionLocal
     db = SessionLocal()
     try:
@@ -321,7 +321,7 @@ async def chunked_upload_init(
             total_chunks=total_chunks,
             next_chunk=0,
             temp_dir=temp_dir,
-            expires_at=datetime.now(timezone.utc) + timedelta(seconds=SESSION_TTL),
+            expires_at=datetime.utcnow() + timedelta(seconds=SESSION_TTL),
         )
     )
     db.commit()
@@ -345,7 +345,7 @@ async def chunked_upload_chunk(
     session = db.query(UploadSession).filter(UploadSession.upload_id == upload_id).first()
     if not session or session.project_id != project_id:
         raise HTTPException(status_code=404, detail="Upload session not found")
-    if session.expires_at < datetime.now(timezone.utc):
+    if session.expires_at < datetime.utcnow():
         if session.temp_dir and os.path.isdir(session.temp_dir):
             shutil.rmtree(session.temp_dir, ignore_errors=True)
         db.delete(session)
@@ -363,7 +363,7 @@ async def chunked_upload_chunk(
     get_chunk_path(upload_id, chunk_number).write_bytes(chunk_data)
 
     session.next_chunk = chunk_number + 1
-    session.expires_at = datetime.now(timezone.utc) + timedelta(seconds=SESSION_TTL)
+    session.expires_at = datetime.utcnow() + timedelta(seconds=SESSION_TTL)
     db.commit()
     chunks_received = session.next_chunk
 
@@ -384,7 +384,7 @@ async def chunked_upload_complete(
     session = db.query(UploadSession).filter(UploadSession.upload_id == upload_id).first()
     if not session or session.project_id != project_id:
         raise HTTPException(status_code=404, detail="Upload session not found")
-    if session.expires_at < datetime.now(timezone.utc):
+    if session.expires_at < datetime.utcnow():
         if session.temp_dir and os.path.isdir(session.temp_dir):
             shutil.rmtree(session.temp_dir, ignore_errors=True)
         db.delete(session)
