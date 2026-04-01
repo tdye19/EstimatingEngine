@@ -517,3 +517,35 @@ export const pbMatchActivity = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
   return request(`/productivity-brain/match${qs ? `?${qs}` : ''}`);
 };
+
+// ── Bid Intelligence ────────────────────────────────
+export const biUploadFile = (file) => {
+  const form = new FormData();
+  form.append('file', file);
+  return request('/bid-intelligence/upload', { method: 'POST', body: form });
+};
+
+export const biGetStats = () => request('/bid-intelligence/stats');
+
+export const biGetBenchmarks = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/bid-intelligence/benchmarks${qs ? `?${qs}` : ''}`);
+};
+
+export const biGetComparable = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/bid-intelligence/comparable${qs ? `?${qs}` : ''}`);
+};
+
+export const biGetEstimatorPerformance = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/bid-intelligence/estimator-performance${qs ? `?${qs}` : ''}`);
+};
+
+export const biGetHitRate = (groupBy = 'market_sector') =>
+  request(`/bid-intelligence/hit-rate?group_by=${groupBy}`);
+
+export const biGetEstimates = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/bid-intelligence/estimates${qs ? `?${qs}` : ''}`);
+};

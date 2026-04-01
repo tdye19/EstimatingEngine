@@ -26,6 +26,7 @@ import {
   FolderArchive,
   Search,
   Brain,
+  Target,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -50,6 +51,7 @@ const EstimateLibraryTab = lazy(() => import('../components/tabs/EstimateLibrary
 const BatchUploadTab = lazy(() => import('../components/tabs/BatchUploadTab'));
 const BenchmarkDashboardTab = lazy(() => import('../components/tabs/BenchmarkDashboardTab'));
 const ProductivityBrainTab = lazy(() => import('../components/tabs/ProductivityBrainTab'));
+const BidIntelligenceTab = lazy(() => import('../components/tabs/BidIntelligenceTab'));
 
 const TABS = [
   { path: 'documents', label: 'Documents', icon: Files },
@@ -71,6 +73,7 @@ const TABS = [
   { path: 'batch-import', label: 'Batch Import', icon: FolderArchive },
   { path: 'benchmarks', label: 'Benchmarks', icon: BarChart2 },
   { path: 'productivity-brain', label: 'Productivity Brain', icon: Brain },
+  { path: 'bid-intelligence', label: 'Bid Intelligence', icon: Target },
 ];
 
 export default function ProjectDetailPage() {
@@ -360,6 +363,16 @@ export default function ProjectDetailPage() {
             <ErrorBoundary key="productivity-brain">
               <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
                 <ProductivityBrainTab projectId={id} />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="bid-intelligence"
+          element={
+            <ErrorBoundary key="bid-intelligence">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
+                <BidIntelligenceTab />
               </Suspense>
             </ErrorBoundary>
           }

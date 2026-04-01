@@ -37,6 +37,7 @@ from apex.backend.routers import estimate_library as estimate_library_router
 from apex.backend.routers import batch_import as batch_import_router
 from apex.backend.routers import benchmarks as benchmarks_router
 from apex.backend.routers import productivity_brain as productivity_brain_router
+from apex.backend.routers import bid_intelligence as bid_intelligence_router
 from apex.backend.services.ws_manager import ws_manager
 
 # Logging — honour LOG_LEVEL env var
@@ -144,6 +145,7 @@ app.include_router(estimate_library_router.router)
 app.include_router(batch_import_router.router)
 app.include_router(benchmarks_router.router)
 app.include_router(productivity_brain_router.router)
+app.include_router(bid_intelligence_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
 if _is_dev:
