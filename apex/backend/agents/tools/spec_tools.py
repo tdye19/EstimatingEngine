@@ -70,8 +70,8 @@ async def llm_parse_spec_sections(
 
     Returns (sections, total_input_tokens, total_output_tokens).
     sections is a list of dicts: {section_number, division_number, title, content}.
-    Sends full text to Anthropic (200K context) and Gemini (1M context);
-    chunks for Ollama (small context).
+    Sends full text to Anthropic (200K), Gemini (1M), and OpenRouter (large-context
+    models including Gemini); chunks for Ollama (small context).
     Raises an exception on parse failure — caller should fall back to regex.
     """
     from apex.backend.agents.tools.spec_prompts import (
@@ -144,8 +144,9 @@ async def llm_parse_spec_sections(
         )
         if finish == "MAX_TOKENS":
             logger.warning(
-                "Agent 2: Gemini hit MAX_TOKENS — response likely truncated "
-                "(%d output tokens)", response.output_tokens,
+                "Agent 2: LLM hit MAX_TOKENS — response likely truncated "
+                "(%d output tokens, provider=%s)", response.output_tokens,
+                provider.provider_name,
             )
         return parse_and_validate_llm_sections(response.content)
 

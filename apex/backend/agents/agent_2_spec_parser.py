@@ -43,11 +43,12 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     Uses LLM-first parsing with regex fallback.
     Returns dict with sections_parsed count, parse_method, and per-doc details.
 
-    Uses Gemini 2.5 Flash for cost optimization — 10x cheaper than Sonnet for
-    structured extraction. Upgrade to Sonnet via AGENT_2_PROVIDER=anthropic if
-    parsing quality degrades on complex specs.
+    Uses Gemini 2.5 Flash (via OpenRouter) for cost optimization — 10x cheaper
+    than Sonnet for structured extraction. Upgrade to Sonnet via
+    AGENT_2_PROVIDER=anthropic if parsing quality degrades on complex specs.
+    Also supports direct Gemini API via AGENT_2_PROVIDER=gemini.
     """
-    # Resolve LLM provider once for this run (Agent 2 routes to Gemini 2.5 Flash)
+    # Resolve LLM provider once for this run (Agent 2 defaults to Gemini via OpenRouter)
     provider = None
     llm_available = False
     try:
