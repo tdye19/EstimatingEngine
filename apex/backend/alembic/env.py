@@ -48,6 +48,7 @@ from apex.backend.models import (  # noqa: F401, E402
 )
 from apex.backend.models.historical_line_item import HistoricalLineItem  # noqa: F401, E402
 from apex.backend.models.document_association import DocumentAssociation, DocumentGroup  # noqa: F401, E402
+from apex.backend.services.productivity_brain.models import PBProject, PBLineItem  # noqa: F401, E402
 
 # ---------------------------------------------------------------------------
 # Alembic Config

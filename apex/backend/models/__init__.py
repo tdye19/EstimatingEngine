@@ -22,6 +22,7 @@ from apex.backend.models.estimate_library import EstimateLibraryEntry, EstimateL
 from apex.backend.models.historical_line_item import HistoricalLineItem
 from apex.backend.models.document_association import DocumentGroup, DocumentAssociation
 from apex.backend.models.productivity_benchmark import ProductivityBenchmark
+from apex.backend.services.productivity_brain.models import PBProject, PBLineItem
 
 __all__ = [
     "User", "Organization", "Project", "Document", "SpecSection",
@@ -33,4 +34,5 @@ __all__ = [
     "HistoricalLineItem",
     "DocumentGroup", "DocumentAssociation",
     "ProductivityBenchmark",
+    "PBProject", "PBLineItem",
 ]
