@@ -1,7 +1,8 @@
 """LLM Provider abstraction layer.
 
-Supports Ollama (local), Anthropic Claude API, OpenRouter (Anthropic-compatible
-proxy), and Google Gemini API via a unified interface.  Provider selection uses a three-level fallback chain:
+Supports Ollama (local), Anthropic Claude API, OpenRouter (Anthropic Messages API
+for Claude models, OpenAI Chat Completions API for non-Claude models like Gemini),
+and Google Gemini API via a unified interface.  Provider selection uses a three-level fallback chain:
 
   1. Per-agent env vars  → AGENT_{N}_PROVIDER / AGENT_{N}_MODEL
      (or AGENT_{N}_{SUFFIX}_PROVIDER for sub-roles like AGENT_6_SUMMARY)
@@ -306,10 +307,11 @@ class AnthropicProvider(LLMProvider):
 # ---------------------------------------------------------------------------
 
 class OpenRouterProvider(AnthropicProvider):
-    """Route Anthropic-format requests through OpenRouter.
+    """Route requests through OpenRouter.
 
-    Reuses AnthropicProvider logic — only the base URL, auth headers, and
-    health check differ.  Prompt caching passes through to Anthropic.
+    Uses Anthropic Messages API (/messages) for Claude models (with prompt
+    caching) and OpenAI Chat Completions API (/chat/completions) for all
+    other models (Gemini, Llama, etc.).
     """
 
     def __init__(self, api_key: str, model: Optional[str] = None):
@@ -321,7 +323,12 @@ class OpenRouterProvider(AnthropicProvider):
     def provider_name(self) -> str:
         return "openrouter"
 
-    # -- Override complete() only to swap headers and client key -----------
+    def _is_anthropic_model(self) -> bool:
+        """Return True if the model should use Anthropic Messages API format."""
+        model_lower = self._model.lower()
+        return "claude" in model_lower or "anthropic" in model_lower
+
+    # -- Override complete() to pick the right API format ------------------
 
     async def complete(
         self,
@@ -330,6 +337,25 @@ class OpenRouterProvider(AnthropicProvider):
         temperature: float = 0.0,
         max_tokens: int = 4096,
     ) -> LLMResponse:
+        if self._is_anthropic_model():
+            return await self._complete_messages(
+                system_prompt, user_prompt, temperature, max_tokens,
+            )
+        return await self._complete_chat(
+            system_prompt, user_prompt, temperature, max_tokens,
+        )
+
+    # -- Anthropic Messages API path (Claude models) -----------------------
+
+    async def _complete_messages(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> LLMResponse:
+        """Anthropic Messages format — used for Claude models via OpenRouter."""
+        logger.info("OpenRouter: using messages format for model %s", self._model)
         url = f"{self._base_url}/messages"
         headers = {
             "Authorization": f"Bearer {self._api_key}",
@@ -405,6 +431,81 @@ class OpenRouterProvider(AnthropicProvider):
             duration_ms=duration_ms,
             cache_creation_input_tokens=cache_creation,
             cache_read_input_tokens=cache_read,
+        )
+
+    # -- OpenAI Chat Completions API path (Gemini, Llama, etc.) ------------
+
+    async def _complete_chat(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> LLMResponse:
+        """OpenAI Chat Completions format — used for non-Claude models via OpenRouter."""
+        logger.info("OpenRouter: using chat/completions format for model %s", self._model)
+        url = f"{self._base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/tdye19/EstimatingEngine",
+            "X-Title": "APEX Estimating Engine",
+        }
+        payload = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        start = time.monotonic()
+        _pooled = get_http_client("openrouter")
+        if _pooled is not None:
+            try:
+                resp = await _pooled.post("/chat/completions", json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+            except (httpx.TransportError, RuntimeError) as exc:
+                logger.warning(
+                    "OpenRouter pooled client error (%s) — creating fresh client for this request",
+                    exc,
+                )
+                fresh = httpx.AsyncClient(timeout=300.0)
+                try:
+                    resp = await fresh.post(url, json=payload, headers=headers)
+                    resp.raise_for_status()
+                    data = resp.json()
+                finally:
+                    await fresh.aclose()
+        else:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+
+        duration_ms = (time.monotonic() - start) * 1000
+
+        # OpenAI Chat Completions response format
+        choices = data.get("choices", [])
+        if not choices:
+            raise ValueError(f"OpenRouter chat/completions returned no choices: {data}")
+        content = choices[0]["message"]["content"]
+        finish_reason = choices[0].get("finish_reason", "unknown")
+
+        usage = data.get("usage", {})
+        input_tokens = usage.get("prompt_tokens", 0)
+        output_tokens = usage.get("completion_tokens", 0)
+
+        return LLMResponse(
+            content=content,
+            model=self._model,
+            provider="openrouter",
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            duration_ms=duration_ms,
+            finish_reason=finish_reason,
         )
 
     async def health_check(self) -> bool:
