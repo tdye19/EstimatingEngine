@@ -1,9 +1,13 @@
-"""Agent 2: Spec Parser Agent.
+"""Agent 2: Spec Parser Agent (v2 — parameter extraction, no quantities).
 
-Parses CSI MasterFormat Division specs into structured scope items.
+Parses CSI MasterFormat specs to identify in-scope divisions and extract
+material specifications, quality requirements, and referenced standards.
+Does NOT extract quantities — those come from drawings, not specs.
+
 Uses LLM parsing when a provider is available; falls back to regex.
 """
 
+import json
 import logging
 from sqlalchemy.orm import Session
 from apex.backend.utils.async_helper import run_async as _run_async
@@ -13,10 +17,8 @@ from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.spec_tools import (
     regex_parse_spec_sections,
-    section_extractor_tool,
     division_mapper_tool,
     keyword_tagger_tool,
-    parse_section_parts,
     llm_parse_spec_sections,
 )
 
@@ -37,9 +39,35 @@ def _parse_document(
     return regex_parse_spec_sections(doc_text), "regex", 0, 0
 
 
+def _build_work_description(section_data: dict) -> str:
+    """Build a work_description string from v2 spec parameters for downstream agents."""
+    parts = []
+    title = section_data.get("title", "")
+    if title:
+        parts.append(title)
+
+    mat = section_data.get("material_specs", {})
+    if mat:
+        # Flatten material specs into readable lines
+        for k, v in mat.items():
+            if isinstance(v, list):
+                parts.append(f"{k}: {', '.join(str(x) for x in v)}")
+            elif isinstance(v, bool):
+                parts.append(f"{k}: {'Yes' if v else 'No'}")
+            elif v is not None:
+                parts.append(f"{k}: {v}")
+
+    quals = section_data.get("quality_requirements", [])
+    if quals:
+        parts.append("Quality: " + "; ".join(quals[:5]))
+
+    return "\n".join(parts) if parts else ""
+
+
 def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     """Parse all spec documents for a project into structured sections.
 
+    v2: Extracts spec parameters (materials, quality, standards) — not quantities.
     Uses LLM-first parsing with regex fallback.
     Returns dict with sections_parsed count, parse_method, and per-doc details.
 
@@ -106,21 +134,36 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
             sections_created = 0
             for section_data in extracted:
                 div_info = division_mapper_tool(section_data["section_number"])
-                keywords = keyword_tagger_tool(section_data.get("content", ""))
-                parts = parse_section_parts(section_data.get("content", ""))
+
+                # Build backward-compatible fields from v2 data so Agents 3/4 still work
+                work_desc = _build_work_description(section_data)
+                raw_content = section_data.get("raw_content", "")
+
+                # Extract keywords from work description + raw content
+                keywords = keyword_tagger_tool(work_desc + " " + raw_content)
+
+                # Referenced standards serve as materials_referenced for backward compat
+                standards = section_data.get("referenced_standards", [])
+                submittals = section_data.get("submittals_required", [])
 
                 spec_section = SpecSection(
                     project_id=project_id,
                     document_id=doc.id,
                     division_number=div_info["division_number"],
                     section_number=section_data["section_number"],
-                    title=section_data["title"],
-                    work_description=parts["work_description"],
-                    materials_referenced=parts["materials_referenced"],
-                    execution_requirements=parts["execution_requirements"],
-                    submittal_requirements=parts["submittal_requirements"],
+                    title=section_data.get("title", ""),
+                    # Backward-compatible fields (Agents 3/4 read these)
+                    work_description=work_desc,
+                    materials_referenced=standards,
+                    execution_requirements="",
+                    submittal_requirements="\n".join(submittals) if submittals else "",
                     keywords=keywords,
-                    raw_text=section_data.get("content", "")[:5000],
+                    raw_text=raw_content[:5000] if raw_content else "",
+                    # v2 spec parameter fields
+                    in_scope=section_data.get("in_scope", True),
+                    material_specs=section_data.get("material_specs", {}),
+                    quality_requirements=section_data.get("quality_requirements", []),
+                    referenced_standards=standards,
                 )
                 db.add(spec_section)
                 sections_created += 1

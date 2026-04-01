@@ -178,14 +178,18 @@ async def llm_parse_spec_sections(
             if key not in all_sections:
                 all_sections[key] = s
 
-    # Normalize to dict shape compatible with the agent's existing code
+    # Normalize to v2 dict shape (spec parameters, no content/quantities)
     result = []
     for s in all_sections.values():
         result.append({
             "section_number": s["section_number"],
             "division_number": s["division"],
-            "title": s["title"],
-            "content": s["content"],
+            "title": s.get("section_title") or s.get("title", ""),
+            "in_scope": s.get("in_scope", True),
+            "material_specs": s.get("material_specs", {}),
+            "quality_requirements": s.get("quality_requirements", []),
+            "submittals_required": s.get("submittals_required", []),
+            "referenced_standards": s.get("referenced_standards", []),
         })
 
     section_nums = [s["section_number"] for s in result]
@@ -210,10 +214,12 @@ def section_extractor_tool(text: str, division_range: str = None) -> list[dict]:
 
 
 def regex_parse_spec_sections(text: str, division_range: str = None) -> list[dict]:
-    """Extract CSI MasterFormat sections using regex (original rule-based logic).
+    """Extract CSI MasterFormat sections using regex (rule-based fallback).
 
-    Preserved as the fallback path when LLM is unavailable or fails.
-    Returns list of dicts: section_number, title, content, division_number.
+    Identifies sections and extracts referenced standards from the text.
+    Does NOT attempt to extract material parameters or quantities —
+    the fallback guarantees "we know what divisions are in the spec."
+    Returns list of dicts compatible with the v2 agent output shape.
     """
     sections = []
 
@@ -229,16 +235,32 @@ def regex_parse_spec_sections(text: str, division_range: str = None) -> list[dic
         if division_range and div != division_range:
             continue
 
-        # Extract content between this section and the next
+        # Extract raw text between this section and the next for standard/submittal extraction
         start = match.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else min(start + 5000, len(text))
-        content = text[start:end].strip()
+        raw_content = text[start:end].strip()
+
+        # Extract referenced standards (best-effort regex)
+        standards = re.findall(r'(?:ASTM|ACI|AISI|ANSI|AWS|CRSI|AISC)\s+[A-Z]?\d+(?:[/-]\d+)?', raw_content)
+        standards = sorted(set(s.strip() for s in standards))
+
+        # Extract submittals (best-effort regex)
+        submittals = []
+        sub_match = re.search(r'(?i)SUBMITTALS?(.*?)(?=\n\s*\d+\.\d+|\nPART|$)', raw_content, re.DOTALL)
+        if sub_match:
+            sub_lines = [l.strip() for l in sub_match.group(1).strip().split('\n') if l.strip()]
+            submittals = sub_lines[:10]
 
         sections.append({
             "section_number": sec_num,
             "division_number": div,
             "title": title,
-            "content": content[:3000],
+            "in_scope": True,
+            "material_specs": {},
+            "quality_requirements": [],
+            "submittals_required": submittals,
+            "referenced_standards": standards,
+            "raw_content": raw_content[:3000],
         })
 
     return sections

@@ -42,8 +42,28 @@ class Agent1Output(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Agent 2 — Spec Parser
+# Agent 2 — Spec Parser (v2: parameter extraction, no quantities)
 # ---------------------------------------------------------------------------
+
+class SpecParameter(BaseModel):
+    """A single spec section with extracted material parameters."""
+    division: str                                       # CSI division e.g. "03"
+    section_number: str                                 # full CSI e.g. "03 30 00"
+    section_title: str
+    in_scope: bool = True
+    material_specs: dict = Field(default_factory=dict)  # division-specific params
+    quality_requirements: list[str] = []
+    submittals_required: list[str] = []
+    referenced_standards: list[str] = []                # ACI, ASTM, CRSI codes
+
+
+class Agent2ParsedOutput(BaseModel):
+    """Schema for LLM response across all chunks (merged)."""
+    sections: list[SpecParameter] = []
+    project_name: Optional[str] = None
+    project_type: Optional[str] = None
+    spec_date: Optional[str] = None
+
 
 class Agent2DocResult(BaseModel):
     document_id: int

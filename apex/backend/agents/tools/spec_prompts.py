@@ -1,4 +1,7 @@
-"""Prompt templates for Agent 2's LLM-powered CSI spec parsing."""
+"""Prompt templates for Agent 2's LLM-powered CSI spec parsing.
+
+v2: Extract spec parameters (material specs, quality, standards) — NOT quantities.
+"""
 
 import json
 import logging
@@ -7,41 +10,114 @@ import re
 logger = logging.getLogger("apex.tools.spec_prompts")
 
 
-SPEC_PARSER_SYSTEM_PROMPT = """You are a construction specification parser specializing in CSI MasterFormat 2016.
+SPEC_PARSER_SYSTEM_PROMPT = """\
+You are parsing a construction specification. Extract ONLY what the spec defines:
+- CSI divisions and sections that are IN SCOPE for this project
+- Material specifications (concrete PSI, rebar grade/size, finish class, etc.)
+- Quality and testing requirements
+- Submittal requirements
+- Referenced standards (ACI, ASTM, CRSI, ANSI, AWS codes)
 
-Your task: Extract all specification sections from the provided construction document text. For each section found, identify:
+Do NOT extract or estimate quantities, dimensions, counts, areas, volumes, or any
+numeric values that would come from drawings. Those are not in specifications.
 
-1. **section_number** — The CSI MasterFormat section number (format: XX XX XX, e.g., "03 30 00" for Cast-in-Place Concrete)
-2. **title** — The section title as written in the document
-3. **division** — The 2-digit CSI division number (first two digits, e.g., "03" for Concrete)
-4. **content** — The full text content of that section (all paragraphs, articles, and sub-articles)
-5. **page_reference** — Page number(s) where this section appears, if identifiable from the text
+For each section found, return a JSON object with these fields:
+{
+  "section_number": "03 30 00",
+  "section_title": "Cast-in-Place Concrete",
+  "division": "03",
+  "in_scope": true,
+  "material_specs": { ... },
+  "quality_requirements": ["..."],
+  "submittals_required": ["..."],
+  "referenced_standards": ["..."]
+}
+
+The material_specs object depends on the division:
+
+For concrete (03 30 00):
+  {"psi": "4000", "mix_design": "...", "aggregate_type": "...", "admixtures": "...",
+   "fly_ash_pct": "...", "slump": "...", "air_content": "..."}
+
+For rebar (03 20 00):
+  {"bar_sizes": ["#4", "#5"], "spacing": "...", "grade": "60", "epoxy_coated": true,
+   "splice_requirements": "..."}
+
+For formwork (03 10 00):
+  {"type": "...", "finish_class": "...", "reuse_cycles": "...", "shore_requirements": "..."}
+
+For finishing (03 35 00):
+  {"finish_class": "...", "curing_method": "...", "curing_astm": "ASTM C309",
+   "tolerances_aci": "ACI 117"}
+
+For waterproofing (07 10 00):
+  {"type": "...", "thickness_mils": "...", "manufacturer": "..."}
+
+For structural steel (05 12 00):
+  {"grade": "...", "connection_type": "...", "fireproofing": "..."}
+
+For any other division, use a generic format:
+  {"requirements": ["bullet 1", "bullet 2", ...]}
 
 Rules:
-- Only extract sections that have a valid CSI MasterFormat number
-- Include ALL content under each section — articles, sub-articles, paragraphs, notes, and referenced standards
-- If a section spans multiple pages, capture all content
-- Do not invent sections that don't exist in the document
-- If the document references a section but doesn't include its content, note it with content: "Referenced but not included"
-- Preserve technical terminology, product names, and specification language exactly as written
+- If the spec does not specify a parameter, OMIT it. Do not guess or use default values.
+- Only extract sections with valid CSI MasterFormat numbers.
+- Set in_scope to false only if the spec explicitly excludes the section.
+- Preserve technical terminology and product names exactly as written.
+- quality_requirements: testing frequency, inspection holds, tolerances, lab requirements.
+- submittals_required: shop drawings, mix designs, product data, samples, mock-ups.
+- referenced_standards: list standard codes like "ACI 318", "ASTM C150", "CRSI Manual".
 
-Respond ONLY with a JSON array. No markdown, no explanation, no preamble. Example format:
+Respond ONLY with a JSON array. No markdown, no explanation, no preamble.
+
+Example:
 [
   {
     "section_number": "03 30 00",
-    "title": "Cast-in-Place Concrete",
+    "section_title": "Cast-in-Place Concrete",
     "division": "03",
-    "content": "PART 1 - GENERAL\\n1.1 SUMMARY\\nA. This section includes...",
-    "page_reference": "45-52"
+    "in_scope": true,
+    "material_specs": {
+      "psi": "4000",
+      "aggregate_type": "crushed limestone",
+      "slump": "4 inches",
+      "air_content": "5-7%"
+    },
+    "quality_requirements": [
+      "Cylinder tests per ACI 318: one set of 4 per 50 CY or fraction",
+      "Slump test at point of placement"
+    ],
+    "submittals_required": [
+      "Mix design per ACI 211",
+      "Ready-mix plant certification"
+    ],
+    "referenced_standards": ["ACI 318", "ACI 211", "ASTM C150", "ASTM C33"]
+  },
+  {
+    "section_number": "03 20 00",
+    "section_title": "Concrete Reinforcing",
+    "division": "03",
+    "in_scope": true,
+    "material_specs": {
+      "bar_sizes": ["#4", "#5", "#6"],
+      "grade": "60",
+      "epoxy_coated": false
+    },
+    "quality_requirements": ["Mill certificates required"],
+    "submittals_required": ["Shop drawings", "Mill certificates"],
+    "referenced_standards": ["ASTM A615", "CRSI Manual of Standard Practice"]
   }
 ]
 
-If no valid CSI sections are found in the text, respond with an empty array: []"""
+If no valid CSI sections are found, respond with an empty array: []"""
 
 
-SPEC_PARSER_USER_PROMPT = """Parse the following construction specification document text and extract all CSI MasterFormat sections as JSON.
+SPEC_PARSER_USER_PROMPT = """\
+Parse the following construction specification text. Extract all CSI MasterFormat \
+sections with their material specifications, quality requirements, submittals, and \
+referenced standards. Do NOT extract quantities or dimensions.
 
-DOCUMENT TEXT:
+SPECIFICATION TEXT:
 ---
 {document_text}
 ---
@@ -148,7 +224,10 @@ def _try_repair_json(raw: str) -> str:
 
 
 def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
-    """Parse LLM response into validated section dicts.
+    """Parse LLM response into validated section dicts (v2: spec parameters).
+
+    Returns list of dicts with: section_number, division, section_title, in_scope,
+    material_specs, quality_requirements, submittals_required, referenced_standards.
 
     Raises ValueError if response is not valid JSON or sections are malformed.
     """
@@ -177,15 +256,15 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
     skipped_numbers = 0
 
     for s in sections:
-        # Required fields check
-        if not all(k in s for k in ("section_number", "title", "division", "content")):
+        # v2 required fields: section_number + section_title (or title) + division
+        title = s.get("section_title") or s.get("title")
+        if not s.get("section_number") or not title or not s.get("division"):
             skipped_fields += 1
-            continue  # Skip malformed entries
+            continue
 
         # Normalize section number to "XX XX XX" format
         raw_num = str(s["section_number"]).strip()
         digits = re.sub(r'\D', '', raw_num)
-        # Pad short digit strings with leading zeros (e.g. "33000" -> "033000")
         if 3 <= len(digits) <= 5:
             digits = digits.zfill(6)
         if len(digits) != 6:
@@ -198,10 +277,13 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
 
         validated.append({
             "section_number": num,
-            "title": str(s["title"]).strip(),
+            "section_title": str(title).strip(),
             "division": division,
-            "content": str(s["content"]),
-            "page_reference": str(s.get("page_reference", "")),
+            "in_scope": s.get("in_scope", True),
+            "material_specs": s.get("material_specs") or {},
+            "quality_requirements": s.get("quality_requirements") or [],
+            "submittals_required": s.get("submittals_required") or [],
+            "referenced_standards": s.get("referenced_standards") or [],
         })
 
     if skipped_fields or skipped_numbers:

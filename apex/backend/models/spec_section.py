@@ -1,6 +1,6 @@
 """Spec Section model for parsed CSI MasterFormat divisions."""
 
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, JSON
+from sqlalchemy import Boolean, Column, Integer, String, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from apex.backend.db.database import Base
 from apex.backend.models.base import TimestampMixin
@@ -21,6 +21,12 @@ class SpecSection(Base, TimestampMixin):
     submittal_requirements = Column(Text, nullable=True)
     keywords = Column(JSON, nullable=True)  # extracted keyword tags
     raw_text = Column(Text, nullable=True)
+
+    # v2 spec parameter fields (Agent 2 AGENT2-V2)
+    in_scope = Column(Boolean, default=True, nullable=False, server_default="1")
+    material_specs = Column(JSON, nullable=True)       # division-specific material parameters
+    quality_requirements = Column(JSON, nullable=True)  # testing/inspection requirements
+    referenced_standards = Column(JSON, nullable=True)  # ACI, ASTM, CRSI codes
 
     project = relationship("Project", back_populates="spec_sections")
     document = relationship("Document", back_populates="spec_sections")
