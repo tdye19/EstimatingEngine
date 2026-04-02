@@ -1,8 +1,25 @@
-"""Agent 4: Quantity Takeoff Agent.
+"""Agent 4 — Rate Recommendation Engine (v2)
 
-Extracts measurable quantities from scope descriptions and drawing references.
-Uses LLM-first extraction (Claude Sonnet) when a provider is available;
-falls back to regex per-section extraction if the LLM is unavailable or fails.
+Takes the estimator's uploaded takeoff (WinEst .xlsx or CSV) and matches
+each line item against Productivity Brain historical data. Produces rate
+recommendations with deviation flags.
+
+NO LLM. NO QUANTITY GENERATION. ALL MATH IS DETERMINISTIC PYTHON.
+
+Inputs:
+  - Uploaded takeoff file(s) on the project (detected by classification)
+  - Productivity Brain data in the database
+
+Outputs:
+  - TakeoffItemV2 rows saved to DB with rate recommendations
+  - Agent4Output contract
+
+Flow:
+  1. Find uploaded takeoff document(s) for this project
+  2. Parse using takeoff_parser
+  3. Match against PB using rate_engine
+  4. Save TakeoffItemV2 rows with recommendations
+  5. Return Agent4Output
 """
 
 import json
@@ -13,30 +30,170 @@ from typing import Literal, Optional
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
-from apex.backend.models.spec_section import SpecSection
-from apex.backend.models.takeoff_item import TakeoffItem
-from apex.backend.models.gap_report import GapReport
+from apex.backend.models.document import Document
+from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.agents.pipeline_contracts import validate_agent_output
-from apex.backend.utils.async_helper import run_async as _run_async
-from apex.backend.services.token_tracker import log_token_usage
-from apex.backend.agents.tools.takeoff_tools import (
-    quantity_calculator_tool,
-    drawing_reference_linker_tool,
-)
+from apex.backend.services.takeoff_parser.parser import parse_takeoff
+from apex.backend.services.rate_engine.matcher import RateMatchingEngine
 
 logger = logging.getLogger("apex.agent.takeoff")
 
 
 # ---------------------------------------------------------------------------
-# Pydantic contract for individual takeoff items returned by the LLM
+# Main agent entry point (v2)
 # ---------------------------------------------------------------------------
 
+def run_takeoff_agent(db: Session, project_id: int) -> dict:
+    """Match estimator takeoff against Productivity Brain historical rates.
+
+    1. Find the most recent takeoff/xlsx/csv document for this project.
+    2. Parse it into TakeoffLineItem list via takeoff_parser.
+    3. Match against PB data via RateMatchingEngine.
+    4. Save TakeoffItemV2 rows (clean slate per run).
+    5. Return validated Agent4Output.
+    """
+    # ── Step 1: Find takeoff document ────────────────────────────────────
+    doc = _find_takeoff_document(db, project_id)
+
+    if doc is None:
+        logger.info(
+            "Agent 4: no takeoff file found for project %d — returning empty output",
+            project_id,
+        )
+        return validate_agent_output(4, {
+            "takeoff_items_parsed": 0,
+            "items_matched": 0,
+            "items_unmatched": 0,
+            "recommendations": [],
+            "flags_summary": {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0},
+            "parse_format": None,
+            "overall_optimism_score": None,
+        })
+
+    # ── Step 2: Parse takeoff file ───────────────────────────────────────
+    logger.info("Agent 4: parsing takeoff file %s (doc_id=%d)", doc.filename, doc.id)
+    items, fmt = parse_takeoff(doc.file_path)
+    logger.info("Agent 4: parsed %d line items (format=%s)", len(items), fmt)
+
+    if not items:
+        logger.warning("Agent 4: parser returned 0 items from %s", doc.filename)
+        return validate_agent_output(4, {
+            "takeoff_items_parsed": 0,
+            "items_matched": 0,
+            "items_unmatched": 0,
+            "recommendations": [],
+            "flags_summary": {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0},
+            "parse_format": fmt,
+            "overall_optimism_score": None,
+        })
+
+    # ── Step 3: Match against PB historical data ─────────────────────────
+    engine = RateMatchingEngine(db)
+    recommendations = engine.match_all(items)
+    optimism = engine.compute_optimism_score(recommendations)
+    flags = engine.flags_summary(recommendations)
+
+    items_matched = sum(1 for r in recommendations if r.flag != "NO_DATA")
+    items_unmatched = sum(1 for r in recommendations if r.flag == "NO_DATA")
+
+    logger.info(
+        "Agent 4: %d matched, %d unmatched, optimism=%.2f%%",
+        items_matched,
+        items_unmatched,
+        optimism if optimism is not None else 0.0,
+    )
+
+    # ── Step 4: Save TakeoffItemV2 rows (clean slate) ────────────────────
+    db.query(TakeoffItemV2).filter(
+        TakeoffItemV2.project_id == project_id,
+    ).delete(synchronize_session="fetch")
+
+    for rec in recommendations:
+        row = TakeoffItemV2(
+            project_id=project_id,
+            row_number=rec.line_item_row,
+            wbs_area=rec.wbs_area,
+            activity=rec.activity,
+            quantity=rec.estimator_rate,  # estimator's production rate stored as reference
+            unit=rec.unit,
+            crew=rec.crew,
+            production_rate=rec.estimator_rate,
+            labor_cost_per_unit=rec.labor_cost_per_unit,
+            material_cost_per_unit=rec.material_cost_per_unit,
+            historical_avg_rate=rec.historical_avg_rate,
+            historical_min_rate=rec.historical_min_rate,
+            historical_max_rate=rec.historical_max_rate,
+            sample_count=rec.sample_count,
+            confidence=rec.confidence,
+            delta_pct=rec.delta_pct,
+            flag=rec.flag,
+            matching_projects=json.dumps(rec.matching_projects) if rec.matching_projects else None,
+        )
+        db.add(row)
+
+    db.commit()
+    logger.info("Agent 4: saved %d TakeoffItemV2 rows for project %d", len(recommendations), project_id)
+
+    # ── Step 5: Return validated output ──────────────────────────────────
+    return validate_agent_output(4, {
+        "takeoff_items_parsed": len(items),
+        "items_matched": items_matched,
+        "items_unmatched": items_unmatched,
+        "recommendations": [r.model_dump() for r in recommendations],
+        "flags_summary": flags,
+        "parse_format": fmt,
+        "overall_optimism_score": optimism,
+    })
+
+
+def _find_takeoff_document(db: Session, project_id: int) -> Optional[Document]:
+    """Find the most recent takeoff document for a project.
+
+    Looks for documents classified as 'takeoff', 'winest', or 'xlsx',
+    or with filename ending in .xlsx or .csv.
+    """
+    # First try: explicit classification match
+    doc = (
+        db.query(Document)
+        .filter(
+            Document.project_id == project_id,
+            Document.is_deleted == False,  # noqa: E712
+            Document.classification.in_(["takeoff", "winest", "xlsx"]),
+        )
+        .order_by(Document.id.desc())
+        .first()
+    )
+    if doc:
+        return doc
+
+    # Second try: filename extension match
+    doc = (
+        db.query(Document)
+        .filter(
+            Document.project_id == project_id,
+            Document.is_deleted == False,  # noqa: E712
+        )
+        .order_by(Document.id.desc())
+        .all()
+    )
+    for d in doc:
+        if d.filename and (d.filename.lower().endswith(".xlsx") or d.filename.lower().endswith(".csv")):
+            return d
+
+    return None
+
+
+# ===========================================================================
+# DEPRECATED — v1 quantity generation (kept for backward compatibility)
+# ===========================================================================
+
+# Pydantic contract for individual takeoff items returned by the LLM (v1)
 class LLMTakeoffItem(BaseModel):
     """Validated takeoff item parsed from LLM JSON response."""
 
     description: str
     quantity: float
-    unit: str                                    # SF, LF, CY, EA, LS, …
+    unit: str                                    # SF, LF, CY, EA, LS, ...
     csi_code: str
     source: Literal["specified", "estimated"]
     confidence: Literal["high", "medium", "low"]
@@ -72,10 +229,6 @@ class LLMTakeoffItem(BaseModel):
     def _normalise_confidence(cls, v: str) -> str:
         return str(v).lower().strip()
 
-
-# ---------------------------------------------------------------------------
-# System prompt (built once at module load)
-# ---------------------------------------------------------------------------
 
 TAKEOFF_SYSTEM_PROMPT = (
     "You are a senior construction quantity surveyor. Extract ALL quantifiable items "
@@ -136,12 +289,9 @@ TAKEOFF_SYSTEM_PROMPT = (
 )
 
 
-# ---------------------------------------------------------------------------
-# User prompt builder
-# ---------------------------------------------------------------------------
-
 def _build_user_prompt(sections: list, gap_items: list) -> str:
     """Construct the user-facing prompt containing spec sections + gap items."""
+    import json as _json
     spec_data = []
     for s in sections:
         text = ""
@@ -155,7 +305,7 @@ def _build_user_prompt(sections: list, gap_items: list) -> str:
             "section_number": s.section_number,
             "title": s.title,
             "division": s.division_number,
-            "content": text.strip()[:3000],   # per-section cap to stay within context
+            "content": text.strip()[:3000],
         })
 
     gap_data = [
@@ -173,13 +323,13 @@ def _build_user_prompt(sections: list, gap_items: list) -> str:
     parts = [
         "SPEC SECTIONS — extract all quantifiable items; mark source as 'specified' "
         "when the quantity is explicit, 'estimated' when vague or inferred:",
-        json.dumps(spec_data, indent=2),
+        _json.dumps(spec_data, indent=2),
     ]
     if gap_data:
         parts += [
             "\nGAP ANALYSIS ITEMS — scope identified as missing from the specs. "
             "Provide estimated quantities for each gap item and set source='estimated':",
-            json.dumps(gap_data, indent=2),
+            _json.dumps(gap_data, indent=2),
         ]
     parts.append(
         "\nExtract ALL quantifiable takeoff items from the spec sections above and "
@@ -188,14 +338,9 @@ def _build_user_prompt(sections: list, gap_items: list) -> str:
     return "\n".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# LLM response parser + Pydantic validator
-# ---------------------------------------------------------------------------
-
 def _parse_llm_takeoff_response(raw_content: str) -> list[LLMTakeoffItem]:
     """Strip markdown fences, parse JSON, and validate each item with Pydantic."""
     content = raw_content.strip()
-    # Strip optional markdown code fences (```json … ```)
     content = re.sub(r"^```(?:json)?\s*", "", content)
     content = re.sub(r"\s*```$", "", content.strip())
     content = content.strip()
@@ -225,45 +370,6 @@ def _parse_llm_takeoff_response(raw_content: str) -> list[LLMTakeoffItem]:
     return validated
 
 
-# ---------------------------------------------------------------------------
-# Async LLM call
-# ---------------------------------------------------------------------------
-
-async def _llm_takeoff(
-    sections: list,
-    gap_items: list,
-    provider,
-) -> tuple[list[LLMTakeoffItem] | None, int, int]:
-    """Send spec + gap context to LLM and return (validated_items, input_tokens, output_tokens)."""
-    user_prompt = _build_user_prompt(sections, gap_items)
-    try:
-        response = await provider.complete(
-            system_prompt=TAKEOFF_SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            temperature=0.1,
-            max_tokens=8192,
-        )
-        logger.info(
-            f"Agent 4 LLM: provider={response.provider} model={response.model} "
-            f"input_tokens={response.input_tokens} output_tokens={response.output_tokens} "
-            f"total_tokens={response.input_tokens + response.output_tokens} "
-            f"duration_ms={response.duration_ms:.0f}ms"
-        )
-        items = _parse_llm_takeoff_response(response.content)
-        logger.info(f"Agent 4 LLM: parsed {len(items)} validated takeoff items")
-        return (
-            items, response.input_tokens, response.output_tokens,
-            response.cache_creation_input_tokens, response.cache_read_input_tokens,
-        )
-    except Exception as exc:
-        logger.error(f"Agent 4 LLM: call failed — {exc}")
-        return None, 0, 0, 0, 0
-
-
-# ---------------------------------------------------------------------------
-# Confidence literal → float conversion
-# ---------------------------------------------------------------------------
-
 _CONFIDENCE_MAP: dict[str, float] = {
     "high": 0.90,
     "medium": 0.65,
@@ -271,30 +377,28 @@ _CONFIDENCE_MAP: dict[str, float] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Main agent entry point
-# ---------------------------------------------------------------------------
-
-def run_takeoff_agent(db: Session, project_id: int) -> dict:
+# DEPRECATED — v1 quantity generation from specs via LLM
+def run_takeoff_agent_v1(db: Session, project_id: int) -> dict:
     """Generate quantity takeoff items from parsed spec sections.
 
-    Execution order:
-      1. Try LLM path — get_llm_provider(agent_number=4), health-check, call LLM.
-         The LLM receives both spec sections AND gap analysis results so it can
-         attempt quantities for gap items (marked "estimated") as well as items
-         with explicit quantities (marked "specified").
-      2. If LLM is unavailable or returns nothing, fall back to per-section
-         regex extraction (original logic, unchanged).
-
-    Returns dict validated against the Agent4Output pipeline contract.
+    DEPRECATED — v1 only. Kept for backward compatibility.
+    Use run_takeoff_agent() (v2) which matches uploaded takeoffs against PB data.
     """
-    # Fetch all parsed spec sections for this project
+    from apex.backend.models.spec_section import SpecSection
+    from apex.backend.models.takeoff_item import TakeoffItem
+    from apex.backend.models.gap_report import GapReport
+    from apex.backend.utils.async_helper import run_async as _run_async
+    from apex.backend.services.token_tracker import log_token_usage
+    from apex.backend.agents.tools.takeoff_tools import (
+        quantity_calculator_tool,
+        drawing_reference_linker_tool,
+    )
+
     sections = db.query(SpecSection).filter(
         SpecSection.project_id == project_id,
         SpecSection.is_deleted == False,  # noqa: E712
     ).all()
 
-    # Fetch gap items from the most recent gap report for this project
     gap_report = (
         db.query(GapReport)
         .filter(
@@ -313,9 +417,6 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
     _in_tok = 0
     _out_tok = 0
 
-    # -----------------------------------------------------------------------
-    # Attempt LLM-powered quantity takeoff
-    # -----------------------------------------------------------------------
     provider = None
     llm_available = False
 
@@ -325,20 +426,38 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
         llm_available = _run_async(provider.health_check())
         if llm_available:
             logger.info(
-                f"Agent 4: LLM provider '{provider.provider_name}/{provider.model_name}' "
+                f"Agent 4 v1: LLM provider '{provider.provider_name}/{provider.model_name}' "
                 "is available — attempting LLM quantity takeoff"
             )
         else:
             logger.info(
-                f"Agent 4: LLM provider '{provider.provider_name}' is unreachable — "
+                f"Agent 4 v1: LLM provider '{provider.provider_name}' is unreachable — "
                 "using regex fallback"
             )
     except Exception as exc:
         logger.warning(
-            f"Agent 4: could not initialise LLM provider ({exc}) — using regex fallback"
+            f"Agent 4 v1: could not initialise LLM provider ({exc}) — using regex fallback"
         )
 
     if llm_available and provider is not None and sections:
+        async def _llm_takeoff(sections, gap_items, provider):
+            user_prompt = _build_user_prompt(sections, gap_items)
+            try:
+                response = await provider.complete(
+                    system_prompt=TAKEOFF_SYSTEM_PROMPT,
+                    user_prompt=user_prompt,
+                    temperature=0.1,
+                    max_tokens=8192,
+                )
+                items = _parse_llm_takeoff_response(response.content)
+                return (
+                    items, response.input_tokens, response.output_tokens,
+                    response.cache_creation_input_tokens, response.cache_read_input_tokens,
+                )
+            except Exception as exc:
+                logger.error(f"Agent 4 v1 LLM: call failed — {exc}")
+                return None, 0, 0, 0, 0
+
         llm_items, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
             _llm_takeoff(sections, gap_items, provider)
         )
@@ -357,7 +476,6 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
                 cache_read_tokens=_cache_read,
             )
             takeoff_method = "llm"
-            # Build a lookup so LLM items can be linked back to their SpecSection
             section_by_number = {s.section_number: s for s in sections}
 
             for item in llm_items:
@@ -365,7 +483,6 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
                 section_id = section.id if section else None
                 confidence_float = _CONFIDENCE_MAP.get(item.confidence, 0.65)
 
-                # Compose notes: include source tag, optional LLM notes, and flag
                 note_parts = [f"source={item.source}"]
                 if item.notes:
                     note_parts.append(item.notes)
@@ -397,25 +514,14 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
                 })
 
             db.commit()
-            logger.info(
-                f"Agent 4: LLM path succeeded — {items_created} takeoff items created "
-                f"(provider={provider.provider_name}, model={provider.model_name}, "
-                f"tokens_used={tokens_used})"
-            )
         else:
             logger.warning(
-                "Agent 4: LLM returned no valid takeoff items — falling back to regex extraction"
+                "Agent 4 v1: LLM returned no valid takeoff items — falling back to regex extraction"
             )
 
-    # -----------------------------------------------------------------------
-    # Regex fallback — original per-section extraction logic
-    # -----------------------------------------------------------------------
     if takeoff_method == "regex":
-        logger.info("Agent 4: using regex quantity extraction (fallback path)")
-
         for section in sections:
             try:
-                # Combine work description and execution requirements for extraction
                 text_to_parse = ""
                 if section.work_description:
                     text_to_parse += section.work_description + "\n"
@@ -463,15 +569,16 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
         db.commit()
 
     logger.info(
-        f"Agent 4 complete: {items_created} items created, "
-        f"method={takeoff_method}, tokens_used={tokens_used}, "
-        f"sections={len(sections)}, gap_items={len(gap_items)}"
+        f"Agent 4 v1 complete: {items_created} items created, "
+        f"method={takeoff_method}, tokens_used={tokens_used}"
     )
 
-    return validate_agent_output(4, {
+    # Note: v1 output validates against the OLD contract shape which no longer
+    # matches Agent4Output v2. This function is only kept for reference.
+    return {
         "items_created": items_created,
         "sections_processed": len(sections),
         "results": section_results,
         "takeoff_method": takeoff_method,
         "tokens_used": tokens_used,
-    })
+    }

@@ -140,6 +140,67 @@ def bulk_update_takeoff(
     return APIResponse(success=True, message=f"Updated {count} takeoff items", data={"updated": count})
 
 
+@router.get("/{project_id}/rate-intelligence", response_model=APIResponse)
+def get_rate_intelligence(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    """Return Agent 4 v2 rate recommendations for this project."""
+    import json as _json
+    from apex.backend.models.takeoff_v2 import TakeoffItemV2
+
+    get_authorized_project(project_id, user, db)
+    rows = db.query(TakeoffItemV2).filter(
+        TakeoffItemV2.project_id == project_id,
+    ).order_by(TakeoffItemV2.row_number).all()
+
+    recommendations = []
+    flags_count = {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0}
+    deltas = []
+
+    for r in rows:
+        flag = r.flag or "NO_DATA"
+        flags_count[flag] = flags_count.get(flag, 0) + 1
+
+        try:
+            projects = _json.loads(r.matching_projects) if r.matching_projects else []
+        except (ValueError, TypeError):
+            projects = []
+
+        if r.delta_pct is not None and flag != "NO_DATA":
+            deltas.append(r.delta_pct)
+
+        recommendations.append({
+            "line_item_row": r.row_number,
+            "activity": r.activity,
+            "unit": r.unit,
+            "crew": r.crew,
+            "wbs_area": r.wbs_area,
+            "estimator_rate": r.production_rate,
+            "historical_avg_rate": r.historical_avg_rate,
+            "historical_min_rate": r.historical_min_rate,
+            "historical_max_rate": r.historical_max_rate,
+            "historical_spread": None,
+            "sample_count": r.sample_count or 0,
+            "confidence": r.confidence or "none",
+            "delta_pct": r.delta_pct,
+            "flag": flag,
+            "matching_projects": projects,
+            "labor_cost_per_unit": r.labor_cost_per_unit,
+            "material_cost_per_unit": r.material_cost_per_unit,
+        })
+
+    items_matched = sum(1 for r in recommendations if r["flag"] != "NO_DATA")
+    optimism = round(sum(deltas) / len(deltas), 2) if deltas else None
+
+    return APIResponse(success=True, data={
+        "takeoff_items_parsed": len(rows),
+        "items_matched": items_matched,
+        "items_unmatched": len(rows) - items_matched,
+        "recommendations": recommendations,
+        "flags_summary": flags_count,
+        "overall_optimism_score": optimism,
+        "parse_format": None,
+    })
+
+
 @router.get("/{project_id}/labor-estimates", response_model=APIResponse)
 def get_labor_estimates(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
     get_authorized_project(project_id, user, db)

@@ -155,6 +155,9 @@ export const getGapReport = (projectId) =>
 export const getTakeoff = (projectId) =>
   request(`/projects/${projectId}/takeoff`);
 
+export const getRateIntelligence = (projectId) =>
+  request(`/projects/${projectId}/rate-intelligence`);
+
 export const updateTakeoffItem = (projectId, itemId, data) =>
   request(`/projects/${projectId}/takeoff/${itemId}`, {
     method: 'PUT',

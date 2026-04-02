@@ -31,6 +31,7 @@ class Project(Base, TimestampMixin):
     spec_sections = relationship("SpecSection", back_populates="project", cascade="all, delete-orphan")
     gap_reports = relationship("GapReport", back_populates="project", cascade="all, delete-orphan")
     takeoff_items = relationship("TakeoffItem", back_populates="project", cascade="all, delete-orphan")
+    takeoff_items_v2 = relationship("TakeoffItemV2", back_populates="project", cascade="all, delete-orphan")
     labor_estimates = relationship("LaborEstimate", back_populates="project", cascade="all, delete-orphan")
     estimates = relationship("Estimate", back_populates="project", cascade="all, delete-orphan")
     project_actuals = relationship("ProjectActual", back_populates="project", cascade="all, delete-orphan")

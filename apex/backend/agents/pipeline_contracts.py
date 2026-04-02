@@ -96,10 +96,11 @@ class Agent3Output(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Agent 4 — Quantity Takeoff
+# Agent 4 — Rate Recommendation Engine (v2)
 # ---------------------------------------------------------------------------
 
-class Agent4SectionResult(BaseModel):
+# DEPRECATED — v1 only
+class Agent4SectionResult_V1(BaseModel):
     section_id: Optional[int] = None   # None for gap-derived items with no matching section
     section_number: str
     quantity: Optional[float] = None
@@ -110,12 +111,50 @@ class Agent4SectionResult(BaseModel):
     error: Optional[str] = None
 
 
+class TakeoffLineItem(BaseModel):
+    """Single line item parsed from estimator's uploaded takeoff."""
+    row_number: int
+    wbs_area: Optional[str] = None
+    activity: str
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    crew: Optional[str] = None
+    production_rate: Optional[float] = None
+    labor_cost_per_unit: Optional[float] = None
+    material_cost_per_unit: Optional[float] = None
+    csi_code: Optional[str] = None
+
+
+class RateRecommendation(BaseModel):
+    """Rate intelligence for a single takeoff line item."""
+    line_item_row: int
+    activity: str
+    unit: Optional[str] = None
+    crew: Optional[str] = None
+    estimator_rate: Optional[float] = None
+    historical_avg_rate: Optional[float] = None
+    historical_min_rate: Optional[float] = None
+    historical_max_rate: Optional[float] = None
+    historical_spread: Optional[float] = None
+    sample_count: int = 0
+    confidence: str = "none"  # "high" (n>=10), "medium" (5-9), "low" (1-4), "none" (0)
+    delta_pct: Optional[float] = None  # positive = optimistic vs history, negative = conservative
+    flag: str = "NO_DATA"  # "OK" (<5%), "REVIEW" (5-20%), "UPDATE" (>20%), "NO_DATA"
+    matching_projects: list[str] = []
+    labor_cost_per_unit: Optional[float] = None
+    material_cost_per_unit: Optional[float] = None
+    wbs_area: Optional[str] = None
+
+
 class Agent4Output(BaseModel):
-    items_created: int = Field(ge=0)
-    sections_processed: int = Field(ge=0)
-    results: list[Agent4SectionResult] = []
-    takeoff_method: Optional[str] = None   # "llm" or "regex"
-    tokens_used: Optional[int] = None      # Total LLM tokens consumed (0 for regex path)
+    """Agent 4 v2 — Rate Recommendation Engine output."""
+    takeoff_items_parsed: int = Field(ge=0)
+    items_matched: int = Field(ge=0)
+    items_unmatched: int = Field(ge=0)
+    recommendations: list[RateRecommendation] = []
+    flags_summary: dict = {}  # {"OK": N, "REVIEW": N, "UPDATE": N, "NO_DATA": N}
+    parse_format: Optional[str] = None  # "26col", "21col", "csv", "manual"
+    overall_optimism_score: Optional[float] = None  # avg delta across all matched items
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +266,7 @@ AGENT_NAMES = {
     1: "Document Ingestion Agent",
     2: "Spec Parser Agent",
     3: "Scope Gap Analysis Agent",
-    4: "Quantity Takeoff Agent",
+    4: "Rate Intelligence Agent",
     5: "Labor Productivity Agent",
     6: "Estimate Assembly Agent",
     7: "IMPROVE Feedback Agent",

@@ -23,6 +23,7 @@ from apex.backend.models.historical_line_item import HistoricalLineItem
 from apex.backend.models.document_association import DocumentGroup, DocumentAssociation
 from apex.backend.models.productivity_benchmark import ProductivityBenchmark
 from apex.backend.services.productivity_brain.models import PBProject, PBLineItem
+from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.services.bid_intelligence.models import BIEstimate
 
 __all__ = [
@@ -37,4 +38,5 @@ __all__ = [
     "ProductivityBenchmark",
     "PBProject", "PBLineItem",
     "BIEstimate",
+    "TakeoffItemV2",
 ]

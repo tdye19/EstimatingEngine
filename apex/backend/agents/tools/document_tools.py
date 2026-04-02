@@ -82,6 +82,10 @@ def file_classifier_tool(filename: str, text_sample: str = "") -> str:
     text_lower = text_sample.lower()[:2000]
 
     # Filename-based classification
+    if any(kw in fname_lower for kw in ["takeoff", "estimate"]) and any(
+        fname_lower.endswith(ext) for ext in (".xlsx", ".csv", ".xls")
+    ):
+        return "takeoff"
     if any(kw in fname_lower for kw in ["spec", "specification", "section"]):
         return "spec"
     if any(kw in fname_lower for kw in ["drawing", "dwg", "plan", "sheet", "detail"]):

@@ -27,6 +27,7 @@ import {
   Search,
   Brain,
   Target,
+  Scale,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -52,11 +53,13 @@ const BatchUploadTab = lazy(() => import('../components/tabs/BatchUploadTab'));
 const BenchmarkDashboardTab = lazy(() => import('../components/tabs/BenchmarkDashboardTab'));
 const ProductivityBrainTab = lazy(() => import('../components/tabs/ProductivityBrainTab'));
 const BidIntelligenceTab = lazy(() => import('../components/tabs/BidIntelligenceTab'));
+const RateIntelligenceTab = lazy(() => import('../components/tabs/RateIntelligenceTab'));
 
 const TABS = [
   { path: 'documents', label: 'Documents', icon: Files },
   { path: 'spec-sections', label: 'Spec Sections', icon: BookOpen },
   { path: 'gap-report', label: 'Gap Report', icon: AlertTriangle },
+  { path: 'rate-intelligence', label: 'Rate Intelligence', icon: Scale },
   { path: 'takeoff', label: 'Takeoff', icon: Ruler },
   { path: 'labor', label: 'Labor', icon: HardHat },
   { path: 'estimate', label: 'Estimate', icon: Calculator },
@@ -88,6 +91,7 @@ export default function ProjectDetailPage() {
   const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
   const [specRefreshKey, setSpecRefreshKey] = useState(0);
   const [gapRefreshKey, setGapRefreshKey] = useState(0);
+  const [rateIntelRefreshKey, setRateIntelRefreshKey] = useState(0);
   const [takeoffRefreshKey, setTakeoffRefreshKey] = useState(0);
   const [laborRefreshKey, setLaborRefreshKey] = useState(0);
   const [estimateRefreshKey, setEstimateRefreshKey] = useState(0);
@@ -142,6 +146,7 @@ export default function ProjectDetailPage() {
     setDocumentsRefreshKey((k) => k + 1);
     setSpecRefreshKey((k) => k + 1);
     setGapRefreshKey((k) => k + 1);
+    setRateIntelRefreshKey((k) => k + 1);
     setTakeoffRefreshKey((k) => k + 1);
     setLaborRefreshKey((k) => k + 1);
     setEstimateRefreshKey((k) => k + 1);
@@ -158,7 +163,7 @@ export default function ProjectDetailPage() {
       1: () => setDocumentsRefreshKey((k) => k + 1),
       2: () => setSpecRefreshKey((k) => k + 1),
       3: () => setGapRefreshKey((k) => k + 1),
-      4: () => setTakeoffRefreshKey((k) => k + 1),
+      4: () => { setRateIntelRefreshKey((k) => k + 1); setTakeoffRefreshKey((k) => k + 1); },
       5: () => setLaborRefreshKey((k) => k + 1),
       6: () => setEstimateRefreshKey((k) => k + 1),
       7: () => setVarianceRefreshKey((k) => k + 1),
@@ -303,6 +308,16 @@ export default function ProjectDetailPage() {
         />
         <Route path="spec-sections" element={<ErrorBoundary key="spec-sections"><SpecSectionsTab projectId={id} refreshKey={specRefreshKey} /></ErrorBoundary>} />
         <Route path="gap-report" element={<ErrorBoundary key="gap-report"><GapReportTab projectId={id} refreshKey={gapRefreshKey} /></ErrorBoundary>} />
+        <Route
+          path="rate-intelligence"
+          element={
+            <ErrorBoundary key="rate-intelligence">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
+                <RateIntelligenceTab projectId={id} refreshKey={rateIntelRefreshKey} />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
         <Route path="takeoff" element={<ErrorBoundary key="takeoff"><TakeoffTab projectId={id} refreshKey={takeoffRefreshKey} /></ErrorBoundary>} />
         <Route path="labor" element={<ErrorBoundary key="labor"><LaborTab projectId={id} refreshKey={laborRefreshKey} /></ErrorBoundary>} />
         <Route path="estimate" element={<ErrorBoundary key="estimate"><EstimateTab projectId={id} project={project} refreshKey={estimateRefreshKey} /></ErrorBoundary>} />
