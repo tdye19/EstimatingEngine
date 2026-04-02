@@ -48,7 +48,7 @@ AGENT_DEFINITIONS = {
     3: ("Scope Gap Analysis Agent",   "apex.backend.agents.agent_3_gap_analysis","run_gap_analysis_agent"),
     4: ("Rate Intelligence Agent",    "apex.backend.agents.agent_4_takeoff",     "run_takeoff_agent"),
     5: ("Field Calibration Agent",    "apex.backend.agents.agent_5_labor",       "run_labor_agent"),
-    6: ("Estimate Assembly Agent",    "apex.backend.agents.agent_6_assembly",    "run_assembly_agent"),
+    6: ("Intelligence Report Agent",  "apex.backend.agents.agent_6_assembly",    "run_assembly_agent"),
     7: ("IMPROVE Feedback Agent",     "apex.backend.agents.agent_7_improve",     "run_improve_agent"),
 }
 

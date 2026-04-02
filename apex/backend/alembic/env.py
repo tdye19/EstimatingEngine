@@ -52,6 +52,7 @@ from apex.backend.services.productivity_brain.models import PBProject, PBLineIte
 from apex.backend.services.bid_intelligence.models import BIEstimate  # noqa: F401, E402
 from apex.backend.models.takeoff_v2 import TakeoffItemV2  # noqa: F401, E402
 from apex.backend.models.field_actuals import FieldActualsProject, FieldActualsLineItem  # noqa: F401, E402
+from apex.backend.models.intelligence_report import IntelligenceReportModel  # noqa: F401, E402
 
 # ---------------------------------------------------------------------------
 # Alembic Config

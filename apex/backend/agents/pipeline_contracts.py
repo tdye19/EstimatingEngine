@@ -221,10 +221,11 @@ class Agent5Output(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Agent 6 — Estimate Assembly
+# Agent 6 — Intelligence Report Assembly (v2)
 # ---------------------------------------------------------------------------
 
-class Agent6Output(BaseModel):
+# DEPRECATED — v1 only
+class Agent6Output_V1(BaseModel):
     estimate_id: int
     version: int = Field(ge=1)
     total_direct_cost: float = Field(ge=0)
@@ -233,8 +234,100 @@ class Agent6Output(BaseModel):
     divisions_covered: list[str] = []
     bid_bond_required: bool = False
     executive_summary: Optional[str] = None
-    summary_method: Optional[str] = None   # "llm" or "template"
+    summary_method: Optional[str] = None
     summary_tokens_used: Optional[int] = None
+
+
+class RateIntelligenceSummary(BaseModel):
+    """Aggregated rate intelligence from Agent 4."""
+    total_items: int = 0
+    items_ok: int = 0           # <5% deviation
+    items_review: int = 0       # 5-20% deviation
+    items_update: int = 0       # >20% deviation
+    items_no_match: int = 0     # no PB data
+    avg_deviation_pct: Optional[float] = None
+    optimism_score: Optional[float] = None
+    top_deviations: list[dict] = []         # top 5 items by absolute deviation
+
+
+class FieldCalibrationSummary(BaseModel):
+    """Aggregated field calibration from Agent 5."""
+    items_with_field_data: int = 0
+    items_without_field_data: int = 0
+    avg_calibration_factor: Optional[float] = None
+    optimistic_count: int = 0
+    conservative_count: int = 0
+    aligned_count: int = 0
+    critical_alerts: list[dict] = []   # items with cal_factor < 0.80 or > 1.20
+
+
+class ScopeRiskSummary(BaseModel):
+    """Aggregated scope risk from Agent 3."""
+    total_gaps: int = 0
+    critical_gaps: int = 0
+    watch_gaps: int = 0
+    spec_vs_takeoff_gaps: int = 0
+    missing_divisions: list[str] = []
+    top_risks: list[dict] = []          # top 5 gaps by severity
+
+
+class ComparableProjectSummary(BaseModel):
+    """Comparable projects from Bid Intelligence."""
+    comparable_count: int = 0
+    avg_bid_amount: Optional[float] = None
+    avg_cost_per_cy: Optional[float] = None
+    avg_production_mh_per_cy: Optional[float] = None
+    company_hit_rate: Optional[float] = None
+    comparables: list[dict] = []        # top 5 most similar projects
+
+
+class IntelligenceReport(BaseModel):
+    """Agent 6 v2 — full intelligence report output."""
+    project_id: int
+    report_version: int = 1
+    generated_at: str = ""
+
+    # Estimator's numbers (from takeoff)
+    takeoff_item_count: int = 0
+    takeoff_total_labor: Optional[float] = None
+    takeoff_total_material: Optional[float] = None
+
+    # Intelligence sections
+    rate_intelligence: RateIntelligenceSummary = RateIntelligenceSummary()
+    field_calibration: FieldCalibrationSummary = FieldCalibrationSummary()
+    scope_risk: ScopeRiskSummary = ScopeRiskSummary()
+    comparable_projects: ComparableProjectSummary = ComparableProjectSummary()
+
+    # Spec intelligence
+    spec_sections_parsed: int = 0
+    material_specs_extracted: int = 0
+
+    # Overall assessment
+    overall_risk_level: str = "unknown"    # "low", "moderate", "high", "critical"
+    confidence_score: Optional[float] = None  # 0-100 based on data coverage
+    executive_narrative: str = ""           # LLM-generated or template
+    narrative_method: str = "template"      # "llm" or "template"
+
+    # PB coverage
+    pb_projects_loaded: int = 0
+    pb_activities_available: int = 0
+
+    # Token tracking
+    narrative_tokens_used: int = 0
+
+
+class Agent6Output(BaseModel):
+    """Agent 6 v2 — Intelligence Report output for pipeline contract."""
+    report_id: int = Field(ge=0)
+    report_version: int = Field(ge=1)
+    overall_risk_level: str = ""
+    confidence_score: Optional[float] = None
+    rate_items_flagged: int = Field(ge=0, default=0)
+    scope_gaps_found: int = Field(ge=0, default=0)
+    field_calibration_alerts: int = Field(ge=0, default=0)
+    comparable_projects_found: int = Field(ge=0, default=0)
+    narrative_method: str = "template"
+    narrative_tokens_used: int = Field(ge=0, default=0)
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +392,7 @@ AGENT_NAMES = {
     3: "Scope Gap Analysis Agent",
     4: "Rate Intelligence Agent",
     5: "Field Calibration Agent",
-    6: "Estimate Assembly Agent",
+    6: "Intelligence Report Agent",
     7: "IMPROVE Feedback Agent",
 }
 
