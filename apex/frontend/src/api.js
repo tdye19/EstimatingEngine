@@ -161,6 +161,9 @@ export const getRateIntelligence = (projectId) =>
 export const getFieldCalibration = (projectId) =>
   request(`/projects/${projectId}/field-calibration`);
 
+export const getIntelligenceReport = (projectId) =>
+  request(`/projects/${projectId}/intelligence-report`);
+
 export const uploadFieldActuals = (file, projectName, region) => {
   const form = new FormData();
   form.append('file', file);

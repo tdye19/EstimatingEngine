@@ -28,6 +28,7 @@ import {
   Brain,
   Target,
   Scale,
+  Shield,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -55,8 +56,10 @@ const ProductivityBrainTab = lazy(() => import('../components/tabs/ProductivityB
 const BidIntelligenceTab = lazy(() => import('../components/tabs/BidIntelligenceTab'));
 const RateIntelligenceTab = lazy(() => import('../components/tabs/RateIntelligenceTab'));
 const FieldCalibrationTab = lazy(() => import('../components/tabs/FieldCalibrationTab'));
+const IntelligenceReportTab = lazy(() => import('../components/tabs/IntelligenceReportTab'));
 
 const TABS = [
+  { path: 'intelligence-report', label: 'Intelligence Report', icon: Shield },
   { path: 'documents', label: 'Documents', icon: Files },
   { path: 'spec-sections', label: 'Spec Sections', icon: BookOpen },
   { path: 'gap-report', label: 'Gap Report', icon: AlertTriangle },
@@ -105,6 +108,7 @@ export default function ProjectDetailPage() {
   const [subPackageRefreshKey, setSubPackageRefreshKey] = useState(0);
   const [versionsRefreshKey, setVersionsRefreshKey] = useState(0);
   const [comparisonRefreshKey, setComparisonRefreshKey] = useState(0);
+  const [intelReportRefreshKey, setIntelReportRefreshKey] = useState(0);
   const fileInputRef = useRef(null);
 
   const loadProject = () => {
@@ -159,6 +163,7 @@ export default function ProjectDetailPage() {
     setSubPackageRefreshKey((k) => k + 1);
     setVersionsRefreshKey((k) => k + 1);
     setComparisonRefreshKey((k) => k + 1);
+    setIntelReportRefreshKey((k) => k + 1);
   };
 
   const handleAgentComplete = (agentNumber) => {
@@ -169,7 +174,7 @@ export default function ProjectDetailPage() {
       3: () => setGapRefreshKey((k) => k + 1),
       4: () => { setRateIntelRefreshKey((k) => k + 1); setTakeoffRefreshKey((k) => k + 1); },
       5: () => { setFieldCalRefreshKey((k) => k + 1); setLaborRefreshKey((k) => k + 1); },
-      6: () => setEstimateRefreshKey((k) => k + 1),
+      6: () => { setEstimateRefreshKey((k) => k + 1); setIntelReportRefreshKey((k) => k + 1); },
       7: () => setVarianceRefreshKey((k) => k + 1),
     };
     refreshMap[agentNumber]?.();
@@ -298,6 +303,16 @@ export default function ProjectDetailPage() {
       {/* Tab content */}
       <Routes>
         <Route
+          path="intelligence-report"
+          element={
+            <ErrorBoundary key="intelligence-report">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
+                <IntelligenceReportTab projectId={id} refreshKey={intelReportRefreshKey} />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
           path="documents"
           element={
             <ErrorBoundary key="documents">
@@ -406,7 +421,7 @@ export default function ProjectDetailPage() {
             </ErrorBoundary>
           }
         />
-        <Route index element={<Navigate to="documents" replace />} />
+        <Route index element={<Navigate to="intelligence-report" replace />} />
       </Routes>
 
       {showEditModal && editForm && (

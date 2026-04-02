@@ -1,5 +1,7 @@
 """Report and data retrieval router."""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
@@ -10,6 +12,7 @@ from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.labor_estimate import LaborEstimate
 from apex.backend.models.spec_section import SpecSection
+from apex.backend.models.intelligence_report import IntelligenceReportModel
 from apex.backend.models.user import User
 from apex.backend.utils.auth import require_auth, get_authorized_project
 from apex.backend.utils.csi_utils import parse_csi_division
@@ -20,6 +23,45 @@ from apex.backend.utils.schemas import (
 )
 
 router = APIRouter(prefix="/api/projects", tags=["reports"], dependencies=[Depends(require_auth)])
+
+
+@router.get("/{project_id}/intelligence-report", response_model=APIResponse)
+def get_intelligence_report(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    """Return the latest Intelligence Report for this project."""
+    get_authorized_project(project_id, user, db)
+    report = (
+        db.query(IntelligenceReportModel)
+        .filter_by(project_id=project_id)
+        .order_by(IntelligenceReportModel.version.desc())
+        .first()
+    )
+
+    if not report:
+        return APIResponse(
+            success=True,
+            data={"status": "no_report", "message": "Run the pipeline to generate an intelligence report."},
+        )
+
+    return APIResponse(success=True, data={
+        "report_id": report.id,
+        "version": report.version,
+        "generated_at": report.generated_at.isoformat() if report.generated_at else None,
+        "overall_risk_level": report.overall_risk_level,
+        "confidence_score": report.confidence_score,
+        "takeoff_item_count": report.takeoff_item_count,
+        "takeoff_total_labor": report.takeoff_total_labor,
+        "takeoff_total_material": report.takeoff_total_material,
+        "rate_intelligence": json.loads(report.rate_intelligence_json) if report.rate_intelligence_json else {},
+        "field_calibration": json.loads(report.field_calibration_json) if report.field_calibration_json else {},
+        "scope_risk": json.loads(report.scope_risk_json) if report.scope_risk_json else {},
+        "comparable_projects": json.loads(report.comparable_projects_json) if report.comparable_projects_json else {},
+        "spec_sections_parsed": report.spec_sections_parsed,
+        "material_specs_extracted": report.material_specs_extracted,
+        "executive_narrative": report.executive_narrative,
+        "narrative_method": report.narrative_method,
+        "pb_projects_loaded": report.pb_projects_loaded,
+        "pb_activities_available": report.pb_activities_available,
+    })
 
 
 @router.get("/{project_id}/spec-sections", response_model=APIResponse)

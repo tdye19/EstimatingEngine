@@ -44,7 +44,9 @@
       "Bash(xargs basename:*)",
       "Bash(npx vite:*)",
       "Bash(APEX_DEV_MODE=true python -c \"from apex.backend.routers.reports import get_rate_intelligence; print\\('endpoint import OK'\\)\")",
-      "Bash(APEX_DEV_MODE=true python3:*)"
+      "Bash(APEX_DEV_MODE=true python3:*)",
+      "Bash(APEX_DEV_MODE=true python:*)",
+      "Bash(node -e ':*)"
     ]
   }
 }
