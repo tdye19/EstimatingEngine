@@ -93,6 +93,7 @@ class Agent3Output(BaseModel):
     overall_score: Optional[float] = None
     report_id: int
     sections_analyzed: int = Field(ge=0)
+    spec_vs_takeoff_gaps: int = 0   # count of spec-vs-takeoff cross-reference gaps
 
 
 # ---------------------------------------------------------------------------

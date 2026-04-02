@@ -29,6 +29,141 @@ logger = logging.getLogger("apex.agent.gap_analysis")
 
 
 # ---------------------------------------------------------------------------
+# Spec-vs-Takeoff cross-reference keyword mapping
+# ---------------------------------------------------------------------------
+
+SCOPE_CROSS_REFERENCES = {
+    "concrete": ["forms", "formwork", "rebar", "reinforcement", "finishing", "curing", "placement"],
+    "foundations": ["excavation", "backfill", "forms", "rebar", "concrete", "waterproofing"],
+    "walls": ["forms", "formwork", "rebar", "concrete", "bracing", "scaffolding"],
+    "slabs": ["forms", "formwork", "rebar", "concrete", "finishing", "curing", "vapor barrier"],
+    "post-tension": ["pt strand", "pt cable", "stressing", "anchor", "grout"],
+    "precast": ["erection", "grouting", "connections", "bearing pads"],
+    "structural steel": ["erection", "bolting", "welding", "shear studs", "fireproofing"],
+    "masonry": ["mortar", "grout", "reinforcement", "lintels", "flashing"],
+    "roofing": ["insulation", "flashing", "drains", "membrane", "vapor barrier"],
+    "excavation": ["shoring", "dewatering", "backfill", "compaction"],
+}
+
+
+def _spec_vs_takeoff_gaps(db, project_id, spec_sections):
+    """Compare parsed spec sections against uploaded takeoff items.
+
+    Flags divisions present in spec but absent from takeoff, and
+    cross-references related activities (e.g., concrete without formwork).
+
+    Returns list of gap dicts ready for GapReportItem creation.
+    No LLM calls — keyword matching + cross-reference logic only.
+    """
+    from apex.backend.models.takeoff_v2 import TakeoffItemV2
+
+    rows = db.query(TakeoffItemV2).filter(
+        TakeoffItemV2.project_id == project_id,
+    ).all()
+
+    if not rows:
+        return []  # No takeoff uploaded — skip this pass
+
+    # Build searchable sets from takeoff
+    takeoff_activities_lower = set()
+    takeoff_text_blob = ""
+    for r in rows:
+        if r.activity:
+            takeoff_activities_lower.add(r.activity.lower().strip())
+            takeoff_text_blob += " " + r.activity.lower()
+        if r.wbs_area:
+            takeoff_text_blob += " " + r.wbs_area.lower()
+
+    gaps = []
+
+    # ── Pass 1: Division-level check ──────────────────────────────────
+    # For each spec section, check if the takeoff has ANY relevant activity
+    _DIVISION_KEYWORDS = {
+        "03": ["concrete", "formwork", "rebar", "reinforc", "slab", "footing", "foundation", "wall", "column"],
+        "04": ["masonry", "block", "brick", "mortar", "grout"],
+        "05": ["steel", "metal", "joist", "deck", "beam", "column", "erect"],
+        "07": ["roofing", "insulation", "waterproof", "membrane", "flashing", "sealant"],
+        "31": ["earthwork", "excavat", "grading", "backfill", "compaction"],
+        "32": ["paving", "asphalt", "concrete paving", "curb", "sidewalk", "landscape"],
+    }
+
+    spec_divisions = set()
+    for s in spec_sections:
+        div = (s.division_number or "")[:2].strip()
+        if div:
+            spec_divisions.add(div)
+
+    for div in spec_divisions:
+        keywords = _DIVISION_KEYWORDS.get(div, [])
+        if not keywords:
+            continue
+        has_match = any(kw in takeoff_text_blob for kw in keywords)
+        if not has_match:
+            div_name = _get_division_name(div)
+            gaps.append({
+                "division_number": div,
+                "section_number": None,
+                "title": f"Spec includes Division {div} ({div_name}) but takeoff has no matching items",
+                "gap_type": "spec_vs_takeoff",
+                "severity": "critical",
+                "description": (
+                    f"The project specification includes Division {div} ({div_name}) "
+                    f"but no takeoff line items match expected activities for this division. "
+                    f"Keywords checked: {', '.join(keywords[:5])}."
+                ),
+                "recommendation": (
+                    f"Review Division {div} scope and confirm whether these items are included "
+                    f"in your takeoff or intentionally excluded."
+                ),
+            })
+
+    # ── Pass 2: Activity cross-reference check ────────────────────────
+    # If takeoff has an activity matching a key, check associated activities exist
+    for scope_key, required_companions in SCOPE_CROSS_REFERENCES.items():
+        # Check if any takeoff activity matches the scope key
+        key_present = any(scope_key in act for act in takeoff_activities_lower)
+        if not key_present:
+            continue
+
+        for companion in required_companions:
+            companion_present = companion in takeoff_text_blob
+            if not companion_present:
+                gaps.append({
+                    "division_number": None,
+                    "section_number": None,
+                    "title": f"Takeoff includes {scope_key} but missing associated {companion}",
+                    "gap_type": "spec_vs_takeoff",
+                    "severity": "critical",
+                    "description": (
+                        f"Your takeoff includes items related to '{scope_key}' but no line item "
+                        f"for '{companion}' was found. This is commonly required scope that may "
+                        f"be missing from your estimate."
+                    ),
+                    "recommendation": (
+                        f"Check whether '{companion}' is included elsewhere in your estimate "
+                        f"(e.g., as a sub-bid or general conditions item). If not, add it."
+                    ),
+                })
+
+    return gaps
+
+
+def _get_division_name(div: str) -> str:
+    """Short name for a CSI division number."""
+    names = {
+        "01": "General Requirements", "02": "Existing Conditions", "03": "Concrete",
+        "04": "Masonry", "05": "Metals", "06": "Wood/Plastics/Composites",
+        "07": "Thermal/Moisture Protection", "08": "Openings", "09": "Finishes",
+        "10": "Specialties", "11": "Equipment", "12": "Furnishings",
+        "13": "Special Construction", "14": "Conveying Equipment",
+        "21": "Fire Suppression", "22": "Plumbing", "23": "HVAC",
+        "26": "Electrical", "27": "Communications", "28": "Electronic Safety",
+        "31": "Earthwork", "32": "Exterior Improvements", "33": "Utilities",
+    }
+    return names.get(div, f"Division {div}")
+
+
+# ---------------------------------------------------------------------------
 # Pydantic contract for individual gap items returned by the LLM
 # ---------------------------------------------------------------------------
 
@@ -411,17 +546,57 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
 
     db.commit()
 
+    # -----------------------------------------------------------------------
+    # Spec-vs-Takeoff cross-reference pass (v2 enhancement)
+    # Runs AFTER existing gap analysis. No LLM — keyword matching only.
+    # -----------------------------------------------------------------------
+    svt_gap_count = 0
+    try:
+        svt_gaps = _spec_vs_takeoff_gaps(db, project_id, sections)
+        if svt_gaps:
+            for gap in svt_gaps:
+                db.add(GapReportItem(
+                    gap_report_id=report.id,
+                    division_number=gap.get("division_number"),
+                    section_number=gap.get("section_number"),
+                    title=gap["title"],
+                    gap_type=gap["gap_type"],
+                    severity=gap["severity"],
+                    description=gap.get("description"),
+                    recommendation=gap.get("recommendation"),
+                ))
+            db.commit()
+            svt_gap_count = len(svt_gaps)
+
+            # Update report totals
+            report.total_gaps = (report.total_gaps or 0) + svt_gap_count
+            report.critical_count = (report.critical_count or 0) + svt_gap_count  # all svt gaps are critical
+            report.summary = (report.summary or "") + f" Spec-vs-takeoff: {svt_gap_count} cross-reference gaps."
+            db.commit()
+
+            logger.info(
+                f"Agent 3: spec-vs-takeoff pass found {svt_gap_count} additional gaps"
+            )
+        else:
+            logger.info("Agent 3: spec-vs-takeoff pass — no additional gaps found")
+    except Exception as exc:
+        logger.warning(f"Agent 3: spec-vs-takeoff pass failed (non-fatal): {exc}")
+
+    total_gaps = scores["total_gaps"] + svt_gap_count
+    critical_total = scores["critical_count"] + svt_gap_count
+
     logger.info(
-        f"Agent 3 complete: {scores['total_gaps']} gaps, "
+        f"Agent 3 complete: {total_gaps} gaps ({svt_gap_count} spec-vs-takeoff), "
         f"analysis_method={analysis_method}, report_id={report.id}"
     )
 
     return validate_agent_output(3, {
-        "total_gaps": scores["total_gaps"],
-        "critical_count": scores["critical_count"],
+        "total_gaps": total_gaps,
+        "critical_count": critical_total,
         "moderate_count": scores["moderate_count"],
         "watch_count": scores["watch_count"],
         "overall_score": scores["overall_score"],
         "report_id": report.id,
         "sections_analyzed": len(parsed_sections),
+        "spec_vs_takeoff_gaps": svt_gap_count,
     })
