@@ -38,25 +38,32 @@ interface MSACatalogEntry {
   shortName: string;
   fullName: string;
   state: string;
-  mapX: number;   // % from left on the dashboard map overlay
-  mapY: number;   // % from top on the dashboard map overlay
+  lat: number;    // Latitude for Leaflet map
+  lng: number;    // Longitude for Leaflet map
   blsFips: string;  // 6-digit BLS LAUS FIPS code
   censusCbsa: string; // 5-digit Census CBSA code
 }
 
 const MSA_CATALOG: MSACatalogEntry[] = [
-  { id: 'phoenix',       shortName: 'Phoenix',       fullName: 'Phoenix-Mesa-Chandler, AZ',                    state: 'AZ', mapX: 18, mapY: 62, blsFips: '384200', censusCbsa: '38060' },
-  { id: 'nashville',     shortName: 'Nashville',     fullName: 'Nashville-Davidson--Murfreesboro--Franklin, TN',state: 'TN', mapX: 58, mapY: 55, blsFips: '347000', censusCbsa: '34980' },
-  { id: 'seattle',       shortName: 'Seattle',       fullName: 'Seattle-Tacoma-Bellevue, WA',                  state: 'WA', mapX:  8, mapY: 22, blsFips: '426600', censusCbsa: '42660' },
-  { id: 'dallas',        shortName: 'Dallas',        fullName: 'Dallas-Fort Worth-Arlington, TX',              state: 'TX', mapX: 38, mapY: 68, blsFips: '191000', censusCbsa: '19100' },
-  { id: 'detroit',       shortName: 'Detroit',       fullName: 'Detroit-Warren-Dearborn, MI',                  state: 'MI', mapX: 66, mapY: 30, blsFips: '198200', censusCbsa: '19820' },
-  { id: 'chicago',       shortName: 'Chicago',       fullName: 'Chicago-Naperville-Elgin, IL-IN-WI',           state: 'IL', mapX: 60, mapY: 32, blsFips: '169800', censusCbsa: '16980' },
-  { id: 'columbus',      shortName: 'Columbus',      fullName: 'Columbus, OH',                                 state: 'OH', mapX: 64, mapY: 38, blsFips: '184620', censusCbsa: '18140' },
-  { id: 'indianapolis',  shortName: 'Indianapolis',  fullName: 'Indianapolis-Carmel-Anderson, IN',             state: 'IN', mapX: 62, mapY: 40, blsFips: '267940', censusCbsa: '26900' },
-  { id: 'grand-rapids',  shortName: 'Grand Rapids',  fullName: 'Grand Rapids-Kentwood, MI',                   state: 'MI', mapX: 63, mapY: 28, blsFips: '241620', censusCbsa: '24340' },
-  { id: 'houston',       shortName: 'Houston',       fullName: 'Houston-The Woodlands-Sugar Land, TX',         state: 'TX', mapX: 42, mapY: 72, blsFips: '264200', censusCbsa: '26420' },
-  { id: 'denver',        shortName: 'Denver',        fullName: 'Denver-Aurora-Lakewood, CO',                   state: 'CO', mapX: 30, mapY: 52, blsFips: '197400', censusCbsa: '19740' },
-  { id: 'atlanta',       shortName: 'Atlanta',       fullName: 'Atlanta-Sandy Springs-Alpharetta, GA',         state: 'GA', mapX: 62, mapY: 62, blsFips: '120600', censusCbsa: '12060' },
+  { id: 'phoenix',        shortName: 'Phoenix',        fullName: 'Phoenix-Mesa-Chandler, AZ',                    state: 'AZ', lat: 33.4484, lng: -112.0740, blsFips: '384200', censusCbsa: '38060' },
+  { id: 'nashville',      shortName: 'Nashville',      fullName: 'Nashville-Davidson--Murfreesboro--Franklin, TN',state: 'TN', lat: 36.1627, lng:  -86.7816, blsFips: '347000', censusCbsa: '34980' },
+  { id: 'seattle',        shortName: 'Seattle',        fullName: 'Seattle-Tacoma-Bellevue, WA',                  state: 'WA', lat: 47.6062, lng: -122.3321, blsFips: '426600', censusCbsa: '42660' },
+  { id: 'dallas',         shortName: 'Dallas',         fullName: 'Dallas-Fort Worth-Arlington, TX',              state: 'TX', lat: 32.7767, lng:  -96.7970, blsFips: '191000', censusCbsa: '19100' },
+  { id: 'detroit',        shortName: 'Detroit',        fullName: 'Detroit-Warren-Dearborn, MI',                  state: 'MI', lat: 42.3314, lng:  -83.0458, blsFips: '198200', censusCbsa: '19820' },
+  { id: 'chicago',        shortName: 'Chicago',        fullName: 'Chicago-Naperville-Elgin, IL-IN-WI',           state: 'IL', lat: 41.8781, lng:  -87.6298, blsFips: '169800', censusCbsa: '16980' },
+  { id: 'columbus',       shortName: 'Columbus',       fullName: 'Columbus, OH',                                 state: 'OH', lat: 39.9612, lng:  -82.9988, blsFips: '184620', censusCbsa: '18140' },
+  { id: 'indianapolis',   shortName: 'Indianapolis',   fullName: 'Indianapolis-Carmel-Anderson, IN',             state: 'IN', lat: 39.7684, lng:  -86.1581, blsFips: '267940', censusCbsa: '26900' },
+  { id: 'grand-rapids',   shortName: 'Grand Rapids',   fullName: 'Grand Rapids-Kentwood, MI',                   state: 'MI', lat: 42.9634, lng:  -85.6681, blsFips: '241620', censusCbsa: '24340' },
+  { id: 'houston',        shortName: 'Houston',        fullName: 'Houston-The Woodlands-Sugar Land, TX',         state: 'TX', lat: 29.7604, lng:  -95.3698, blsFips: '264200', censusCbsa: '26420' },
+  { id: 'denver',         shortName: 'Denver',         fullName: 'Denver-Aurora-Lakewood, CO',                   state: 'CO', lat: 39.7392, lng: -104.9903, blsFips: '197400', censusCbsa: '19740' },
+  { id: 'atlanta',        shortName: 'Atlanta',        fullName: 'Atlanta-Sandy Springs-Alpharetta, GA',         state: 'GA', lat: 33.7490, lng:  -84.3880, blsFips: '120600', censusCbsa: '12060' },
+  // ---- 8 new MSAs (Sprint 14) ----
+  { id: 'lansing',        shortName: 'Lansing',        fullName: 'Lansing-East Lansing, MI',                     state: 'MI', lat: 42.7325, lng:  -84.5555, blsFips: '290600', censusCbsa: '29620' },
+  { id: 'virginia-beach', shortName: 'Virginia Beach', fullName: 'Virginia Beach-Norfolk-Newport News, VA-NC',   state: 'VA', lat: 36.8529, lng:  -75.9780, blsFips: '471600', censusCbsa: '47260' },
+  { id: 'richmond',       shortName: 'Richmond',       fullName: 'Richmond, VA',                                 state: 'VA', lat: 37.5407, lng:  -77.4360, blsFips: '400600', censusCbsa: '40060' },
+  { id: 'knoxville',      shortName: 'Knoxville',      fullName: 'Knoxville, TN',                                state: 'TN', lat: 35.9606, lng:  -83.9207, blsFips: '280600', censusCbsa: '28940' },
+  { id: 'raleigh',        shortName: 'Raleigh',        fullName: 'Raleigh-Cary, NC',                             state: 'NC', lat: 35.7796, lng:  -78.6382, blsFips: '390400', censusCbsa: '39580' },
+  { id: 'san-antonio',    shortName: 'San Antonio',    fullName: 'San Antonio-New Braunfels, TX',                state: 'TX', lat: 29.4241, lng:  -98.4936, blsFips: '416600', censusCbsa: '41700' },
 ];
 
 // ---- Dashboard-facing data shape ----
@@ -69,8 +76,8 @@ export interface DashboardMSAData {
   tier: string;
   trend: string;
   delta: number;        // trendDelta rounded
-  mapX: number;
-  mapY: number;
+  lat: number;
+  lng: number;
   alerts: number;       // alert count
   components: {
     materials: number;  // rawScore 0-100
@@ -441,8 +448,8 @@ function buildDashboardEntry(
     tier:  mpiScore.tier,
     trend: mpiScore.trend,
     delta: mpiScore.trendDelta,
-    mapX:  msa.mapX,
-    mapY:  msa.mapY,
+    lat:   msa.lat,
+    lng:   msa.lng,
     alerts: mpiScore.alerts.length,
     components: {
       materials: Math.round(mpiScore.components.materialsCostTrend.rawScore),

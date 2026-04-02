@@ -6,6 +6,8 @@
 <title>Construction Monitor — Real-Time Market Intelligence</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   /* ============================================================
      DESIGN DIRECTION: Industrial Terminal / Bloomberg aesthetic
@@ -426,7 +428,7 @@
     overflow: hidden;
   }
 
-  /* ---- Map Placeholder ---- */
+  /* ---- Leaflet Map ---- */
   .map-container {
     flex: 1;
     position: relative;
@@ -434,116 +436,75 @@
     overflow: hidden;
   }
 
-  /* Simulated map grid */
-  .map-grid {
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(36,42,39,0.6) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(36,42,39,0.6) 1px, transparent 1px);
-    background-size: 40px 40px;
+  #leaflet-map {
+    width: 100%;
+    height: 100%;
+    background: #0a0f0c;
   }
 
-  .map-us-outline {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0.06;
-    pointer-events: none;
+  /* Dark-themed Leaflet tooltip */
+  .mpi-tooltip {
+    background: rgba(13,15,14,0.95) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    color: var(--text-primary) !important;
+    padding: 8px 12px !important;
+    box-shadow: none !important;
+    font-family: var(--font-mono) !important;
+    font-size: 12px !important;
+  }
+  .mpi-tooltip::before { display: none !important; }
+  .leaflet-tooltip-top:before,
+  .leaflet-tooltip-bottom:before,
+  .leaflet-tooltip-left:before,
+  .leaflet-tooltip-right:before { display: none !important; }
+
+  /* Pulsing ring for critical-tier markers */
+  @keyframes leaflet-pulse {
+    0%   { transform: translate(-50%, -50%) scale(1);   opacity: 0.7; }
+    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
   }
 
-  .map-us-outline svg {
-    width: 85%;
-    max-width: 700px;
-    fill: var(--text-primary);
-  }
-
-  /* Map MSA markers */
-  .map-marker {
+  .pulse-ring {
     position: absolute;
-    transform: translate(-50%, -50%);
-    cursor: pointer;
-    z-index: 10;
-  }
-
-  .marker-ring {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    animation: ring-pulse 2s ease-out infinite;
     pointer-events: none;
-  }
-
-  @keyframes ring-pulse {
-    0% { width: 20px; height: 20px; opacity: 0.7; }
-    100% { width: 40px; height: 40px; opacity: 0; }
-  }
-
-  .marker-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid var(--bg-base);
-    position: relative;
-    z-index: 2;
-    cursor: pointer;
-    transition: transform 0.15s;
-  }
-
-  .map-marker:hover .marker-dot {
-    transform: scale(1.4);
-  }
-
-  .marker-label {
-    position: absolute;
-    top: 16px;
+    top: 50%;
     left: 50%;
-    transform: translateX(-50%);
-    font-family: var(--font-mono);
-    font-size: 9px;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-    color: var(--text-secondary);
-    pointer-events: none;
-    text-shadow: 0 0 8px var(--bg-base), 0 0 8px var(--bg-base);
+    transform: translate(-50%, -50%);
+    animation: leaflet-pulse 2s ease-out infinite;
   }
 
-  .marker-score {
-    position: absolute;
-    top: -18px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    white-space: nowrap;
-    pointer-events: none;
-    text-shadow: 0 0 8px var(--bg-base), 0 0 8px var(--bg-base);
-  }
+  /* Hide Leaflet attribution for clean aesthetic */
+  .leaflet-control-attribution { display: none !important; }
 
-  .favorable .marker-dot, .favorable .marker-ring { background: var(--mpi-favorable); border-color: var(--mpi-favorable); }
-  .moderate .marker-dot, .moderate .marker-ring   { background: var(--mpi-moderate); border-color: var(--mpi-moderate); }
-  .elevated .marker-dot, .elevated .marker-ring   { background: var(--mpi-elevated); border-color: var(--mpi-elevated); }
-  .critical .marker-dot, .critical .marker-ring   { background: var(--mpi-critical); border-color: var(--mpi-critical); }
-
-  .favorable .marker-score { color: var(--mpi-favorable); }
-  .moderate .marker-score  { color: var(--mpi-moderate); }
-  .elevated .marker-score  { color: var(--mpi-elevated); }
-  .critical .marker-score  { color: var(--mpi-critical); }
-
-  /* Map legend */
-  .map-legend {
+  /* Map legends container (stacked vertically) */
+  .map-legends {
     position: absolute;
     bottom: 16px;
     left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .map-legend {
     background: rgba(13,15,14,0.9);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 10px 14px;
     backdrop-filter: blur(8px);
+  }
+
+  .legend-ring {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid;
+    background: transparent;
+    flex-shrink: 0;
   }
 
   .legend-title {
@@ -977,30 +938,31 @@
   <!-- CENTER PANEL: Map + Data Strip -->
   <div class="center-panel">
     <div class="map-container" id="map">
-      <div class="map-grid"></div>
-      <div class="map-us-outline">
-        <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg">
-          <!-- Simplified US outline path -->
-          <path d="M 150 150 L 750 150 L 800 200 L 820 280 L 780 350 L 700 380 L 650 420 L 550 440 L 450 460 L 350 450 L 250 420 L 180 380 L 140 310 L 130 250 Z M 200 420 L 260 480 L 320 500 L 280 520 L 220 490 Z"/>
-        </svg>
-      </div>
-      <!-- Map markers rendered by JS -->
-      <div id="map-markers"></div>
+      <div id="leaflet-map"></div>
 
-      <div class="map-layers">
-        <button class="layer-btn active" onclick="toggleLayer(this)">MPI Scores</button>
-        <button class="layer-btn" onclick="toggleLayer(this)">Permit Activity</button>
-        <button class="layer-btn" onclick="toggleLayer(this)">Labor Stress</button>
-        <button class="layer-btn" onclick="toggleLayer(this)">Distress Signals</button>
-        <button class="layer-btn" onclick="toggleLayer(this)">Weather Risk</button>
+      <div class="map-layers" style="z-index:1000;">
+        <button class="layer-btn active" data-layer="mpi" onclick="toggleLayer(this)">MPI Scores</button>
+        <button class="layer-btn active" data-layer="regions" onclick="toggleLayer(this)">Christman Regions</button>
+        <button class="layer-btn" data-layer="placeholder" onclick="toggleLayer(this)" title="Coming Soon">Permit Activity</button>
+        <button class="layer-btn" data-layer="placeholder" onclick="toggleLayer(this)" title="Coming Soon">Labor Stress</button>
+        <button class="layer-btn" data-layer="placeholder" onclick="toggleLayer(this)" title="Coming Soon">Distress Signals</button>
       </div>
 
-      <div class="map-legend">
-        <div class="legend-title">Market Pressure Index</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-favorable)"></div>Favorable (0–30)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-moderate)"></div>Moderate (31–55)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-elevated)"></div>Elevated (56–75)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-critical)"></div>Critical (76–100)</div>
+      <div class="map-legends" style="z-index:1000;">
+        <div class="map-legend">
+          <div class="legend-title">Market Pressure Index</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-favorable)"></div>Favorable (0–30)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-moderate)"></div>Moderate (31–55)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-elevated)"></div>Elevated (56–75)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--mpi-critical)"></div>Critical (76–100)</div>
+        </div>
+        <div class="map-legend" id="region-legend">
+          <div class="legend-title">Christman Regions</div>
+          <div class="legend-item"><div class="legend-ring" style="border-color:#00e676"></div>CCI Michigan</div>
+          <div class="legend-item"><div class="legend-ring" style="border-color:#448aff"></div>CMAC Virginia</div>
+          <div class="legend-item"><div class="legend-ring" style="border-color:#ff9100"></div>CFS Texas</div>
+          <div class="legend-item"><div class="legend-ring" style="border-color:#e040fb"></div>CSEC (TN + NC)</div>
+        </div>
       </div>
     </div>
 
@@ -1064,9 +1026,9 @@
 // ---- Static fallback demo data (used when API unavailable) ----
 const DEMO_DATA = [
   {
-    id: 'phoenix',    name: 'Phoenix', state: 'AZ', score: 82,
+    id: 'phoenix', name: 'Phoenix', state: 'AZ', score: 82,
     tier: 'critical', trend: 'rising', delta: 7,
-    mapX: 18, mapY: 62, alerts: 3,
+    lat: 33.4484, lng: -112.0740, alerts: 3,
     components: { materials: 78, labor: 85, backlog: 92, supply: 71, distress: 42 },
     topAlert: {
       title: '🔴 CONVERGENCE: Phoenix — 4 signal categories elevated',
@@ -1079,7 +1041,7 @@ const DEMO_DATA = [
   {
     id: 'nashville', name: 'Nashville', state: 'TN', score: 74,
     tier: 'elevated', trend: 'rising', delta: 4,
-    mapX: 58, mapY: 55, alerts: 2,
+    lat: 36.1627, lng: -86.7816, alerts: 2,
     components: { materials: 70, labor: 78, backlog: 80, supply: 58, distress: 32 },
     topAlert: {
       title: '🟠 CONVERGENCE: Nashville — Labor + backlog pressure elevated',
@@ -1092,7 +1054,7 @@ const DEMO_DATA = [
   {
     id: 'seattle', name: 'Seattle', state: 'WA', score: 71,
     tier: 'elevated', trend: 'stable', delta: 1,
-    mapX: 8, mapY: 22, alerts: 1,
+    lat: 47.6062, lng: -122.3321, alerts: 1,
     components: { materials: 72, labor: 76, backlog: 65, supply: 62, distress: 28 },
     topAlert: {
       title: '🟠 ELEVATED: Seattle — Structural materials costs trending up',
@@ -1105,7 +1067,7 @@ const DEMO_DATA = [
   {
     id: 'dallas', name: 'Dallas', state: 'TX', score: 62,
     tier: 'elevated', trend: 'falling', delta: -3,
-    mapX: 38, mapY: 68, alerts: 1,
+    lat: 32.7767, lng: -96.7970, alerts: 1,
     components: { materials: 60, labor: 65, backlog: 72, supply: 45, distress: 38 },
     topAlert: {
       title: '🟡 WATCH: Dallas — Backlog density elevated',
@@ -1118,7 +1080,7 @@ const DEMO_DATA = [
   {
     id: 'chicago', name: 'Chicago', state: 'IL', score: 55,
     tier: 'moderate', trend: 'rising', delta: 3,
-    mapX: 60, mapY: 32, alerts: 1,
+    lat: 41.8781, lng: -87.6298, alerts: 1,
     components: { materials: 62, labor: 55, backlog: 50, supply: 44, distress: 28 },
     topAlert: {
       title: '🟡 WATCH: Chicago — Labor CBA + tariff convergence forming',
@@ -1131,7 +1093,7 @@ const DEMO_DATA = [
   {
     id: 'detroit', name: 'Detroit', state: 'MI', score: 48,
     tier: 'moderate', trend: 'rising', delta: 5,
-    mapX: 66, mapY: 30, alerts: 1,
+    lat: 42.3314, lng: -83.0458, alerts: 1,
     components: { materials: 58, labor: 44, backlog: 38, supply: 42, distress: 22 },
     topAlert: {
       title: '🟡 WATCH: Detroit — Steel tariff impact + CBA expiry converging',
@@ -1144,7 +1106,7 @@ const DEMO_DATA = [
   {
     id: 'houston', name: 'Houston', state: 'TX', score: 45,
     tier: 'moderate', trend: 'stable', delta: 0,
-    mapX: 42, mapY: 72, alerts: 0,
+    lat: 29.7604, lng: -95.3698, alerts: 0,
     components: { materials: 50, labor: 42, backlog: 48, supply: 38, distress: 20 },
     topAlert: null,
     rec: 'Moderate. Market active. Confirm sub availability on structural trades before finalizing bid numbers.'
@@ -1152,7 +1114,7 @@ const DEMO_DATA = [
   {
     id: 'denver', name: 'Denver', state: 'CO', score: 42,
     tier: 'moderate', trend: 'stable', delta: -1,
-    mapX: 30, mapY: 52, alerts: 0,
+    lat: 39.7392, lng: -104.9903, alerts: 0,
     components: { materials: 48, labor: 40, backlog: 44, supply: 35, distress: 18 },
     topAlert: null,
     rec: 'Moderate. Standard escalation assumptions apply. Sub pricing competitive across most trades.'
@@ -1160,7 +1122,7 @@ const DEMO_DATA = [
   {
     id: 'atlanta', name: 'Atlanta', state: 'GA', score: 40,
     tier: 'moderate', trend: 'stable', delta: 1,
-    mapX: 62, mapY: 62, alerts: 0,
+    lat: 33.7490, lng: -84.3880, alerts: 0,
     components: { materials: 46, labor: 38, backlog: 42, supply: 32, distress: 16 },
     topAlert: null,
     rec: 'Moderate. Active but manageable market. Review specialty trade availability for Q3 starts.'
@@ -1168,7 +1130,7 @@ const DEMO_DATA = [
   {
     id: 'columbus', name: 'Columbus', state: 'OH', score: 38,
     tier: 'moderate', trend: 'stable', delta: 0,
-    mapX: 64, mapY: 38, alerts: 0,
+    lat: 39.9612, lng: -82.9988, alerts: 0,
     components: { materials: 42, labor: 36, backlog: 40, supply: 32, distress: 18 },
     topAlert: null,
     rec: 'Moderate. Stable conditions. Standard escalation assumptions appropriate. Sub market competitive.'
@@ -1176,7 +1138,7 @@ const DEMO_DATA = [
   {
     id: 'indianapolis', name: 'Indianapolis', state: 'IN', score: 32,
     tier: 'moderate', trend: 'stable', delta: -1,
-    mapX: 62, mapY: 40, alerts: 0,
+    lat: 39.7684, lng: -86.1581, alerts: 0,
     components: { materials: 38, labor: 30, backlog: 32, supply: 28, distress: 20 },
     topAlert: null,
     rec: 'Moderate, slightly improving. Competitive bid market. Standard escalation.'
@@ -1184,10 +1146,64 @@ const DEMO_DATA = [
   {
     id: 'grand-rapids', name: 'Grand Rapids', state: 'MI', score: 28,
     tier: 'favorable', trend: 'stable', delta: 2,
-    mapX: 63, mapY: 28, alerts: 0,
+    lat: 42.9634, lng: -85.6681, alerts: 0,
     components: { materials: 30, labor: 26, backlog: 28, supply: 24, distress: 15 },
     topAlert: null,
     rec: 'Favorable market. Competitive sub pricing. 3–5% escalation contingency appropriate.'
+  },
+  // ---- 8 new MSAs ----
+  {
+    id: 'lansing', name: 'Lansing', state: 'MI', score: 26,
+    tier: 'favorable', trend: 'stable', delta: 0,
+    lat: 42.7325, lng: -84.5555, alerts: 0,
+    components: { materials: 28, labor: 24, backlog: 26, supply: 22, distress: 14 },
+    topAlert: null,
+    rec: 'Favorable. Competitive market with good sub availability. Standard escalation assumptions apply.'
+  },
+  {
+    id: 'virginia-beach', name: 'Virginia Beach', state: 'VA', score: 44,
+    tier: 'moderate', trend: 'rising', delta: 2,
+    lat: 36.8529, lng: -75.9780, alerts: 0,
+    components: { materials: 48, labor: 44, backlog: 46, supply: 36, distress: 18 },
+    topAlert: null,
+    rec: 'Moderate. Military construction activity steady. Watch for federal spending impacts on trade availability.'
+  },
+  {
+    id: 'richmond', name: 'Richmond', state: 'VA', score: 36,
+    tier: 'moderate', trend: 'stable', delta: 1,
+    lat: 37.5407, lng: -77.4360, alerts: 0,
+    components: { materials: 40, labor: 34, backlog: 36, supply: 30, distress: 16 },
+    topAlert: null,
+    rec: 'Moderate. Balanced market. Sub pricing competitive. Standard contingency appropriate.'
+  },
+  {
+    id: 'knoxville', name: 'Knoxville', state: 'TN', score: 34,
+    tier: 'moderate', trend: 'stable', delta: 0,
+    lat: 35.9606, lng: -83.9207, alerts: 0,
+    components: { materials: 38, labor: 32, backlog: 34, supply: 28, distress: 16 },
+    topAlert: null,
+    rec: 'Moderate. Stable regional market. Competitive sub pricing across most trades.'
+  },
+  {
+    id: 'raleigh', name: 'Raleigh', state: 'NC', score: 52,
+    tier: 'moderate', trend: 'rising', delta: 3,
+    lat: 35.7796, lng: -78.6382, alerts: 1,
+    components: { materials: 54, labor: 52, backlog: 58, supply: 40, distress: 20 },
+    topAlert: {
+      title: '🟡 WATCH: Raleigh — Backlog rising with tech sector expansion',
+      body: 'Data center and biotech construction boom increasing sub utilization. MEP trades tightening.',
+      severity: 'medium', tags: ['project_activity', 'labor'],
+      impact: '+3–5% on MEP trades'
+    },
+    rec: 'Moderate, trending up. Tech-driven construction boom. Secure MEP subs early. Budget 5–7% escalation.'
+  },
+  {
+    id: 'san-antonio', name: 'San Antonio', state: 'TX', score: 30,
+    tier: 'favorable', trend: 'stable', delta: -1,
+    lat: 29.4241, lng: -98.4936, alerts: 0,
+    components: { materials: 34, labor: 28, backlog: 30, supply: 26, distress: 14 },
+    topAlert: null,
+    rec: 'Favorable. Competitive market. Good sub availability. Standard 3–5% escalation contingency.'
   },
 ];
 
@@ -1230,19 +1246,151 @@ function renderMPIList() {
   `).join('');
 }
 
+// ---- Christman Operating Regions ----
+const CHRISTMAN_REGIONS = [
+  {
+    id: 'cci_southeast',
+    name: 'CCI Southeast Michigan',
+    center: [42.3314, -83.0458],
+    radius: 80000,
+    trades: ['Structural Concrete', 'Demolition', 'General Trades', 'Mass Timber', 'Civil/Earthwork', 'Drywall/Metal Stud', 'Fireproofing'],
+    color: '#00e676'
+  },
+  {
+    id: 'cci_central',
+    name: 'CCI Central Michigan',
+    center: [42.7325, -84.5555],
+    radius: 60000,
+    trades: ['Structural Concrete', 'General Trades', 'Demolition', 'Drywall/Metal Stud', 'Fireproofing'],
+    color: '#00e676'
+  },
+  {
+    id: 'cci_west',
+    name: 'CCI West Michigan',
+    center: [42.9634, -85.6681],
+    radius: 60000,
+    trades: ['Structural Concrete', 'General Trades', 'Drywall/Metal Stud'],
+    color: '#00e676'
+  },
+  {
+    id: 'cmac_virginia',
+    name: 'CMAC Virginia',
+    center: [37.5407, -77.4360],
+    radius: 100000,
+    trades: ['Structural Concrete', 'General Trades', 'Mass Timber', 'Earthwork/Site Utilities'],
+    color: '#448aff'
+  },
+  {
+    id: 'cfs_texas',
+    name: 'CFS Texas',
+    center: [32.7767, -96.7970],
+    radius: 120000,
+    trades: ['MEP'],
+    color: '#ff9100'
+  },
+  {
+    id: 'csec_knoxville',
+    name: 'CSEC Knoxville',
+    center: [35.9606, -83.9207],
+    radius: 70000,
+    trades: ['Structural Concrete', 'General Trades', 'Demolition'],
+    color: '#e040fb'
+  },
+  {
+    id: 'csec_nc',
+    name: 'CSEC North Carolina',
+    center: [35.7796, -78.6382],
+    radius: 80000,
+    trades: ['Structural Concrete', 'General Trades', 'Demolition'],
+    color: '#e040fb'
+  }
+];
+
+// ---- Leaflet Map Setup ----
+const leafletMap = L.map('leaflet-map', {
+  center: [39.8, -98.5],
+  zoom: 4,
+  zoomControl: false,
+  attributionControl: false,
+  minZoom: 3,
+  maxZoom: 10,
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19,
+}).addTo(leafletMap);
+
+L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
+
+const tierColors = {
+  favorable: '#34d399',
+  moderate:  '#fbbf24',
+  elevated:  '#fb923c',
+  critical:  '#f87171',
+};
+
+let mapMarkerLayer = L.layerGroup().addTo(leafletMap);
+
+// ---- Christman Region Overlay Layer ----
+const regionLayer = L.layerGroup();
+CHRISTMAN_REGIONS.forEach(r => {
+  L.circle(r.center, {
+    radius: r.radius,
+    color: r.color,
+    fillColor: r.color,
+    fillOpacity: 0.08,
+    weight: 1.5,
+    dashArray: '8 4',
+    opacity: 0.5
+  }).bindTooltip(`
+    <div>
+      <strong>${r.name}</strong><br/>
+      <span style="color:var(--text-secondary);font-size:10px;">${r.trades.join(' · ')}</span>
+    </div>
+  `, { className: 'mpi-tooltip' }).addTo(regionLayer);
+});
+regionLayer.addTo(leafletMap); // ON by default
+
 // ---- Render Map Markers ----
 function renderMapMarkers() {
-  const container = document.getElementById('map-markers');
-  container.innerHTML = MPI_DATA.map(m => `
-    <div class="map-marker ${m.tier}"
-         style="left:${m.mapX}%; top:${m.mapY}%"
-         onclick="selectMSA('${m.id}')">
-      <div class="marker-score">${m.score}</div>
-      <div class="marker-ring"></div>
-      <div class="marker-dot"></div>
-      <div class="marker-label">${m.name}</div>
-    </div>
-  `).join('');
+  mapMarkerLayer.clearLayers();
+
+  MPI_DATA.forEach(m => {
+    const color = tierColors[m.tier] || tierColors.moderate;
+    const radius = 8 + (m.score / 10);
+
+    const marker = L.circleMarker([m.lat, m.lng], {
+      radius: radius,
+      fillColor: color,
+      fillOpacity: 0.85,
+      color: color,
+      weight: 2,
+      opacity: 0.4,
+    }).addTo(mapMarkerLayer);
+
+    // Tooltip on hover
+    marker.bindTooltip(`
+      <div>
+        <strong>${m.name}</strong>, ${m.state}<br/>
+        MPI: <span style="color:${color};font-weight:600;">${m.score}</span> (${m.tier})<br/>
+        ${m.alerts} active alert${m.alerts !== 1 ? 's' : ''}
+      </div>
+    `, { className: 'mpi-tooltip', direction: 'top', offset: [0, -radius] });
+
+    // Click selects MSA in right panel
+    marker.on('click', () => selectMSA(m.id));
+
+    // Pulsing ring for critical-tier markers
+    if (m.tier === 'critical') {
+      const pulseIcon = L.divIcon({
+        className: '',
+        html: `<div class="pulse-ring" style="background:${color};"></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+      L.marker([m.lat, m.lng], { icon: pulseIcon, interactive: false }).addTo(mapMarkerLayer);
+    }
+  });
 }
 
 // ---- Render Right Panel ----
@@ -1507,7 +1655,31 @@ function selectMSA(id) {
 
 // ---- Layer toggle ----
 function toggleLayer(btn) {
+  const layer = btn.dataset.layer;
+
+  // Placeholder layers — show "Coming Soon" and don't toggle
+  if (layer === 'placeholder') {
+    return;
+  }
+
   btn.classList.toggle('active');
+  const isActive = btn.classList.contains('active');
+
+  if (layer === 'mpi') {
+    if (isActive) {
+      mapMarkerLayer.addTo(leafletMap);
+    } else {
+      leafletMap.removeLayer(mapMarkerLayer);
+    }
+  } else if (layer === 'regions') {
+    if (isActive) {
+      regionLayer.addTo(leafletMap);
+      document.getElementById('region-legend').style.display = '';
+    } else {
+      leafletMap.removeLayer(regionLayer);
+      document.getElementById('region-legend').style.display = 'none';
+    }
+  }
 }
 
 // ---- Variant switcher ----
@@ -1533,6 +1705,8 @@ renderMapMarkers();
 renderDetail(selectedId);
 setInterval(updateClock, 1000);
 updateClock();
+// Ensure Leaflet renders correctly after layout settles
+setTimeout(() => leafletMap.invalidateSize(), 100);
 
 // 2. Attempt to load live data from API
 loadLiveData();
