@@ -90,12 +90,13 @@ def _aggregate_rate_intelligence(db: Session, project_id: int) -> dict:
             "items_review": 0,
             "items_update": 0,
             "items_no_match": 0,
+            "items_needs_rate": 0,
             "avg_deviation_pct": None,
             "optimism_score": None,
             "top_deviations": [],
         }
 
-    counts = {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0}
+    counts = {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0, "NEEDS_RATE": 0}
     deviations = []
 
     for item in items:
@@ -128,6 +129,7 @@ def _aggregate_rate_intelligence(db: Session, project_id: int) -> dict:
         "items_review": counts.get("REVIEW", 0),
         "items_update": counts.get("UPDATE", 0),
         "items_no_match": counts.get("NO_DATA", 0),
+        "items_needs_rate": counts.get("NEEDS_RATE", 0),
         "avg_deviation_pct": avg_dev,
         "optimism_score": optimism,
         "top_deviations": top_devs,

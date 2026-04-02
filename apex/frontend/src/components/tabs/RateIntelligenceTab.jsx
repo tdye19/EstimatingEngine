@@ -17,10 +17,11 @@ import { getRateIntelligence, uploadDocument } from '../../api';
 // ── Flag / confidence color config ──────────────────────────────────
 
 const FLAG_CONFIG = {
-  OK:      { label: 'OK',      bg: 'bg-green-100',  text: 'text-green-800',  bar: 'bg-green-500'  },
-  REVIEW:  { label: 'REVIEW',  bg: 'bg-yellow-100', text: 'text-yellow-800', bar: 'bg-yellow-500' },
-  UPDATE:  { label: 'UPDATE',  bg: 'bg-red-100',    text: 'text-red-800',    bar: 'bg-red-500'    },
-  NO_DATA: { label: 'NO DATA', bg: 'bg-gray-100',   text: 'text-gray-600',   bar: 'bg-gray-400'   },
+  OK:         { label: 'OK',         bg: 'bg-green-100',  text: 'text-green-800',  bar: 'bg-green-500'  },
+  REVIEW:     { label: 'REVIEW',     bg: 'bg-yellow-100', text: 'text-yellow-800', bar: 'bg-yellow-500' },
+  UPDATE:     { label: 'UPDATE',     bg: 'bg-red-100',    text: 'text-red-800',    bar: 'bg-red-500'    },
+  NEEDS_RATE: { label: 'NEEDS RATE', bg: 'bg-purple-100', text: 'text-purple-800', bar: 'bg-purple-500' },
+  NO_DATA:    { label: 'NO DATA',    bg: 'bg-gray-100',   text: 'text-gray-600',   bar: 'bg-gray-400'   },
 };
 
 const CONFIDENCE_DOT = {
@@ -30,7 +31,7 @@ const CONFIDENCE_DOT = {
   none:   'bg-gray-300',
 };
 
-const FLAG_SORT_ORDER = { UPDATE: 0, REVIEW: 1, OK: 2, NO_DATA: 3 };
+const FLAG_SORT_ORDER = { UPDATE: 0, REVIEW: 1, NEEDS_RATE: 2, OK: 3, NO_DATA: 4 };
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -106,6 +107,7 @@ export default function RateIntelligenceTab({ projectId, refreshKey }) {
   const unmatched = data.items_unmatched || 0;
   const optimism = data.overall_optimism_score;
   const flaggedCount = (flags.REVIEW || 0) + (flags.UPDATE || 0);
+  const needsRateCount = flags.NEEDS_RATE || 0;
 
   // ── Empty state — no takeoff uploaded ───────────────────────────
   if (totalParsed === 0 && recs.length === 0) {
@@ -115,13 +117,13 @@ export default function RateIntelligenceTab({ projectId, refreshKey }) {
           <FileSpreadsheet className="h-16 w-16 text-gray-300 mb-4" />
           <h3 className="text-lg font-semibold text-gray-700 mb-2">No Takeoff Data Yet</h3>
           <p className="text-gray-500 max-w-md mb-6">
-            Upload your WinEst takeoff export (.xlsx) to get rate intelligence on every line item.
+            Upload your WinEst takeoff (.est or .xlsx export) to get rate intelligence on every line item.
             We'll match your rates against historical Productivity Brain data.
           </p>
           <input
             ref={fileRef}
             type="file"
-            accept=".xlsx,.csv,.xls"
+            accept=".xlsx,.csv,.xls,.est"
             className="hidden"
             onChange={handleUpload}
           />
@@ -134,7 +136,7 @@ export default function RateIntelligenceTab({ projectId, refreshKey }) {
             {uploading ? 'Uploading...' : 'Upload Takeoff File'}
           </button>
           <p className="text-xs text-gray-400 mt-3">
-            Supported: WinEst 26-col, 21-col exports, or simple CSV with Activity + Qty columns
+            Supported: WinEst native (.est), WinEst 26-col/21-col exports, or CSV with Activity + Qty columns
           </p>
         </div>
       </div>
@@ -182,7 +184,7 @@ export default function RateIntelligenceTab({ projectId, refreshKey }) {
     return sortAsc ? cmp : -cmp;
   });
 
-  const totalFlags = (flags.OK || 0) + (flags.REVIEW || 0) + (flags.UPDATE || 0) + (flags.NO_DATA || 0);
+  const totalFlags = (flags.OK || 0) + (flags.REVIEW || 0) + (flags.UPDATE || 0) + (flags.NEEDS_RATE || 0) + (flags.NO_DATA || 0);
   const pct = (v) => (totalFlags > 0 ? ((v || 0) / totalFlags) * 100 : 0);
 
   // ── Column header helper ────────────────────────────────────────
@@ -219,6 +221,7 @@ export default function RateIntelligenceTab({ projectId, refreshKey }) {
           <p className="text-2xl font-bold text-yellow-600">{flaggedCount}</p>
           <p className="text-xs text-gray-400 mt-1">
             {flags.REVIEW || 0} review + {flags.UPDATE || 0} update
+            {needsRateCount > 0 && <span className="text-purple-600"> + {needsRateCount} need rate</span>}
           </p>
         </div>
         <div className="card">
@@ -246,7 +249,7 @@ export default function RateIntelligenceTab({ projectId, refreshKey }) {
         <div className="card">
           <p className="text-sm font-medium text-gray-700 mb-3">Flag Distribution</p>
           <div className="flex h-6 rounded-full overflow-hidden">
-            {['OK', 'REVIEW', 'UPDATE', 'NO_DATA'].map((key) => {
+            {['OK', 'REVIEW', 'UPDATE', 'NEEDS_RATE', 'NO_DATA'].map((key) => {
               const p = pct(flags[key]);
               if (p === 0) return null;
               return (
@@ -328,8 +331,15 @@ export default function RateIntelligenceTab({ projectId, refreshKey }) {
                         <div className="px-3 py-2.5 flex-1 font-medium text-gray-800 truncate">{r.activity}</div>
                         <div className="px-3 py-2.5 w-16 text-right text-gray-500">{r.unit || '—'}</div>
                         <div className="px-3 py-2.5 w-20 text-gray-500 truncate">{r.crew || '—'}</div>
-                        <div className="px-3 py-2.5 w-20 text-right font-mono">{fmtNum(r.estimator_rate)}</div>
-                        <div className="px-3 py-2.5 w-20 text-right font-mono text-gray-500">{fmtNum(r.historical_avg_rate)}</div>
+                        <div className="px-3 py-2.5 w-20 text-right font-mono">
+                          {r.flag === 'NEEDS_RATE'
+                            ? <span className="text-purple-500 text-xs italic">enter rate</span>
+                            : fmtNum(r.estimator_rate)
+                          }
+                        </div>
+                        <div className={`px-3 py-2.5 w-20 text-right font-mono ${r.flag === 'NEEDS_RATE' ? 'text-purple-700 font-semibold' : 'text-gray-500'}`}>
+                          {fmtNum(r.historical_avg_rate)}
+                        </div>
                         <div className={`px-3 py-2.5 w-16 text-right font-mono font-medium ${deltaColor(r.delta_pct)}`}>
                           {fmtPct(r.delta_pct)}
                         </div>

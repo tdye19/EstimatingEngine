@@ -140,7 +140,7 @@ class RateRecommendation(BaseModel):
     sample_count: int = 0
     confidence: str = "none"  # "high" (n>=10), "medium" (5-9), "low" (1-4), "none" (0)
     delta_pct: Optional[float] = None  # positive = optimistic vs history, negative = conservative
-    flag: str = "NO_DATA"  # "OK" (<5%), "REVIEW" (5-20%), "UPDATE" (>20%), "NO_DATA"
+    flag: str = "NO_DATA"  # "OK" (<5%), "REVIEW" (5-20%), "UPDATE" (>20%), "NO_DATA", "NEEDS_RATE"
     matching_projects: list[str] = []
     labor_cost_per_unit: Optional[float] = None
     material_cost_per_unit: Optional[float] = None
@@ -153,7 +153,7 @@ class Agent4Output(BaseModel):
     items_matched: int = Field(ge=0)
     items_unmatched: int = Field(ge=0)
     recommendations: list[RateRecommendation] = []
-    flags_summary: dict = {}  # {"OK": N, "REVIEW": N, "UPDATE": N, "NO_DATA": N}
+    flags_summary: dict = {}  # {"OK": N, "REVIEW": N, "UPDATE": N, "NO_DATA": N, "NEEDS_RATE": N}
     parse_format: Optional[str] = None  # "26col", "21col", "csv", "manual"
     overall_optimism_score: Optional[float] = None  # avg delta across all matched items
 
@@ -245,6 +245,7 @@ class RateIntelligenceSummary(BaseModel):
     items_review: int = 0       # 5-20% deviation
     items_update: int = 0       # >20% deviation
     items_no_match: int = 0     # no PB data
+    items_needs_rate: int = 0   # PB match but no estimator rate (.est uploads)
     avg_deviation_pct: Optional[float] = None
     optimism_score: Optional[float] = None
     top_deviations: list[dict] = []         # top 5 items by absolute deviation

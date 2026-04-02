@@ -193,8 +193,12 @@ class RateMatchingEngine:
                         2,
                     )
                     flag = self._flag_from_delta(delta_pct)
+                elif not item.production_rate and match["avg_rate"]:
+                    # PB match exists but estimator has no rate (e.g. .est file)
+                    delta_pct = None
+                    flag = "NEEDS_RATE"
                 else:
-                    # Match found but no estimator rate to compare
+                    # Match found but no usable rates on either side
                     delta_pct = None
                     flag = "NO_DATA"
 
@@ -247,7 +251,7 @@ class RateMatchingEngine:
     @staticmethod
     def flags_summary(recommendations: list[RateRecommendation]) -> dict:
         """Count of each flag type."""
-        summary = {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0}
+        summary = {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0, "NEEDS_RATE": 0}
         for r in recommendations:
             if r.flag in summary:
                 summary[r.flag] += 1

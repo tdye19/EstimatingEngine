@@ -6,6 +6,7 @@ The key difference: PB parser ingests historical data for averaging.
 Takeoff parser ingests THIS bid's quantities for rate comparison.
 
 Supported formats:
+- WinEst .est (OLE2 native) -- binary; extracts descriptions, numeric fields may be None
 - WinEst 26-col (CCI Civil Est Report) -- cell A1 contains "_CCI Civil Est Report"
 - WinEst 21-col (CCI Estimate Report) -- cell A1 contains "_CCI Estimate Report"
 - Simple CSV/XLSX -- header row with columns: Activity, Qty, Unit, Crew, Rate
@@ -329,14 +330,63 @@ def _parse_xlsx_simple(filepath: str) -> list[TakeoffLineItem]:
     return items
 
 
+# ── .est (OLE2 native) parser ───────────────────────────────────────────────
+
+def _parse_est_file(filepath: str) -> list[TakeoffLineItem]:
+    """Parse a native WinEst .est file using the existing OLE2 parser.
+
+    Delegates to winest_parser.parse_winest_file() for binary extraction,
+    then normalizes output into TakeoffLineItem objects.
+
+    Items from .est files will typically have:
+    - activity: extracted text description
+    - All numeric fields: None (proprietary binary format)
+
+    These items still get rate recommendations from Agent 4 via
+    description-based fuzzy matching against Productivity Brain.
+    """
+    from apex.backend.utils.winest_parser import parse_winest_file
+
+    result = parse_winest_file(filepath)
+
+    if not result["success"]:
+        return []
+
+    items: list[TakeoffLineItem] = []
+    for idx, raw_item in enumerate(result["line_items"], start=1):
+        desc = (raw_item.get("description") or "").strip()
+        if not desc or len(desc) < 3:
+            continue  # skip noise
+
+        items.append(TakeoffLineItem(
+            row_number=idx,
+            wbs_area=raw_item.get("wbs_code"),
+            activity=desc,
+            quantity=raw_item.get("quantity"),
+            unit=raw_item.get("unit"),
+            crew=_safe_str(raw_item.get("crew_size")),
+            production_rate=raw_item.get("productivity_rate"),
+            labor_cost_per_unit=raw_item.get("labor_rate"),
+            material_cost_per_unit=raw_item.get("material_cost"),
+            csi_code=raw_item.get("csi_code"),
+        ))
+
+    return items
+
+
 # ── Main dispatcher ──────────────────────────────────────────────────────────
 
 def parse_takeoff(filepath: str) -> tuple[list[TakeoffLineItem], str]:
     """Parse a takeoff file, auto-detecting format.
 
     Returns (items, format_name) where format_name is one of:
-    "26col", "21col", "simple_csv", "unknown".
+    "est_native", "26col", "21col", "simple_csv", "unknown".
     """
+    ext = os.path.splitext(filepath)[1].lower()
+
+    if ext == ".est":
+        return _parse_est_file(filepath), "est_native"
+
     fmt = detect_takeoff_format(filepath)
 
     if fmt == "26col":

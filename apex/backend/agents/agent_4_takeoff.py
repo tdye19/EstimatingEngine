@@ -93,7 +93,7 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
     optimism = engine.compute_optimism_score(recommendations)
     flags = engine.flags_summary(recommendations)
 
-    items_matched = sum(1 for r in recommendations if r.flag != "NO_DATA")
+    items_matched = sum(1 for r in recommendations if r.flag not in ("NO_DATA",))
     items_unmatched = sum(1 for r in recommendations if r.flag == "NO_DATA")
 
     logger.info(
@@ -177,7 +177,7 @@ def _find_takeoff_document(db: Session, project_id: int) -> Optional[Document]:
         .all()
     )
     for d in doc:
-        if d.filename and (d.filename.lower().endswith(".xlsx") or d.filename.lower().endswith(".csv")):
+        if d.filename and any(d.filename.lower().endswith(ext) for ext in (".xlsx", ".csv", ".est", ".xls")):
             return d
 
     return None

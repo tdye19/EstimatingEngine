@@ -24,10 +24,11 @@ const RISK_CONFIG = {
 };
 
 const FLAG_COLORS = {
-  OK:      'bg-green-500',
-  REVIEW:  'bg-yellow-500',
-  UPDATE:  'bg-red-500',
-  NO_DATA: 'bg-gray-300',
+  OK:         'bg-green-500',
+  REVIEW:     'bg-yellow-500',
+  UPDATE:     'bg-red-500',
+  NEEDS_RATE: 'bg-purple-500',
+  NO_DATA:    'bg-gray-300',
 };
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -269,19 +270,29 @@ export default function IntelligenceReportTab({ projectId, refreshKey }) {
               { value: ri.items_ok || 0, color: FLAG_COLORS.OK, label: 'OK' },
               { value: ri.items_review || 0, color: FLAG_COLORS.REVIEW, label: 'Review' },
               { value: ri.items_update || 0, color: FLAG_COLORS.UPDATE, label: 'Update' },
+              { value: ri.items_needs_rate || 0, color: FLAG_COLORS.NEEDS_RATE, label: 'Needs Rate' },
               { value: ri.items_no_match || 0, color: FLAG_COLORS.NO_DATA, label: 'No Data' },
             ]}
           />
-          <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
+          <div className="flex items-center gap-3 mt-3 text-xs text-gray-500 flex-wrap">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> OK: {ri.items_ok || 0}</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-yellow-500" /> Review: {ri.items_review || 0}</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" /> Update: {ri.items_update || 0}</span>
+            {(ri.items_needs_rate || 0) > 0 && (
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-purple-500" /> Needs Rate: {ri.items_needs_rate}</span>
+            )}
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-gray-300" /> No Data: {ri.items_no_match || 0}</span>
           </div>
 
           {rateAttention > 0 && (
             <p className="mt-3 text-sm font-medium text-amber-700">
               {rateAttention} item{rateAttention !== 1 ? 's' : ''} need attention
+            </p>
+          )}
+
+          {(ri.items_needs_rate || 0) > 0 && (
+            <p className="mt-1 text-sm font-medium text-purple-700">
+              {ri.items_needs_rate} item{ri.items_needs_rate !== 1 ? 's' : ''} need rates entered
             </p>
           )}
 

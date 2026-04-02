@@ -246,7 +246,7 @@ export default function ProjectDetailPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.est"
             className="hidden"
             onChange={handleFileChange}
           />

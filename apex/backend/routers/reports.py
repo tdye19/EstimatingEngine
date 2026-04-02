@@ -194,7 +194,7 @@ def get_rate_intelligence(project_id: int, db: Session = Depends(get_db), user: 
     ).order_by(TakeoffItemV2.row_number).all()
 
     recommendations = []
-    flags_count = {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0}
+    flags_count = {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0, "NEEDS_RATE": 0}
     deltas = []
 
     for r in rows:
