@@ -158,10 +158,11 @@ class Agent4Output(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Agent 5 — Labor Productivity
+# Agent 5 — Field Actuals Comparison Layer (v2)
 # ---------------------------------------------------------------------------
 
-class Agent5ItemResult(BaseModel):
+# DEPRECATED — v1 only
+class Agent5ItemResult_V1(BaseModel):
     takeoff_item_id: int
     csi_code: str
     quantity: Optional[float] = None
@@ -170,23 +171,52 @@ class Agent5ItemResult(BaseModel):
     labor_hours: Optional[float] = None
     labor_cost: Optional[float] = None
     confidence: Optional[float] = None
-    # LLM-path fields (absent on DB fallback path)
-    match_confidence: Optional[str] = None        # "exact", "similar", or "estimated"
+    match_confidence: Optional[str] = None
     matched_productivity_id: Optional[int] = None
     notes: Optional[str] = None
     error: Optional[str] = None
-    source: Optional[str] = None   # "historical_benchmark", "bls_default", or "rule_based"
+    source: Optional[str] = None
 
 
-class Agent5Output(BaseModel):
+# DEPRECATED — v1 only
+class Agent5Output_V1(BaseModel):
     estimates_created: int = Field(ge=0)
     total_labor_cost: float = Field(ge=0)
     total_labor_hours: float = Field(ge=0)
     items_processed: int = Field(ge=0)
-    results: list[Agent5ItemResult] = []
-    labor_method: Optional[str] = None    # "llm" or "db"
-    tokens_used: Optional[int] = None     # total LLM tokens consumed (0 for DB path)
-    benchmark_coverage: Optional[float] = None  # fraction of items sourced from historical benchmarks
+    results: list[Agent5ItemResult_V1] = []
+    labor_method: Optional[str] = None
+    tokens_used: Optional[int] = None
+    benchmark_coverage: Optional[float] = None
+
+
+class FieldActualsComparison(BaseModel):
+    """Three-way comparison for a single takeoff line item."""
+    line_item_row: int
+    activity: str
+    unit: Optional[str] = None
+    # The three rates
+    estimator_rate: Optional[float] = None       # what this estimator entered
+    estimating_avg_rate: Optional[float] = None   # what estimators historically enter (from PB)
+    field_avg_rate: Optional[float] = None        # what crews actually produce
+    # Comparison metrics
+    field_sample_count: int = 0
+    estimating_to_field_delta_pct: Optional[float] = None
+    entered_to_field_delta_pct: Optional[float] = None
+    calibration_factor: Optional[float] = None    # field_avg / estimating_avg
+    calibration_direction: str = "no_data"        # "optimistic", "conservative", "aligned", "no_data"
+    recommendation: str = ""                       # human-readable guidance
+    field_projects: list[str] = []                 # which completed projects inform this
+
+
+class Agent5Output(BaseModel):
+    """Agent 5 v2 — Field Actuals Comparison output."""
+    items_compared: int = Field(ge=0)
+    items_with_field_data: int = Field(ge=0)
+    items_without_field_data: int = Field(ge=0)
+    comparisons: list[FieldActualsComparison] = []
+    avg_calibration_factor: Optional[float] = None
+    calibration_summary: dict = {}  # {"optimistic": N, "conservative": N, "aligned": N, "no_data": N}
 
 
 # ---------------------------------------------------------------------------

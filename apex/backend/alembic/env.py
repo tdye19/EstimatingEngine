@@ -51,6 +51,7 @@ from apex.backend.models.document_association import DocumentAssociation, Docume
 from apex.backend.services.productivity_brain.models import PBProject, PBLineItem  # noqa: F401, E402
 from apex.backend.services.bid_intelligence.models import BIEstimate  # noqa: F401, E402
 from apex.backend.models.takeoff_v2 import TakeoffItemV2  # noqa: F401, E402
+from apex.backend.models.field_actuals import FieldActualsProject, FieldActualsLineItem  # noqa: F401, E402
 
 # ---------------------------------------------------------------------------
 # Alembic Config
