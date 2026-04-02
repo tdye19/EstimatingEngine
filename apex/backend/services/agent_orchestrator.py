@@ -45,7 +45,7 @@ logger = logging.getLogger("apex.orchestrator")
 AGENT_DEFINITIONS = {
     1: ("Document Ingestion Agent",   "apex.backend.agents.agent_1_ingestion",   "run_ingestion_agent"),
     2: ("Spec Parser Agent",          "apex.backend.agents.agent_2_spec_parser", "run_spec_parser_agent"),
-    3: ("Scope Gap Analysis Agent",   "apex.backend.agents.agent_3_gap_analysis","run_gap_analysis_agent"),
+    3: ("Scope Analysis Agent",       "apex.backend.agents.agent_3_gap_analysis","run_gap_analysis_agent"),
     4: ("Rate Intelligence Agent",    "apex.backend.agents.agent_4_takeoff",     "run_takeoff_agent"),
     5: ("Field Calibration Agent",    "apex.backend.agents.agent_5_labor",       "run_labor_agent"),
     6: ("Intelligence Report Agent",  "apex.backend.agents.agent_6_assembly",    "run_assembly_agent"),

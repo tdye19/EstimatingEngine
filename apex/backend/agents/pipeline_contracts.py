@@ -389,7 +389,7 @@ _CONTRACT_MAP: dict[int, type[BaseModel]] = {
 AGENT_NAMES = {
     1: "Document Ingestion Agent",
     2: "Spec Parser Agent",
-    3: "Scope Gap Analysis Agent",
+    3: "Scope Analysis Agent",
     4: "Rate Intelligence Agent",
     5: "Field Calibration Agent",
     6: "Intelligence Report Agent",

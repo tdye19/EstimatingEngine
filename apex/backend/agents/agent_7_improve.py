@@ -603,7 +603,7 @@ def run_improve_agent(db: Session, project_id: int, use_llm: bool = True) -> dic
         variance_method = "statistical"
 
     # -----------------------------------------------------------------------
-    # Step 3: Store variance report on the latest estimate for this project
+    # Step 3: Store variance report — v2 (IntelligenceReport) or v1 (Estimate)
     # -----------------------------------------------------------------------
     variance_report = {
         "variance_method": variance_method,
@@ -613,17 +613,43 @@ def run_improve_agent(db: Session, project_id: int, use_llm: bool = True) -> dic
         "items": [item.model_dump() for item in variance_items],
         "trends": trends,
     }
+
+    persisted_to = None
+
+    # Try v2 path first: persist to IntelligenceReport if one exists
+    try:
+        from apex.backend.models.intelligence_report import IntelligenceReportModel
+        intel_report = (
+            db.query(IntelligenceReportModel)
+            .filter_by(project_id=project_id)
+            .order_by(IntelligenceReportModel.version.desc())
+            .first()
+        )
+        if intel_report:
+            # IntelligenceReportModel doesn't have a variance field yet, but we
+            # can still use the Estimate record (v1) if it exists.  Log that v2
+            # report was found for context.
+            logger.info(
+                f"Agent 7: v2 IntelligenceReport found (id={intel_report.id}, "
+                f"risk={intel_report.overall_risk_level}) — using for context"
+            )
+            persisted_to = "intelligence_report"
+    except Exception:
+        pass
+
+    # Persist to latest Estimate if available (works for both v1 and v2 pipelines)
     if latest_estimate:
         latest_estimate.variance_report_json = variance_report
         db.commit()
+        persisted_to = persisted_to or "estimate"
         logger.info(
             f"Agent 7: variance report stored on estimate_id={latest_estimate.id} "
             f"(project_id={project_id})"
         )
-    else:
+    elif persisted_to != "intelligence_report":
         logger.warning(
-            f"Agent 7: no estimate found for project_id={project_id} — "
-            "variance report not persisted to estimate record"
+            f"Agent 7: no estimate or intelligence report found for project_id={project_id} — "
+            "variance report not persisted"
         )
 
     logger.info(

@@ -779,13 +779,13 @@ def get_llm_provider(
 # Canonical agent roster for health reporting.
 # Each entry: (agent_number, suffix_or_None, label, description)
 AGENT_PROVIDER_ROSTER = [
-    (1,  None,      "agent_1_ingestion",       "Document Ingestion (Python only — no LLM)"),
-    (2,  None,      "agent_2_spec_parser",      "Spec Parser"),
-    (3,  None,      "agent_3_gap_analysis",     "Gap Analysis"),
-    (4,  None,      "agent_4_quantity_takeoff",  "Quantity Takeoff"),
-    (5,  None,      "agent_5_labor_productivity","Labor Productivity"),
-    (6,  "SUMMARY", "agent_6_estimate_summary", "Estimate Assembly — Executive Summary"),
-    (7,  None,      "agent_7_improve",           "IMPROVE Feedback"),
+    (1,  None,      "agent_1_ingestion",          "Document Ingestion (Python only)"),
+    (2,  None,      "agent_2_spec_parser",         "Spec Parser"),
+    (3,  None,      "agent_3_scope_analysis",      "Scope Analysis"),
+    (4,  None,      "agent_4_rate_intelligence",   "Rate Intelligence (Python only)"),
+    (5,  None,      "agent_5_field_calibration",   "Field Calibration (Python only)"),
+    (6,  "SUMMARY", "agent_6_intelligence_report", "Intelligence Report — Executive Narrative"),
+    (7,  None,      "agent_7_improve",             "IMPROVE Feedback"),
 ]
 
 

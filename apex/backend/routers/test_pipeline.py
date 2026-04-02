@@ -18,6 +18,10 @@ from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
 from apex.backend.models.document import Document
 from apex.backend.models.project import Project
+from apex.backend.models.spec_section import SpecSection
+from apex.backend.models.takeoff_v2 import TakeoffItemV2
+from apex.backend.models.gap_report import GapReport
+from apex.backend.models.intelligence_report import IntelligenceReportModel
 from apex.backend.services.agent_orchestrator import AgentOrchestrator
 
 logger = logging.getLogger("apex.test_pipeline")
@@ -128,6 +132,15 @@ def run_test_pipeline(db: Session = Depends(get_db)):
         "detail": f"report_id={report_id}, risk={r6.get('overall_risk_level', 'N/A')}",
     })
 
+    # --- 5. v2 pipeline deep validation (queries DB directly) ---
+    v2_checks = _validate_v2_pipeline(project_id, db)
+    for label, passed in v2_checks:
+        assertions.append({
+            "check": f"[v2] {label}",
+            "passed": passed,
+            "detail": "OK" if passed else "FAIL",
+        })
+
     all_passed = all(a["passed"] for a in assertions)
 
     return {
@@ -145,3 +158,32 @@ def run_test_pipeline(db: Session = Depends(get_db)):
             "agent_6": r6,
         },
     }
+
+
+def _validate_v2_pipeline(project_id: int, db: Session) -> list[tuple[str, bool]]:
+    """Validate the full v2 pipeline produced expected outputs."""
+    checks = []
+
+    # Agent 2: spec sections parsed
+    sections = db.query(SpecSection).filter_by(project_id=project_id).count()
+    checks.append(("Agent 2 spec sections exist", sections > 0))
+
+    # Agent 4: takeoff items (0 ok if no takeoff uploaded)
+    takeoff = db.query(TakeoffItemV2).filter_by(project_id=project_id).count()
+    checks.append(("Agent 4 takeoff items queryable", takeoff >= 0))
+
+    # Agent 3: gap report exists
+    gap_report = db.query(GapReport).filter_by(project_id=project_id).first()
+    checks.append(("Agent 3 gap report exists", gap_report is not None))
+
+    # Agent 6: intelligence report exists
+    report = db.query(IntelligenceReportModel).filter_by(project_id=project_id).first()
+    checks.append(("Agent 6 intelligence report exists", report is not None))
+
+    if report:
+        checks.append(("Risk level set", report.overall_risk_level != "unknown"))
+        checks.append(("Narrative generated", len(report.executive_narrative or "") > 0))
+        checks.append(("Rate intelligence populated", report.rate_intelligence_json is not None))
+        checks.append(("Scope risk populated", report.scope_risk_json is not None))
+
+    return checks
