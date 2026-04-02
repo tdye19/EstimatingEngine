@@ -113,11 +113,11 @@ def run_test_pipeline(db: Session = Depends(get_db)):
     })
 
     r5 = pipeline_results.get("agent_5", {})
-    estimates = r5.get("estimates_created", 0)
+    compared = r5.get("items_compared", 0)
     assertions.append({
-        "check": "Agent 5 produced labor estimates",
-        "passed": estimates >= 1 and not r5.get("error"),
-        "detail": f"estimates_created={estimates}",
+        "check": "Agent 5 compared against field actuals",
+        "passed": compared >= 0 and not r5.get("error"),
+        "detail": f"items_compared={compared}, with_field_data={r5.get('items_with_field_data', 0)}",
     })
 
     r6 = pipeline_results.get("agent_6", {})

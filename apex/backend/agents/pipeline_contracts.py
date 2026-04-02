@@ -297,7 +297,7 @@ AGENT_NAMES = {
     2: "Spec Parser Agent",
     3: "Scope Gap Analysis Agent",
     4: "Rate Intelligence Agent",
-    5: "Labor Productivity Agent",
+    5: "Field Calibration Agent",
     6: "Estimate Assembly Agent",
     7: "IMPROVE Feedback Agent",
 }

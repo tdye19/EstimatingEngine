@@ -47,7 +47,7 @@ AGENT_DEFINITIONS = {
     2: ("Spec Parser Agent",          "apex.backend.agents.agent_2_spec_parser", "run_spec_parser_agent"),
     3: ("Scope Gap Analysis Agent",   "apex.backend.agents.agent_3_gap_analysis","run_gap_analysis_agent"),
     4: ("Rate Intelligence Agent",    "apex.backend.agents.agent_4_takeoff",     "run_takeoff_agent"),
-    5: ("Labor Productivity Agent",   "apex.backend.agents.agent_5_labor",       "run_labor_agent"),
+    5: ("Field Calibration Agent",    "apex.backend.agents.agent_5_labor",       "run_labor_agent"),
     6: ("Estimate Assembly Agent",    "apex.backend.agents.agent_6_assembly",    "run_assembly_agent"),
     7: ("IMPROVE Feedback Agent",     "apex.backend.agents.agent_7_improve",     "run_improve_agent"),
 }
@@ -330,7 +330,7 @@ class AgentOrchestrator:
 
                     _summary_keys = (
                         "documents_processed", "sections_parsed", "total_gaps",
-                        "takeoff_items_parsed", "items_created", "estimates_created", "estimate_id",
+                        "takeoff_items_parsed", "items_compared", "items_created", "estimates_created", "estimate_id",
                     )
                     _parallel_exc = (
                         isinstance(_a3_res, Exception) or isinstance(_a4_res, Exception)
@@ -426,7 +426,7 @@ class AgentOrchestrator:
                     # Summarise result for the log
                     summary_keys = (
                         "documents_processed", "sections_parsed", "total_gaps",
-                        "takeoff_items_parsed", "items_created", "estimates_created", "estimate_id",
+                        "takeoff_items_parsed", "items_compared", "items_created", "estimates_created", "estimate_id",
                     )
                     summary = next(
                         (f"{k}={result[k]}" for k in summary_keys if k in result),
