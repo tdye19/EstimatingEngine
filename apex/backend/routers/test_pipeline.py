@@ -121,11 +121,11 @@ def run_test_pipeline(db: Session = Depends(get_db)):
     })
 
     r6 = pipeline_results.get("agent_6", {})
-    total_bid = r6.get("total_bid_amount", 0)
+    report_id = r6.get("report_id", -1)
     assertions.append({
-        "check": "Agent 6 produced estimate with total > 0",
-        "passed": total_bid > 0 and not r6.get("error"),
-        "detail": f"total_bid_amount={total_bid}",
+        "check": "Agent 6 produced intelligence report",
+        "passed": report_id >= 0 and not r6.get("error"),
+        "detail": f"report_id={report_id}, risk={r6.get('overall_risk_level', 'N/A')}",
     })
 
     all_passed = all(a["passed"] for a in assertions)

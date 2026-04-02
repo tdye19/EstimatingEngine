@@ -318,6 +318,7 @@ class AgentOrchestrator:
                     summary_keys = (
                         "documents_processed", "sections_parsed", "total_gaps",
                         "takeoff_items_parsed", "items_compared", "items_created", "estimates_created", "estimate_id",
+                        "report_id", "overall_risk_level",
                     )
                     summary = next(
                         (f"{k}={result[k]}" for k in summary_keys if k in result),
