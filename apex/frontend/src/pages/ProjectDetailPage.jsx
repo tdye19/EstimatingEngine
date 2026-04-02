@@ -54,12 +54,14 @@ const BenchmarkDashboardTab = lazy(() => import('../components/tabs/BenchmarkDas
 const ProductivityBrainTab = lazy(() => import('../components/tabs/ProductivityBrainTab'));
 const BidIntelligenceTab = lazy(() => import('../components/tabs/BidIntelligenceTab'));
 const RateIntelligenceTab = lazy(() => import('../components/tabs/RateIntelligenceTab'));
+const FieldCalibrationTab = lazy(() => import('../components/tabs/FieldCalibrationTab'));
 
 const TABS = [
   { path: 'documents', label: 'Documents', icon: Files },
   { path: 'spec-sections', label: 'Spec Sections', icon: BookOpen },
   { path: 'gap-report', label: 'Gap Report', icon: AlertTriangle },
   { path: 'rate-intelligence', label: 'Rate Intelligence', icon: Scale },
+  { path: 'field-calibration', label: 'Field Calibration', icon: Activity },
   { path: 'takeoff', label: 'Takeoff', icon: Ruler },
   { path: 'labor', label: 'Labor', icon: HardHat },
   { path: 'estimate', label: 'Estimate', icon: Calculator },
@@ -92,6 +94,7 @@ export default function ProjectDetailPage() {
   const [specRefreshKey, setSpecRefreshKey] = useState(0);
   const [gapRefreshKey, setGapRefreshKey] = useState(0);
   const [rateIntelRefreshKey, setRateIntelRefreshKey] = useState(0);
+  const [fieldCalRefreshKey, setFieldCalRefreshKey] = useState(0);
   const [takeoffRefreshKey, setTakeoffRefreshKey] = useState(0);
   const [laborRefreshKey, setLaborRefreshKey] = useState(0);
   const [estimateRefreshKey, setEstimateRefreshKey] = useState(0);
@@ -147,6 +150,7 @@ export default function ProjectDetailPage() {
     setSpecRefreshKey((k) => k + 1);
     setGapRefreshKey((k) => k + 1);
     setRateIntelRefreshKey((k) => k + 1);
+    setFieldCalRefreshKey((k) => k + 1);
     setTakeoffRefreshKey((k) => k + 1);
     setLaborRefreshKey((k) => k + 1);
     setEstimateRefreshKey((k) => k + 1);
@@ -164,7 +168,7 @@ export default function ProjectDetailPage() {
       2: () => setSpecRefreshKey((k) => k + 1),
       3: () => setGapRefreshKey((k) => k + 1),
       4: () => { setRateIntelRefreshKey((k) => k + 1); setTakeoffRefreshKey((k) => k + 1); },
-      5: () => setLaborRefreshKey((k) => k + 1),
+      5: () => { setFieldCalRefreshKey((k) => k + 1); setLaborRefreshKey((k) => k + 1); },
       6: () => setEstimateRefreshKey((k) => k + 1),
       7: () => setVarianceRefreshKey((k) => k + 1),
     };
@@ -314,6 +318,16 @@ export default function ProjectDetailPage() {
             <ErrorBoundary key="rate-intelligence">
               <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
                 <RateIntelligenceTab projectId={id} refreshKey={rateIntelRefreshKey} />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="field-calibration"
+          element={
+            <ErrorBoundary key="field-calibration">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
+                <FieldCalibrationTab projectId={id} refreshKey={fieldCalRefreshKey} />
               </Suspense>
             </ErrorBoundary>
           }

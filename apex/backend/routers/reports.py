@@ -201,6 +201,95 @@ def get_rate_intelligence(project_id: int, db: Session = Depends(get_db), user: 
     })
 
 
+@router.get("/{project_id}/field-calibration", response_model=APIResponse)
+def get_field_calibration(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    """Return Agent 5 v2 field actuals comparisons for this project."""
+    from apex.backend.models.takeoff_v2 import TakeoffItemV2
+    from apex.backend.services.field_actuals.service import FieldActualsService
+
+    get_authorized_project(project_id, user, db)
+
+    rows = db.query(TakeoffItemV2).filter(
+        TakeoffItemV2.project_id == project_id,
+    ).order_by(TakeoffItemV2.row_number).all()
+
+    if not rows:
+        return APIResponse(success=True, data={
+            "items_compared": 0,
+            "items_with_field_data": 0,
+            "items_without_field_data": 0,
+            "comparisons": [],
+            "avg_calibration_factor": None,
+            "calibration_summary": {"optimistic": 0, "conservative": 0, "aligned": 0, "no_data": 0},
+        })
+
+    fa_service = FieldActualsService(db)
+    comparisons = []
+    cal_factors = []
+    dir_counts = {"optimistic": 0, "conservative": 0, "aligned": 0, "no_data": 0}
+
+    for row in rows:
+        est_rate = row.production_rate
+        est_avg = row.historical_avg_rate
+        field_match = fa_service.match_field_data(activity=row.activity, unit=row.unit)
+
+        if field_match and field_match["avg_rate"]:
+            field_avg = field_match["avg_rate"]
+            est_to_field = round(((est_avg - field_avg) / field_avg) * 100, 2) if est_avg and est_avg > 0 else None
+            entered_to_field = round(((est_rate - field_avg) / field_avg) * 100, 2) if est_rate and est_rate > 0 else None
+            cal_factor = round(field_avg / est_avg, 4) if est_avg and est_avg > 0 else None
+
+            direction = "no_data"
+            if cal_factor is not None:
+                cal_factors.append(cal_factor)
+                direction = "optimistic" if cal_factor < 0.90 else "conservative" if cal_factor > 1.10 else "aligned"
+
+            dir_counts[direction] += 1
+            comparisons.append({
+                "line_item_row": row.row_number,
+                "activity": row.activity,
+                "unit": row.unit,
+                "estimator_rate": est_rate,
+                "estimating_avg_rate": est_avg,
+                "field_avg_rate": field_avg,
+                "field_sample_count": field_match["sample_count"],
+                "estimating_to_field_delta_pct": est_to_field,
+                "entered_to_field_delta_pct": entered_to_field,
+                "calibration_factor": cal_factor,
+                "calibration_direction": direction,
+                "recommendation": "",
+                "field_projects": field_match["projects"],
+            })
+        else:
+            dir_counts["no_data"] += 1
+            comparisons.append({
+                "line_item_row": row.row_number,
+                "activity": row.activity,
+                "unit": row.unit,
+                "estimator_rate": est_rate,
+                "estimating_avg_rate": est_avg,
+                "field_avg_rate": None,
+                "field_sample_count": 0,
+                "estimating_to_field_delta_pct": None,
+                "entered_to_field_delta_pct": None,
+                "calibration_factor": None,
+                "calibration_direction": "no_data",
+                "recommendation": "No field actuals available for this activity.",
+                "field_projects": [],
+            })
+
+    avg_cal = round(sum(cal_factors) / len(cal_factors), 4) if cal_factors else None
+
+    return APIResponse(success=True, data={
+        "items_compared": len(comparisons),
+        "items_with_field_data": sum(1 for c in comparisons if c["calibration_direction"] != "no_data"),
+        "items_without_field_data": sum(1 for c in comparisons if c["calibration_direction"] == "no_data"),
+        "comparisons": comparisons,
+        "avg_calibration_factor": avg_cal,
+        "calibration_summary": dir_counts,
+    })
+
+
 @router.get("/{project_id}/labor-estimates", response_model=APIResponse)
 def get_labor_estimates(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
     get_authorized_project(project_id, user, db)

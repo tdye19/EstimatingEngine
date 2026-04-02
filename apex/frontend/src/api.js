@@ -158,6 +158,20 @@ export const getTakeoff = (projectId) =>
 export const getRateIntelligence = (projectId) =>
   request(`/projects/${projectId}/rate-intelligence`);
 
+export const getFieldCalibration = (projectId) =>
+  request(`/projects/${projectId}/field-calibration`);
+
+export const uploadFieldActuals = (file, projectName, region) => {
+  const form = new FormData();
+  form.append('file', file);
+  if (projectName) form.append('project_name', projectName);
+  if (region) form.append('region', region);
+  return request('/field-actuals/upload', { method: 'POST', body: form });
+};
+
+export const getFieldActualsStats = () =>
+  request('/field-actuals/stats');
+
 export const updateTakeoffItem = (projectId, itemId, data) =>
   request(`/projects/${projectId}/takeoff/${itemId}`, {
     method: 'PUT',
