@@ -10,6 +10,7 @@ Supported formats:
 - WinEst 26-col (CCI Civil Est Report) -- cell A1 contains "_CCI Civil Est Report"
 - WinEst 21-col (CCI Estimate Report) -- cell A1 contains "_CCI Estimate Report"
 - Simple CSV/XLSX -- header row with columns: Activity, Qty, Unit, Crew, Rate
+- Generic takeoff -- any spreadsheet with an activity/description column + quantity columns
 """
 
 import csv
@@ -330,6 +331,210 @@ def _parse_xlsx_simple(filepath: str) -> list[TakeoffLineItem]:
     return items
 
 
+# ── Generic takeoff parser ──────────────────────────────────────────────────
+
+# Column name matching (case-insensitive, stripped)
+_ACTIVITY_KEYWORDS = {
+    "label", "description", "activity", "item", "scope", "work item",
+    "work description", "element", "component", "task",
+}
+
+_QUANTITY_KEYWORDS = {
+    # Direct unit names
+    "qty", "quantity", "amount",
+    # Linear
+    "lf", "lnft", "lineal ft", "linear feet", "total lnft", "length",
+    # Area
+    "sf", "sqft", "area", "total area", "total area (sf)", "square feet",
+    # Volume
+    "cy", "cuyd", "cubic yards", "total cuyd", "volume", "total cy",
+    # Count
+    "ea", "each", "count", "pcs", "pieces",
+    # Weight
+    "tons", "lbs", "pounds", "weight",
+}
+
+_UNIT_INFERENCE: dict[str, Optional[str]] = {
+    "lf": "LF", "lnft": "LF", "lineal ft": "LF", "linear feet": "LF",
+    "total lnft": "LF", "length": "LF",
+    "sf": "SF", "sqft": "SF", "area": "SF", "total area": "SF",
+    "total area (sf)": "SF", "square feet": "SF",
+    "cy": "CY", "cuyd": "CY", "cubic yards": "CY", "total cuyd": "CY",
+    "volume": "CY", "total cy": "CY",
+    "ea": "EA", "each": "EA", "count": "EA", "pcs": "EA", "pieces": "EA",
+    "tons": "TON", "lbs": "LBS", "pounds": "LBS", "weight": "LBS",
+    "qty": None, "quantity": None, "amount": None,
+}
+
+# Priority order for picking the primary quantity column
+_UNIT_PRIORITY = ["CY", "SF", "LF", "EA", "TON", "LBS", None]
+
+_TOTAL_KEYWORDS = {"total", "subtotal", "sum", "grand total"}
+
+
+def _match_keyword(cell_text: str, keywords: set[str]) -> Optional[str]:
+    """Check if cell_text matches any keyword (exact or substring).
+
+    Returns the matched keyword, or None.
+    """
+    lower = cell_text.strip().lower()
+    if not lower:
+        return None
+    # Exact match first
+    if lower in keywords:
+        return lower
+    # Substring match — keyword appears in cell value
+    for kw in keywords:
+        if kw in lower:
+            return kw
+    return None
+
+
+def _detect_generic_header(rows: list[list]) -> tuple[Optional[int], Optional[int], list[tuple[int, str, Optional[str]]]]:
+    """Scan rows for a generic takeoff header.
+
+    Returns (header_row_index, activity_col_index, qty_columns) where
+    qty_columns is a list of (col_index, matched_keyword, inferred_unit).
+    Returns (None, None, []) if no suitable header found.
+    """
+    for row_idx, row in enumerate(rows):
+        cells = [str(c).strip() if c is not None else "" for c in row]
+
+        activity_col = None
+        qty_cols: list[tuple[int, str, Optional[str]]] = []
+
+        for col_idx, cell in enumerate(cells):
+            if not cell:
+                continue
+            # Check activity
+            act_match = _match_keyword(cell, _ACTIVITY_KEYWORDS)
+            if act_match is not None and activity_col is None:
+                activity_col = col_idx
+                continue
+            # Check quantity
+            qty_match = _match_keyword(cell, _QUANTITY_KEYWORDS)
+            if qty_match is not None:
+                unit = _UNIT_INFERENCE.get(qty_match)
+                qty_cols.append((col_idx, qty_match, unit))
+
+        if activity_col is not None and len(qty_cols) >= 1:
+            return row_idx, activity_col, qty_cols
+
+    return None, None, []
+
+
+def _pick_primary_qty(qty_cols: list[tuple[int, str, Optional[str]]], row_data: list) -> tuple[Optional[float], Optional[str]]:
+    """Pick the best quantity column value for a data row.
+
+    Priority: CY > SF > LF > EA > TON > LBS > generic (None unit).
+    Within a priority level, picks the first column with a non-None value.
+    """
+    # Group columns by inferred unit
+    by_unit: dict[Optional[str], list[tuple[int, str]]] = {}
+    for col_idx, kw, unit in qty_cols:
+        by_unit.setdefault(unit, []).append((col_idx, kw))
+
+    for target_unit in _UNIT_PRIORITY:
+        cols = by_unit.get(target_unit, [])
+        for col_idx, _kw in cols:
+            if col_idx < len(row_data):
+                val = _safe_float(row_data[col_idx])
+                if val is not None:
+                    return val, target_unit
+    return None, None
+
+
+def _is_total_row(activity: str) -> bool:
+    """Return True if activity looks like a total/summary row."""
+    lower = activity.strip().lower()
+    return any(lower == kw or lower.startswith(kw + " ") or lower.startswith(kw + ":")
+               for kw in _TOTAL_KEYWORDS)
+
+
+def _try_generic_format_ws(ws) -> Optional[dict]:
+    """Try to parse a single worksheet as a generic takeoff.
+
+    Returns {"items": [...], "warnings": [...]} or None if no header found.
+    """
+    # Read first 10 rows for header detection
+    preview: list[list] = []
+    all_rows: list[list] = []
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        row_list = list(row)
+        all_rows.append(row_list)
+        if i < 10:
+            preview.append(row_list)
+
+    header_idx, activity_col, qty_cols = _detect_generic_header(preview)
+    if header_idx is None:
+        return None
+
+    items: list[TakeoffLineItem] = []
+    warnings: list[str] = []
+    row_num = 0
+
+    for i, row_data in enumerate(all_rows):
+        if i <= header_idx:
+            continue
+
+        # Get activity
+        if activity_col >= len(row_data):
+            continue
+        activity = _safe_str(row_data[activity_col])
+        if not activity:
+            continue  # skip blank rows
+        if _is_total_row(activity):
+            continue  # skip total/summary rows
+
+        # Pick primary quantity
+        qty_val, unit = _pick_primary_qty(qty_cols, row_data)
+
+        row_num += 1
+        items.append(TakeoffLineItem(
+            row_number=row_num,
+            activity=activity,
+            quantity=qty_val,
+            unit=unit,
+        ))
+
+    if not items:
+        return None
+
+    return {"items": items, "warnings": warnings}
+
+
+def _try_generic_format(filepath: str) -> Optional[dict]:
+    """Try to parse an xlsx file as a generic takeoff.
+
+    Tries the active sheet first, then other sheets.
+    Returns {"items": [...], "warnings": [...]} or None.
+    """
+    try:
+        wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+    except Exception:
+        return None
+
+    # Try active sheet first
+    result = _try_generic_format_ws(wb.active)
+    if result and result["items"]:
+        wb.close()
+        return result
+
+    # Try other sheets
+    for name in wb.sheetnames:
+        ws = wb[name]
+        if ws == wb.active:
+            continue
+        result = _try_generic_format_ws(ws)
+        if result and result["items"]:
+            result["warnings"].append(f"Parsed from sheet '{name}' (not the first sheet).")
+            wb.close()
+            return result
+
+    wb.close()
+    return None
+
+
 # ── .est (OLE2 native) parser ───────────────────────────────────────────────
 
 def _parse_est_file(filepath: str) -> list[TakeoffLineItem]:
@@ -380,7 +585,7 @@ def parse_takeoff(filepath: str) -> tuple[list[TakeoffLineItem], str]:
     """Parse a takeoff file, auto-detecting format.
 
     Returns (items, format_name) where format_name is one of:
-    "est_native", "26col", "21col", "simple_csv", "unknown".
+    "est_native", "26col", "21col", "simple_csv", "generic_takeoff", "unknown".
     """
     ext = os.path.splitext(filepath)[1].lower()
 
@@ -396,6 +601,11 @@ def parse_takeoff(filepath: str) -> tuple[list[TakeoffLineItem], str]:
     elif fmt == "simple_csv":
         return parse_simple_csv(filepath), fmt
     else:
+        # Try generic format for xlsx/xls before giving up
+        if ext in (".xlsx", ".xls"):
+            generic = _try_generic_format(filepath)
+            if generic and generic["items"]:
+                return generic["items"], "generic_takeoff"
         return [], fmt
 
 
