@@ -53,6 +53,11 @@ from apex.backend.services.bid_intelligence.models import BIEstimate  # noqa: F4
 from apex.backend.models.takeoff_v2 import TakeoffItemV2  # noqa: F401, E402
 from apex.backend.models.field_actuals import FieldActualsProject, FieldActualsLineItem  # noqa: F401, E402
 from apex.backend.models.intelligence_report import IntelligenceReportModel  # noqa: F401, E402
+from apex.backend.models.decision_models import (  # noqa: F401, E402
+    ComparableProject, HistoricalRateObservation, CanonicalActivity,
+    ActivityAlias, EstimateLine, CostBreakdownBucket, RiskItem,
+    EscalationInput, EstimatorOverride, BidOutcome, FieldActual,
+)
 
 # ---------------------------------------------------------------------------
 # Alembic Config
