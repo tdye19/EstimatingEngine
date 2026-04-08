@@ -27,6 +27,19 @@ from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.models.field_actuals import FieldActualsProject, FieldActualsLineItem
 from apex.backend.models.intelligence_report import IntelligenceReportModel
 from apex.backend.services.bid_intelligence.models import BIEstimate
+from apex.backend.models.decision_models import (
+    ComparableProject,
+    HistoricalRateObservation,
+    CanonicalActivity,
+    ActivityAlias,
+    EstimateLine,
+    CostBreakdownBucket,
+    RiskItem,
+    EscalationInput,
+    EstimatorOverride,
+    BidOutcome,
+    FieldActual,
+)
 
 __all__ = [
     "User", "Organization", "Project", "Document", "SpecSection",
@@ -43,4 +56,8 @@ __all__ = [
     "TakeoffItemV2",
     "FieldActualsProject", "FieldActualsLineItem",
     "IntelligenceReportModel",
+    # Decision system models
+    "ComparableProject", "HistoricalRateObservation", "CanonicalActivity",
+    "ActivityAlias", "EstimateLine", "CostBreakdownBucket", "RiskItem",
+    "EscalationInput", "EstimatorOverride", "BidOutcome", "FieldActual",
 ]
