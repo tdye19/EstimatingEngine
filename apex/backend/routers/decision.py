@@ -2,13 +2,17 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+import os
+import tempfile
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.engines.assembly import AssemblyEngine
 from apex.backend.engines.benchmarking import BenchmarkingEngine
+from apex.backend.engines.quantity_import import parse_winest_xlsx
 from apex.backend.models.decision_models import (
     BidOutcome,
     CanonicalActivity,
@@ -376,6 +380,56 @@ def get_risk_items(
         .all()
     )
     return [_serialize_risk(r) for r in items]
+
+
+# ---------------------------------------------------------------------------
+# FILE UPLOAD ESTIMATE
+# ---------------------------------------------------------------------------
+
+@router.post("/api/projects/{project_id}/estimate-from-file")
+async def run_estimate_from_file(
+    project_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    project = _get_project(project_id, db)
+
+    # Save upload to temp file
+    suffix = os.path.splitext(file.filename or ".xlsx")[1] or ".xlsx"
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        tmp.write(content)
+        tmp.close()
+
+        try:
+            quantities = parse_winest_xlsx(tmp.name)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Parse error: {e}")
+
+        engine = AssemblyEngine(db)
+        result = engine.run_estimate(project, quantities)
+
+        return {
+            "line_count": result["line_count"],
+            "direct_cost": result["direct_cost"],
+            "needs_review_count": result["needs_review_count"],
+            "low_confidence_count": result["low_confidence_count"],
+            "final_bid_value": result["final_bid_value"],
+            "risk_item_count": result["risk_item_count"],
+            "estimate_lines": [_serialize_line(l) for l in result["lines"]],
+            "cost_breakdown": [_serialize_bucket(b) for b in result["cost_breakdown"]],
+            "risk_items": [_serialize_risk(r) for r in result["risk_items"]],
+        }
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
 
 
 # ---------------------------------------------------------------------------

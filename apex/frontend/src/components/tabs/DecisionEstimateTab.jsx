@@ -44,6 +44,7 @@ export default function DecisionEstimateTab({ projectId }) {
 
   // Quantities CSV
   const [csvText, setCsvText] = useState(EXAMPLE_CSV);
+  const [fileUploading, setFileUploading] = useState(false);
 
   // Results
   const [lines, setLines] = useState([]);
@@ -88,6 +89,39 @@ export default function DecisionEstimateTab({ projectId }) {
       setCtxMsg(`Error: ${e.message}`);
     } finally {
       setCtxSaving(false);
+    }
+  };
+
+  // --- Upload WinEst XLSX ---
+  const uploadFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileUploading(true); setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const r = await fetch(`/api/projects/${projectId}/estimate-from-file`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!r.ok) { const t = await r.text(); throw new Error(t); }
+      const data = await r.json();
+      setLines(data.estimate_lines || []);
+      setSummary({
+        direct_cost: data.direct_cost,
+        final_bid_value: data.final_bid_value,
+        line_count: data.line_count,
+        needs_review_count: data.needs_review_count,
+        low_confidence_count: data.low_confidence_count,
+      });
+      setCostBreakdown({ buckets: data.cost_breakdown });
+      setRiskItems(data.risk_items || []);
+      setSubTab('Estimate Lines');
+    } catch (e) {
+      setError(`Upload failed: ${e.message}`);
+    } finally {
+      setFileUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -216,6 +250,14 @@ export default function DecisionEstimateTab({ projectId }) {
             <h3 className="text-sm font-semibold text-gray-300 mb-2">
               Quantities CSV <span className="text-gray-500 font-normal">(description, qty, unit, division_code)</span>
             </h3>
+            <div className="mb-3 flex items-center gap-3">
+              <label className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded cursor-pointer">
+                {fileUploading ? <span className="animate-spin">⟳</span> : null}
+                {fileUploading ? 'Processing…' : 'Upload WinEst XLSX'}
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={uploadFile} disabled={fileUploading} />
+              </label>
+              <span className="text-xs text-gray-500">or paste CSV below</span>
+            </div>
             <textarea
               className="w-full h-44 bg-gray-800 border border-gray-600 rounded p-3 text-sm text-gray-200 font-mono resize-y"
               value={csvText} onChange={e => setCsvText(e.target.value)} />
