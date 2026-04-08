@@ -6,6 +6,13 @@ import uuid
 from datetime import datetime, timezone
 
 # ---------------------------------------------------------------------------
+# Michigan union-scale loaded labor rate for concrete self-perform work.
+# Used to derive unit_cost from production_rate when no dollar data exists.
+# Formula: unit_cost (labor $/unit) = LABOR_RATE_PER_MH / production_rate (units/MH)
+# ---------------------------------------------------------------------------
+ASSUMED_LABOR_RATE_PER_MH = 85.0  # $/MH — Michigan union concrete crew, fully loaded
+
+# ---------------------------------------------------------------------------
 # Path setup so this script can be run directly or imported
 # ---------------------------------------------------------------------------
 _here = os.path.dirname(os.path.abspath(__file__))
@@ -295,8 +302,18 @@ def load_leonidas_spring_arbor(db, data_dir: str) -> int:
 
             qty = safe_float(row[3]) if len(row) > 3 else None
             unit = str(row[4]).strip() if len(row) > 4 and pd.notna(row[4]) else None
+            # Col 6 = Current Prod Rate, Col 7 = Hist Avg Prod Rate — prefer current
             prod_rate = safe_float(row[6]) if len(row) > 6 else None
+            hist_rate = safe_float(row[7]) if len(row) > 7 else None
+            # Use historical average as fallback if current is missing
+            effective_rate = prod_rate if prod_rate else hist_rate
             wbs = str(row[1]).strip() if len(row) > 1 and pd.notna(row[1]) else ""
+
+            # Derive unit_cost from production rate: labor_rate ($/MH) / rate (units/MH)
+            # This gives the labor cost per unit of work.
+            derived_unit_cost = None
+            if effective_rate and effective_rate > 0:
+                derived_unit_cost = round(ASSUMED_LABOR_RATE_PER_MH / effective_rate, 4)
 
             db.add(HistoricalRateObservation(
                 id=_uuid(),
@@ -305,8 +322,11 @@ def load_leonidas_spring_arbor(db, data_dir: str) -> int:
                 division_code=_wbs_to_division(wbs),
                 quantity=qty,
                 unit=unit,
-                production_rate=prod_rate,
-                data_quality_score=0.7,
+                unit_cost=derived_unit_cost,
+                labor_cost=derived_unit_cost,  # production rate data → labor cost only
+                production_rate=effective_rate,
+                production_rate_unit="unit/MH",
+                data_quality_score=0.65,  # slightly lower: cost derived, not direct
             ))
             added += 1
 
