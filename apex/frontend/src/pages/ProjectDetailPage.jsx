@@ -54,6 +54,7 @@ const BatchUploadTab = lazy(() => import('../components/tabs/BatchUploadTab'));
 const BenchmarkDashboardTab = lazy(() => import('../components/tabs/BenchmarkDashboardTab'));
 const ProductivityBrainTab = lazy(() => import('../components/tabs/ProductivityBrainTab'));
 const BidIntelligenceTab = lazy(() => import('../components/tabs/BidIntelligenceTab'));
+const DecisionEstimateTab = lazy(() => import('../components/tabs/DecisionEstimateTab'));
 const RateIntelligenceTab = lazy(() => import('../components/tabs/RateIntelligenceTab'));
 const FieldCalibrationTab = lazy(() => import('../components/tabs/FieldCalibrationTab'));
 const IntelligenceReportTab = lazy(() => import('../components/tabs/IntelligenceReportTab'));
@@ -82,6 +83,7 @@ const TABS = [
   { path: 'benchmarks', label: 'Benchmarks', icon: BarChart2 },
   { path: 'productivity-brain', label: 'Productivity Brain', icon: Brain },
   { path: 'bid-intelligence', label: 'Bid Intelligence', icon: Target },
+  { path: 'decision-estimate', label: 'Decision Estimate', icon: Calculator },
 ];
 
 export default function ProjectDetailPage() {
@@ -417,6 +419,16 @@ export default function ProjectDetailPage() {
             <ErrorBoundary key="bid-intelligence">
               <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
                 <BidIntelligenceTab />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="decision-estimate"
+          element={
+            <ErrorBoundary key="decision-estimate">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
+                <DecisionEstimateTab projectId={id} />
               </Suspense>
             </ErrorBoundary>
           }
