@@ -39,6 +39,7 @@ from apex.backend.routers import benchmarks as benchmarks_router
 from apex.backend.routers import productivity_brain as productivity_brain_router
 from apex.backend.routers import bid_intelligence as bid_intelligence_router
 from apex.backend.routers import field_actuals as field_actuals_router
+from apex.backend.routers import decision as decision_router
 from apex.backend.services.ws_manager import ws_manager
 
 # Logging — honour LOG_LEVEL env var
@@ -62,6 +63,13 @@ async def lifespan(app: FastAPI):
     import sys
     from apex.backend.db.seed import seed_if_empty
     seed_if_empty(force="--force-seed" in sys.argv)
+
+    # Run decision system seeder (Christman historical data)
+    try:
+        from apex.backend.db.seed_decision_data import run_decision_seed
+        run_decision_seed()
+    except Exception as _ds_err:
+        logger.warning("Decision seed skipped: %s", _ds_err)
 
     # Ensure upload directory exists
     os.makedirs(os.getenv("UPLOAD_DIR", "./uploads"), exist_ok=True)
@@ -148,6 +156,7 @@ app.include_router(benchmarks_router.router)
 app.include_router(productivity_brain_router.router)
 app.include_router(bid_intelligence_router.router)
 app.include_router(field_actuals_router.router)
+app.include_router(decision_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
 if _is_dev:
