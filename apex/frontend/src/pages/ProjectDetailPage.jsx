@@ -29,9 +29,11 @@ import {
   Target,
   Scale,
   Shield,
+  TrendingDown,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
+import DecisionEstimateTab from '../components/tabs/DecisionEstimateTab';
 import TakeoffTab from '../components/tabs/TakeoffTab';
 import LaborTab from '../components/tabs/LaborTab';
 import EstimateTab from '../components/tabs/EstimateTab';
@@ -82,6 +84,7 @@ const TABS = [
   { path: 'benchmarks', label: 'Benchmarks', icon: BarChart2 },
   { path: 'productivity-brain', label: 'Productivity Brain', icon: Brain },
   { path: 'bid-intelligence', label: 'Bid Intelligence', icon: Target },
+  { path: 'decision-estimate', label: 'Decision Estimate', icon: TrendingDown },
 ];
 
 export default function ProjectDetailPage() {
@@ -418,6 +421,14 @@ export default function ProjectDetailPage() {
               <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
                 <BidIntelligenceTab />
               </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="decision-estimate"
+          element={
+            <ErrorBoundary key="decision-estimate">
+              <DecisionEstimateTab projectId={id} />
             </ErrorBoundary>
           }
         />
