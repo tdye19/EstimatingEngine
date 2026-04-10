@@ -569,3 +569,31 @@ export const biGetEstimates = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
   return request(`/bid-intelligence/estimates${qs ? `?${qs}` : ''}`);
 };
+
+// ── Decision System ──────────────────────────────────
+export const updateProjectContext = (projectId, data) =>
+  request(`/decision/projects/${projectId}/context`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+
+export const runDecisionEstimate = (projectId, quantities) =>
+  request(`/decision/projects/${projectId}/estimate`, {
+    method: 'POST',
+    body: JSON.stringify({ quantities }),
+  });
+
+export const getDecisionEstimateLines = (projectId) =>
+  request(`/decision/projects/${projectId}/estimate-lines`);
+
+export const overrideEstimateLine = (lineId, data) =>
+  request(`/decision/estimate-lines/${lineId}/override`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const getDecisionCostBreakdown = (projectId) =>
+  request(`/decision/projects/${projectId}/cost-breakdown`);
+
+export const getDecisionRiskItems = (projectId) =>
+  request(`/decision/projects/${projectId}/risk-items`);

@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ToastProvider, useToast } from '../Toast';
+import {
+  updateProjectContext,
+  runDecisionEstimate,
+  getDecisionEstimateLines,
+  overrideEstimateLine,
+  getDecisionCostBreakdown,
+  getDecisionRiskItems,
+} from '../../api';
 
 const fmt$ = (val) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
@@ -59,12 +67,7 @@ function ContextTab({ projectId, onEstimateComplete }) {
     try {
       const payload = {};
       Object.entries(ctx).forEach(([k, v]) => { if (v) payload[k] = v; });
-      const res = await fetch(`/api/decision/projects/${projectId}/context`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await updateProjectContext(projectId, payload);
       setMsg('Context saved.');
     } catch (e) {
       setMsg(`Error: ${e.message}`);
@@ -79,13 +82,7 @@ function ContextTab({ projectId, onEstimateComplete }) {
     setRunning(true);
     setMsg('Running estimate...');
     try {
-      const res = await fetch(`/api/decision/projects/${projectId}/estimate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quantities: qtys }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = await runDecisionEstimate(projectId, qtys);
       setMsg(`Estimate complete: ${data.line_count} lines, direct cost ${fmt$(data.direct_cost)}`);
       onEstimateComplete(data);
     } catch (e) {
@@ -208,8 +205,7 @@ function LinesTab({ projectId, lines: propLines }) {
   useEffect(() => {
     if (propLines) { setLines(propLines); return; }
     setLoading(true);
-    fetch(`/api/decision/projects/${projectId}/estimate-lines`)
-      .then((r) => r.json())
+    getDecisionEstimateLines(projectId)
       .then(setLines)
       .catch((e) => { console.error(e); addToast('error', e.message); })
       .finally(() => setLoading(false));
@@ -219,19 +215,13 @@ function LinesTab({ projectId, lines: propLines }) {
     if (!overrideTarget || !overrideForm.value) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/decision/estimate-lines/${overrideTarget.id}/override`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          overridden_value: parseFloat(overrideForm.value),
-          override_type: 'manual',
-          reason_code: overrideForm.reason_code || null,
-          reason_text: overrideForm.reason_text || null,
-          created_by: 'estimator',
-        }),
+      const updated = await overrideEstimateLine(overrideTarget.id, {
+        overridden_value: parseFloat(overrideForm.value),
+        override_type: 'manual',
+        reason_code: overrideForm.reason_code || null,
+        reason_text: overrideForm.reason_text || null,
+        created_by: 'estimator',
       });
-      if (!res.ok) throw new Error(await res.text());
-      const updated = await res.json();
       setLines((prev) => prev.map((ln) => (ln.id === updated.id ? updated : ln)));
       setOverrideTarget(null);
       setOverrideForm({ value: '', reason_code: '', reason_text: '' });
@@ -386,8 +376,7 @@ function CommercialTab({ projectId }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/decision/projects/${projectId}/cost-breakdown`)
-      .then((r) => r.json())
+    getDecisionCostBreakdown(projectId)
       .then(setData)
       .catch((e) => { console.error(e); addToast('error', e.message); })
       .finally(() => setLoading(false));
@@ -464,8 +453,7 @@ function RiskTab({ projectId }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/decision/projects/${projectId}/risk-items`)
-      .then((r) => r.json())
+    getDecisionRiskItems(projectId)
       .then(setItems)
       .catch((e) => { console.error(e); addToast('error', e.message); })
       .finally(() => setLoading(false));
