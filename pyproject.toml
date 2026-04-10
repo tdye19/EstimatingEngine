@@ -1,3 +1,15 @@
 [tool.pytest.ini_options]
 testpaths = ["apex/backend/tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "S", "UP"]
+ignore = [
+    "E712",  # SQLAlchemy == False comparisons
+    "S101",  # assert in tests
+    "B008",  # FastAPI Depends() in defaults
+]
