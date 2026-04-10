@@ -21,12 +21,13 @@ from apex.backend.models.decision_models import (
     RiskItem,
 )
 from apex.backend.models.project import Project
+from apex.backend.utils.auth import require_auth
 from apex.backend.services.decision_assembly import DecisionAssemblyEngine
 from apex.backend.services.decision_benchmark import DecisionBenchmarkEngine
 
 logger = logging.getLogger("apex.decision")
 
-router = APIRouter(prefix="/api/decision", tags=["decision"])
+router = APIRouter(prefix="/api/decision", tags=["decision"], dependencies=[Depends(require_auth)])
 
 
 # ---------------------------------------------------------------------------

@@ -95,7 +95,19 @@ async def pipeline_websocket(project_id: int, websocket: WebSocket, token: str =
 
 
 @router.websocket("/ws/batch-import/{group_id}")
-async def batch_import_websocket(group_id: int, websocket: WebSocket):
+async def batch_import_websocket(group_id: int, websocket: WebSocket, token: str = Query(default=None)):
+    if not token:
+        await websocket.close(code=1008)
+        return
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("sub") is None:
+            await websocket.close(code=1008)
+            return
+    except (JWTError, ValueError):
+        await websocket.close(code=1008)
+        return
+
     await ws_manager.connect_batch(group_id, websocket)
     try:
         last_message_at = datetime.now(timezone.utc)
