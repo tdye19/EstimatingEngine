@@ -12,7 +12,7 @@ class Project(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     project_number = Column(String(100), unique=True, nullable=False)
-    project_type = Column(String(50), nullable=False)  # commercial, industrial, healthcare
+    project_type = Column(String(50), nullable=False)  # commercial, industrial, healthcare, data_center, etc.
     status = Column(String(50), default="draft")  # draft, estimating, bid_submitted, awarded, completed
     mode = Column(String(20), default="shadow", nullable=False)  # shadow, production
     description = Column(Text, nullable=True)
@@ -24,6 +24,17 @@ class Project(Base, TimestampMixin):
     manual_estimate_notes = Column(Text, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    # ── Decision-system context fields (§9.1 / §10) ──────────────────────────
+    region = Column(String(50), nullable=True)             # geographic market: midwest | southeast | northeast | west
+    # Required for context-aware benchmarking — historical rates must be
+    # filtered by context. A hospital is not a school. (arch §3.4)
+    market_sector = Column(String(100), nullable=True)     # mission_critical, healthcare, education, etc.
+    scope_types = Column(Text, nullable=True)              # JSON array: ["sitework","concrete","steel"]
+    delivery_method = Column(String(50), nullable=True)    # cmar, design_build, hard_bid, gmp
+    contract_type = Column(String(50), nullable=True)      # self_perform, subcontract, mixed
+    complexity_level = Column(String(20), nullable=True)   # low | medium | high | very_high
+    schedule_pressure = Column(String(20), nullable=True)  # low | medium | high | extreme
+    bid_due_date = Column(String(50), nullable=True)       # ISO date string
 
     owner = relationship("User", back_populates="projects")
     organization = relationship("Organization", back_populates="projects")

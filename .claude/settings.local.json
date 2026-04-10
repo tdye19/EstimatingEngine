@@ -47,7 +47,15 @@
       "Bash(APEX_DEV_MODE=true python3:*)",
       "Bash(APEX_DEV_MODE=true python:*)",
       "Bash(node -e ':*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(grep -l \"router\\\\|APIRouter\\\\|@.*\\\\.\" /workspaces/EstimatingEngine/apex/backend/routers/*.py)",
+      "Bash(grep -l \"comparable_projects\\\\|canonical_activities\\\\|estimate_runs\\\\|scope_items\\\\|benchmark_results\\\\|decision_estimate_lines\" /workspaces/EstimatingEngine/apex/backend/alembic/versions/*.py)",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(grep -n:*)",
+      "Bash(git rebase:*)",
+      "Bash(GIT_EDITOR=true git rebase --continue)"
     ]
   }
 }
