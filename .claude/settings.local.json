@@ -55,7 +55,10 @@
       "Bash(git stash:*)",
       "Bash(grep -n:*)",
       "Bash(git rebase:*)",
-      "Bash(GIT_EDITOR=true git rebase --continue)"
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "Bash(PYTHONPATH=/workspaces/EstimatingEngine APEX_DEV_MODE=true alembic -c /workspaces/EstimatingEngine/apex/backend/alembic.ini current)",
+      "Bash(PYTHONPATH=/workspaces/EstimatingEngine APEX_DEV_MODE=true alembic -c /workspaces/EstimatingEngine/apex/backend/alembic.ini upgrade head)",
+      "Bash(PYTHONPATH=/workspaces/EstimatingEngine APEX_DEV_MODE=true alembic -c /workspaces/EstimatingEngine/apex/backend/alembic.ini revision --autogenerate -m \"decision_system_tables\")"
     ]
   }
 }
