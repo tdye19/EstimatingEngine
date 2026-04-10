@@ -11,9 +11,10 @@ from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
 from apex.backend.models.user import User
 
+_dev_mode = os.getenv("APEX_DEV_MODE", "").lower() in ("true", "1", "yes")
 _jwt_secret = os.getenv("JWT_SECRET_KEY", "")
 if not _jwt_secret:
-    if os.getenv("APEX_DEV_MODE", "").lower() in ("true", "1", "yes"):
+    if _dev_mode:
         _jwt_secret = "apex-dev-secret-DO-NOT-USE-IN-PRODUCTION"
     else:
         raise RuntimeError(
@@ -21,6 +22,11 @@ if not _jwt_secret:
             "Set it to a strong random string (e.g. 64+ hex chars). "
             "For local development, set APEX_DEV_MODE=true to use a default key."
         )
+elif not _dev_mode and len(_jwt_secret) < 32:
+    raise RuntimeError(
+        "JWT_SECRET_KEY must be at least 32 characters in production. "
+        "Current length: %d" % len(_jwt_secret)
+    )
 SECRET_KEY = _jwt_secret
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))

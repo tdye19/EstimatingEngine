@@ -27,6 +27,12 @@ now = datetime.now(timezone.utc)
 
 
 def seed_if_empty(force: bool = False):
+    import os
+    _dev = os.getenv("APEX_DEV_MODE", "").lower() in ("true", "1", "yes")
+    if not _dev and not force:
+        logger.info("Seeding skipped in production (set APEX_DEV_MODE=true or use --force-seed)")
+        return
+
     db = SessionLocal()
     try:
         if force:

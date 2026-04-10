@@ -60,17 +60,20 @@ async def lifespan(app: FastAPI):
     ws_manager.set_loop(asyncio.get_running_loop())
     init_db()
 
-    # Run seeder if DB is empty
-    import sys
-    from apex.backend.db.seed import seed_if_empty
-    seed_if_empty(force="--force-seed" in sys.argv)
+    # Run seeders only in dev mode or when explicitly requested
+    _run_seed = APEX_DEV_MODE or os.getenv("RUN_SEED", "").lower() in ("true", "1", "yes")
+    if _run_seed:
+        import sys
+        from apex.backend.db.seed import seed_if_empty
+        seed_if_empty(force="--force-seed" in sys.argv)
 
-    # Run decision system seeder (Christman historical data)
-    try:
-        from apex.backend.db.seed_decision_data import run_decision_seed
-        run_decision_seed()
-    except Exception as _ds_err:
-        logger.warning("Decision seed skipped: %s", _ds_err)
+        try:
+            from apex.backend.db.seed_decision_data import run_decision_seed
+            run_decision_seed()
+        except Exception as _ds_err:
+            logger.warning("Decision seed skipped: %s", _ds_err)
+    else:
+        logger.info("Seeding skipped (not dev mode and RUN_SEED not set)")
 
     # Ensure upload directory exists
     os.makedirs(os.getenv("UPLOAD_DIR", "./uploads"), exist_ok=True)
