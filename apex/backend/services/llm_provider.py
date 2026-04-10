@@ -19,6 +19,8 @@ from typing import Optional
 
 import httpx
 
+from apex.backend.services.llm_retry import with_llm_retry
+
 logger = logging.getLogger("apex.llm_provider")
 
 # ---------------------------------------------------------------------------
@@ -202,6 +204,7 @@ class AnthropicProvider(LLMProvider):
     def model_name(self) -> str:
         return self._model
 
+    @with_llm_retry(max_retries=3, base_delay=1.0)
     async def complete(
         self,
         system_prompt: str,
@@ -330,6 +333,7 @@ class OpenRouterProvider(AnthropicProvider):
 
     # -- Override complete() to pick the right API format ------------------
 
+    @with_llm_retry(max_retries=3, base_delay=1.0)
     async def complete(
         self,
         system_prompt: str,
@@ -565,6 +569,7 @@ class GeminiProvider(LLMProvider):
     def model_name(self) -> str:
         return self._model
 
+    @with_llm_retry(max_retries=3, base_delay=1.0)
     async def complete(
         self,
         system_prompt: str,
