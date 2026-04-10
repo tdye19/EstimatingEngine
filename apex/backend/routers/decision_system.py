@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.utils.auth import require_auth
+from apex.backend.utils.pagination import paginate_query
 
 router = APIRouter(prefix="/api/decision", tags=["decision-system"])
 
@@ -257,14 +258,17 @@ def get_estimate_run(
 @router.get("/estimate-runs/{run_id}/scope-items")
 def list_scope_items(
     run_id: str,
+    offset: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     _user=Depends(require_auth),
 ):
-    """List all scope items for a run. §13.4"""
+    """List scope items for a run (paginated). §13.4"""
     _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import ScopeItem
-    items = db.query(ScopeItem).filter(ScopeItem.estimate_run_id == run_id).all()
-    return [
+    query = db.query(ScopeItem).filter(ScopeItem.estimate_run_id == run_id)
+    page = paginate_query(query, offset=offset, limit=limit)
+    page["items"] = [
         {
             "id": s.id,
             "canonical_name": s.canonical_name,
@@ -274,8 +278,9 @@ def list_scope_items(
             "description": s.description,
             "notes": s.notes,
         }
-        for s in items
+        for s in page["items"]
     ]
+    return page
 
 
 @router.post("/estimate-runs/{run_id}/scope-items/manual", status_code=201)
@@ -332,14 +337,17 @@ def patch_scope_item(
 @router.get("/estimate-runs/{run_id}/quantities")
 def list_quantities(
     run_id: str,
+    offset: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     _user=Depends(require_auth),
 ):
-    """List quantity items for a run. §13.5"""
+    """List quantity items for a run (paginated). §13.5"""
     _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import QuantityItem
-    items = db.query(QuantityItem).filter(QuantityItem.estimate_run_id == run_id).all()
-    return [
+    query = db.query(QuantityItem).filter(QuantityItem.estimate_run_id == run_id)
+    page = paginate_query(query, offset=offset, limit=limit)
+    page["items"] = [
         {
             "id": q.id,
             "scope_item_id": q.scope_item_id,
@@ -349,8 +357,9 @@ def list_quantities(
             "quantity_confidence": q.quantity_confidence,
             "missing_flag": q.missing_flag,
         }
-        for q in items
+        for q in page["items"]
     ]
+    return page
 
 
 @router.patch("/quantity-items/{qty_id}")
@@ -381,14 +390,17 @@ def patch_quantity(
 @router.get("/estimate-runs/{run_id}/estimate-lines")
 def list_estimate_lines(
     run_id: str,
+    offset: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     _user=Depends(require_auth),
 ):
-    """List estimate lines for a run. §13.7"""
+    """List estimate lines for a run (paginated). §13.7"""
     _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import EstimateLine
-    lines = db.query(EstimateLine).filter(EstimateLine.estimate_run_id == run_id).all()
-    return [
+    query = db.query(EstimateLine).filter(EstimateLine.estimate_run_id == run_id)
+    page = paginate_query(query, offset=offset, limit=limit)
+    page["items"] = [
         {
             "id": l.id,
             "description": l.description,
@@ -407,8 +419,9 @@ def list_estimate_lines(
             "missing_quantity": l.missing_quantity,
             "explanation": l.explanation,
         }
-        for l in lines
+        for l in page["items"]
     ]
+    return page
 
 
 @router.patch("/estimate-lines/{line_id}")

@@ -23,6 +23,7 @@ from apex.backend.models.decision_models import (
 from apex.backend.models.project import Project
 from sqlalchemy import func
 from apex.backend.utils.auth import require_auth
+from apex.backend.utils.pagination import paginate_query
 from apex.backend.services.decision_assembly import DecisionAssemblyEngine
 from apex.backend.services.decision_benchmark import DecisionBenchmarkEngine
 
@@ -200,17 +201,20 @@ def run_estimate(
 @router.get("/projects/{project_id}/estimate-lines")
 def get_estimate_lines(
     project_id: int,
+    offset: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
 ):
-    """Return all EstimateLine rows for a project."""
+    """Return EstimateLine rows for a project (paginated)."""
     _get_project_or_404(project_id, db)
-    lines = (
+    query = (
         db.query(EstimateLine)
         .filter(EstimateLine.project_id == project_id)
         .order_by(EstimateLine.division_code, EstimateLine.description)
-        .all()
     )
-    return [_line_dict(ln) for ln in lines]
+    page = paginate_query(query, offset=offset, limit=limit)
+    page["items"] = [_line_dict(ln) for ln in page["items"]]
+    return page
 
 
 @router.post("/estimate-lines/{line_id}/override")
@@ -249,15 +253,18 @@ def override_estimate_line(
 @router.get("/projects/{project_id}/cost-breakdown")
 def get_cost_breakdown(
     project_id: int,
+    offset: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
 ):
-    """Return cost breakdown buckets for a project."""
+    """Return cost breakdown buckets for a project (paginated)."""
     _get_project_or_404(project_id, db)
-    buckets = (
+    query = (
         db.query(CostBreakdownBucket)
         .filter(CostBreakdownBucket.project_id == project_id)
-        .all()
     )
+    page = paginate_query(query, offset=offset, limit=limit)
+    buckets = page["items"]
 
     bucket_map = {b.bucket_type: b.amount for b in buckets}
 
@@ -265,6 +272,10 @@ def get_cost_breakdown(
     final_bid = round(sum(b.amount for b in buckets), 2)
 
     return {
+        "items": [_bucket_dict(b) for b in buckets],
+        "total": page["total"],
+        "offset": page["offset"],
+        "limit": page["limit"],
         "direct_cost": direct_cost,
         "general_conditions": bucket_map.get("general_conditions", 0.0),
         "contingency": bucket_map.get("contingency", 0.0),
@@ -272,28 +283,30 @@ def get_cost_breakdown(
         "overhead": bucket_map.get("overhead", 0.0),
         "fee": bucket_map.get("fee", 0.0),
         "final_bid": final_bid,
-        "buckets": [_bucket_dict(b) for b in buckets],
     }
 
 
 @router.get("/projects/{project_id}/risk-items")
 def get_risk_items(
     project_id: int,
+    offset: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
 ):
-    """Return risk items for a project with expected_value computed."""
+    """Return risk items for a project with expected_value computed (paginated)."""
     _get_project_or_404(project_id, db)
-    items = (
+    query = (
         db.query(RiskItem)
         .filter(RiskItem.project_id == project_id)
-        .all()
     )
+    page = paginate_query(query, offset=offset, limit=limit)
     result = []
-    for item in items:
+    for item in page["items"]:
         d = _risk_dict(item)
         d["expected_value"] = round((item.probability or 0.0) * (item.impact_cost or 0.0), 2)
         result.append(d)
-    return result
+    page["items"] = result
+    return page
 
 
 @router.get("/health")
