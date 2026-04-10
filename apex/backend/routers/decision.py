@@ -21,6 +21,7 @@ from apex.backend.models.decision_models import (
     RiskItem,
 )
 from apex.backend.models.project import Project
+from sqlalchemy import func
 from apex.backend.utils.auth import require_auth
 from apex.backend.services.decision_assembly import DecisionAssemblyEngine
 from apex.backend.services.decision_benchmark import DecisionBenchmarkEngine
@@ -122,13 +123,23 @@ def get_comparable_projects(
     engine = DecisionBenchmarkEngine(db)
     scored = engine.get_comparable_projects(proj)
 
+    if not scored:
+        return []
+
+    # Batch-fetch observation counts in one query
+    comp_ids = [comp.id for comp, _sim in scored]
+    obs_counts = dict(
+        db.query(
+            HistoricalRateObservation.comparable_project_id,
+            func.count(HistoricalRateObservation.id),
+        )
+        .filter(HistoricalRateObservation.comparable_project_id.in_(comp_ids))
+        .group_by(HistoricalRateObservation.comparable_project_id)
+        .all()
+    )
+
     result = []
     for comp, sim in scored:
-        obs_count = (
-            db.query(HistoricalRateObservation)
-            .filter(HistoricalRateObservation.comparable_project_id == comp.id)
-            .count()
-        )
         result.append({
             "id": comp.id,
             "name": comp.name,
@@ -138,7 +149,7 @@ def get_comparable_projects(
             "final_contract_value": comp.final_contract_value,
             "data_quality_score": comp.data_quality_score,
             "context_similarity": round(sim, 4),
-            "observation_count": obs_count,
+            "observation_count": obs_counts.get(comp.id, 0),
         })
     return result
 

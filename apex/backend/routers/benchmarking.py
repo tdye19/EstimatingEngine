@@ -2,6 +2,7 @@
 identify pricing patterns and institutional knowledge."""
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -29,18 +30,39 @@ def benchmark_projects(
     if project_type:
         query = query.filter(Project.project_type == project_type)
     projects = query.order_by(Project.created_at.desc()).limit(limit).all()
+    if not projects:
+        return APIResponse(success=True, data={"projects": [], "stats": {}})
+
+    project_ids = [p.id for p in projects]
+
+    # Batch: get latest estimate version per project in one query
+    latest_version = (
+        db.query(
+            Estimate.project_id,
+            func.max(Estimate.version).label("max_version"),
+        )
+        .filter(
+            Estimate.project_id.in_(project_ids),
+            Estimate.is_deleted == False,  # noqa: E712
+        )
+        .group_by(Estimate.project_id)
+        .subquery()
+    )
+    estimates = (
+        db.query(Estimate)
+        .join(
+            latest_version,
+            (Estimate.project_id == latest_version.c.project_id)
+            & (Estimate.version == latest_version.c.max_version),
+        )
+        .filter(Estimate.is_deleted == False)  # noqa: E712
+        .all()
+    )
+    est_by_project = {e.project_id: e for e in estimates}
 
     rows = []
     for p in projects:
-        estimate = (
-            db.query(Estimate)
-            .filter(
-                Estimate.project_id == p.id,
-                Estimate.is_deleted == False,  # noqa: E712
-            )
-            .order_by(Estimate.version.desc())
-            .first()
-        )
+        estimate = est_by_project.get(p.id)
         if not estimate:
             continue
 
@@ -99,17 +121,38 @@ def division_cost_trends(
     if project_type:
         query = query.filter(Project.project_type == project_type)
     projects = query.all()
+    project_ids = [p.id for p in projects]
+
+    # Batch: get latest estimate per project
+    latest_version = (
+        db.query(
+            Estimate.project_id,
+            func.max(Estimate.version).label("max_version"),
+        )
+        .filter(
+            Estimate.project_id.in_(project_ids),
+            Estimate.is_deleted == False,  # noqa: E712
+        )
+        .group_by(Estimate.project_id)
+        .subquery()
+    )
+    estimates = (
+        db.query(Estimate)
+        .join(
+            latest_version,
+            (Estimate.project_id == latest_version.c.project_id)
+            & (Estimate.version == latest_version.c.max_version),
+        )
+        .filter(Estimate.is_deleted == False)  # noqa: E712
+        .all()
+    )
+    est_by_project = {e.project_id: e for e in estimates}
 
     div_totals: dict[str, list[float]] = {}
     project_count = 0
 
     for p in projects:
-        estimate = (
-            db.query(Estimate)
-            .filter(Estimate.project_id == p.id, Estimate.is_deleted == False)  # noqa: E712
-            .order_by(Estimate.version.desc())
-            .first()
-        )
+        estimate = est_by_project.get(p.id)
         if not estimate or not estimate.total_bid_amount:
             continue
 
