@@ -5,10 +5,44 @@ a TokenUsage record with the provider, model, token counts, and estimated cost.
 """
 
 import logging
+import os
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from apex.backend.models.token_usage import TokenUsage, calculate_cost
 
 logger = logging.getLogger("apex.token_tracker")
+
+# Budget constants — configurable via env vars
+PROJECT_TOKEN_BUDGET = int(os.getenv("PROJECT_TOKEN_BUDGET", str(2_000_000)))
+PROJECT_COST_BUDGET = float(os.getenv("PROJECT_COST_BUDGET", "50.0"))
+
+
+class TokenBudgetExceeded(Exception):
+    """Raised when a project exceeds its token or cost budget."""
+
+    def __init__(self, project_id: int, tokens_used: int, cost_used: float):
+        self.project_id = project_id
+        self.tokens_used = tokens_used
+        self.cost_used = cost_used
+        super().__init__(
+            f"Project {project_id} budget exceeded: "
+            f"{tokens_used:,} tokens (limit {PROJECT_TOKEN_BUDGET:,}), "
+            f"${cost_used:.2f} cost (limit ${PROJECT_COST_BUDGET:.2f})"
+        )
+
+
+def check_token_budget(db: Session, project_id: int) -> None:
+    """Check cumulative token usage for a project and raise if over budget."""
+    row = db.query(
+        func.coalesce(func.sum(TokenUsage.input_tokens + TokenUsage.output_tokens), 0).label("total_tokens"),
+        func.coalesce(func.sum(TokenUsage.estimated_cost), 0.0).label("total_cost"),
+    ).filter(TokenUsage.project_id == project_id).first()
+
+    total_tokens = int(row.total_tokens)
+    total_cost = float(row.total_cost)
+
+    if total_tokens >= PROJECT_TOKEN_BUDGET or total_cost >= PROJECT_COST_BUDGET:
+        raise TokenBudgetExceeded(project_id, total_tokens, total_cost)
 
 
 def log_token_usage(
@@ -40,6 +74,7 @@ def log_token_usage(
     Returns:
         The persisted TokenUsage record.
     """
+    check_token_budget(db, project_id)
     cost = calculate_cost(model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens)
     record = TokenUsage(
         project_id=project_id,

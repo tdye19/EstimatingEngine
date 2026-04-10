@@ -41,6 +41,7 @@ from sqlalchemy.orm import Session
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.project import Project
 from apex.backend.models.token_usage import TokenUsage
+from apex.backend.services.token_tracker import TokenBudgetExceeded
 
 logger = logging.getLogger("apex.orchestrator")
 
@@ -384,6 +385,19 @@ class AgentOrchestrator:
                     # Final attempt failed
                     self._log_error(log, last_error)
                     logger.error(f"Agent {agent_num} contract violation: {exc.detail}")
+
+                except TokenBudgetExceeded as exc:
+                    last_error = str(exc)
+                    self._log_error(log, last_error)
+                    logger.error("Agent %d stopped: %s", agent_num, exc)
+                    results[key] = {
+                        "error": last_error,
+                        "status": "budget_exceeded",
+                        "tokens_used": exc.tokens_used,
+                        "cost_used": exc.cost_used,
+                    }
+                    failed_at = agent_num
+                    break
 
                 except Exception as exc:
                     last_error = str(exc)
