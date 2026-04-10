@@ -2,8 +2,8 @@ import { useRef, useState } from 'react';
 import { Upload, Loader2 } from 'lucide-react';
 import { uploadDocument, initChunkedUpload, uploadChunk, completeChunkedUpload } from '../api';
 
-const CHUNK_SIZE = 1024 * 1024;          // 1 MB — must match backend CHUNK_SIZE
-const SMALL_FILE_THRESHOLD = 2 * 1024 * 1024; // files <= 2 MB use single-shot upload
+const CHUNK_SIZE = 2 * 1024 * 1024;      // 2 MB — must match backend CHUNK_SIZE
+const SMALL_FILE_THRESHOLD = 1 * 1024 * 1024; // files <= 1 MB use single-shot upload
 const MAX_RETRIES = 3;
 const CHUNK_UPLOAD_CONCURRENCY = 4;
 

@@ -1,5 +1,6 @@
 """Project management router."""
 
+import logging
 import math
 import os
 import shutil
@@ -9,6 +10,8 @@ from pathlib import Path
 import csv
 import io
 from datetime import datetime, timedelta
+
+log = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
@@ -234,6 +237,14 @@ async def upload_document(
 ):
     project = get_authorized_project(project_id, user, db)
 
+    # Reject large files early — they must use the chunked upload path
+    _single_upload_limit = 50 * 1024 * 1024  # 50 MB
+    if file.size and file.size > _single_upload_limit:
+        raise HTTPException(
+            status_code=400,
+            detail="Files over 50 MB must use chunked upload",
+        )
+
     # Validate file extension
     file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
     file_type = file_ext.lstrip(".").lower() if file_ext else ""
@@ -245,10 +256,10 @@ async def upload_document(
 
     # Read content and validate size
     content = await file.read()
-    if len(content) > MAX_UPLOAD_BYTES:
+    if len(content) > _single_upload_limit:
         raise HTTPException(
             status_code=400,
-            detail=f"File too large ({len(content) / 1024 / 1024:.1f} MB). Maximum: {MAX_UPLOAD_BYTES // 1024 // 1024} MB",
+            detail="Files over 50 MB must use chunked upload",
         )
 
     # Ensure upload directory exists
@@ -303,6 +314,13 @@ async def chunked_upload_init(
         raise HTTPException(
             status_code=400,
             detail=f"File too large ({data.file_size / 1024 / 1024:.1f} MB). Maximum: {MAX_UPLOAD_BYTES // 1024 // 1024} MB",
+        )
+
+    if data.file_size > 100 * 1024 * 1024:
+        log.info(
+            "Large chunked upload initialized: %s (%.1f MB)",
+            data.filename,
+            data.file_size / 1024 / 1024,
         )
 
     upload_id = str(uuid.uuid4())
@@ -415,6 +433,18 @@ async def chunked_upload_complete(
         )
 
     file_size = os.path.getsize(file_path)
+
+    # Verify assembled size matches declared size
+    declared_size = session.file_size
+    if declared_size and abs(file_size - declared_size) > declared_size * 0.01:
+        log.warning(
+            "Chunked upload size mismatch for %s: declared=%d, assembled=%d (%.1f%% off)",
+            upload_id,
+            declared_size,
+            file_size,
+            abs(file_size - declared_size) / declared_size * 100,
+        )
+
     file_type = file_ext.lstrip(".").lower() if file_ext else "unknown"
 
     doc = Document(

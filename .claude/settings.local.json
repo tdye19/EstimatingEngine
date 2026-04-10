@@ -58,7 +58,17 @@
       "Bash(GIT_EDITOR=true git rebase --continue)",
       "Bash(PYTHONPATH=/workspaces/EstimatingEngine APEX_DEV_MODE=true alembic -c /workspaces/EstimatingEngine/apex/backend/alembic.ini current)",
       "Bash(PYTHONPATH=/workspaces/EstimatingEngine APEX_DEV_MODE=true alembic -c /workspaces/EstimatingEngine/apex/backend/alembic.ini upgrade head)",
-      "Bash(PYTHONPATH=/workspaces/EstimatingEngine APEX_DEV_MODE=true alembic -c /workspaces/EstimatingEngine/apex/backend/alembic.ini revision --autogenerate -m \"decision_system_tables\")"
+      "Bash(PYTHONPATH=/workspaces/EstimatingEngine APEX_DEV_MODE=true alembic -c /workspaces/EstimatingEngine/apex/backend/alembic.ini revision --autogenerate -m \"decision_system_tables\")",
+      "Bash(PYTHONPATH=. python -m alembic -c apex/backend/alembic.ini upgrade head)",
+      "Bash(APEX_DEV_MODE=true PYTHONPATH=. python:*)",
+      "Bash(PYTHONPATH=. alembic:*)",
+      "Bash(APEX_DEV_MODE=true PYTHONPATH=. alembic:*)",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(PYTHONPATH=. python -m pytest apex/backend/tests/test_auth.py -v --tb=short)",
+      "Bash(PYTHONPATH=. python -m pytest apex/backend/tests/test_auth.py::TestLogin::test_login_success -v --tb=long)",
+      "Bash(PYTHONPATH=. python -m pytest apex/backend/tests/test_projects.py -v --tb=short)",
+      "Bash(PYTHONPATH=. python:*)"
     ]
   }
 }
