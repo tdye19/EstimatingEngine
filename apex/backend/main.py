@@ -41,6 +41,7 @@ from apex.backend.routers import bid_intelligence as bid_intelligence_router
 from apex.backend.routers import field_actuals as field_actuals_router
 from apex.backend.routers import decision as decision_router
 from apex.backend.routers import decision_system as decision_system_router
+from apex.backend.routers import pdf_parser as pdf_parser_router
 from apex.backend.services.ws_manager import ws_manager
 
 # Logging — honour LOG_LEVEL env var
@@ -162,6 +163,7 @@ app.include_router(bid_intelligence_router.router)
 app.include_router(field_actuals_router.router)
 app.include_router(decision_router.router)
 app.include_router(decision_system_router.router)
+app.include_router(pdf_parser_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
 if _is_dev:
