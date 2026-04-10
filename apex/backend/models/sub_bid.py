@@ -50,3 +50,5 @@ class SubBidLineItem(Base, TimestampMixin):
     match_confidence = Column(Float, nullable=True)
     is_outlier = Column(Boolean, default=False)
     is_suspiciously_low = Column(Boolean, default=False)
+
+    bid = relationship("SubBid", back_populates="line_items")
