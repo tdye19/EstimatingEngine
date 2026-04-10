@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { ToastProvider, useToast } from '../Toast';
 
 const fmt$ = (val) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
@@ -197,6 +198,7 @@ function ContextTab({ projectId, onEstimateComplete }) {
 // Estimate Lines sub-tab
 // ---------------------------------------------------------------------------
 function LinesTab({ projectId, lines: propLines }) {
+  const { addToast } = useToast();
   const [lines, setLines] = useState(propLines || []);
   const [loading, setLoading] = useState(!propLines);
   const [overrideTarget, setOverrideTarget] = useState(null);
@@ -209,7 +211,7 @@ function LinesTab({ projectId, lines: propLines }) {
     fetch(`/api/decision/projects/${projectId}/estimate-lines`)
       .then((r) => r.json())
       .then(setLines)
-      .catch(() => {})
+      .catch((e) => { console.error(e); addToast('error', e.message); })
       .finally(() => setLoading(false));
   }, [projectId, propLines]);
 
@@ -234,7 +236,7 @@ function LinesTab({ projectId, lines: propLines }) {
       setOverrideTarget(null);
       setOverrideForm({ value: '', reason_code: '', reason_text: '' });
     } catch (e) {
-      alert(`Override failed: ${e.message}`);
+      addToast('error', `Override failed: ${e.message}`);
     } finally {
       setSaving(false);
     }
@@ -379,6 +381,7 @@ function LinesTab({ projectId, lines: propLines }) {
 // Commercial sub-tab
 // ---------------------------------------------------------------------------
 function CommercialTab({ projectId }) {
+  const { addToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -386,7 +389,7 @@ function CommercialTab({ projectId }) {
     fetch(`/api/decision/projects/${projectId}/cost-breakdown`)
       .then((r) => r.json())
       .then(setData)
-      .catch(() => {})
+      .catch((e) => { console.error(e); addToast('error', e.message); })
       .finally(() => setLoading(false));
   }, [projectId]);
 
@@ -456,6 +459,7 @@ const SEVERITY_BADGE = {
 };
 
 function RiskTab({ projectId }) {
+  const { addToast } = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -463,7 +467,7 @@ function RiskTab({ projectId }) {
     fetch(`/api/decision/projects/${projectId}/risk-items`)
       .then((r) => r.json())
       .then(setItems)
-      .catch(() => {})
+      .catch((e) => { console.error(e); addToast('error', e.message); })
       .finally(() => setLoading(false));
   }, [projectId]);
 
@@ -532,6 +536,7 @@ function DecisionEstimateTab({ projectId }) {
   };
 
   return (
+    <ToastProvider>
     <div>
       {/* Sub-tab navigation */}
       <div className="flex gap-1 border-b border-gray-200 mb-5">
@@ -559,6 +564,7 @@ function DecisionEstimateTab({ projectId }) {
       {activeTab === 'commercial' && <CommercialTab projectId={projectId} />}
       {activeTab === 'risk' && <RiskTab projectId={projectId} />}
     </div>
+    </ToastProvider>
   );
 }
 

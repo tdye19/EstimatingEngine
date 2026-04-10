@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { ToastProvider, useToast } from '../components/Toast';
 import { Link } from 'react-router-dom';
 import { listProjects, createProject, deleteProject, cloneProject } from '../api';
 import {
@@ -35,7 +36,8 @@ const EMPTY_FORM = {
   description: '',
 };
 
-function DashboardPage() {
+function DashboardPageInner() {
+  const { addToast } = useToast();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -113,7 +115,7 @@ function DashboardPage() {
       await deleteProject(projectId);
       setProjects((prev) => prev.filter((p) => p.id !== projectId));
     } catch (err) {
-      alert(`Delete failed: ${err.message}`);
+      addToast('error', `Delete failed: ${err.message}`);
     } finally {
       setDeletingId(null);
     }
@@ -126,7 +128,7 @@ function DashboardPage() {
       const cloned = await cloneProject(projectId);
       setProjects((prev) => [cloned, ...prev]);
     } catch (err) {
-      alert(`Clone failed: ${err.message}`);
+      addToast('error', `Clone failed: ${err.message}`);
     } finally {
       setCloningId(null);
     }
@@ -336,6 +338,14 @@ function StatCard({ label, value, icon: Icon, color }) {
         <p className="text-xl font-bold">{value}</p>
       </div>
     </div>
+  );
+}
+
+function DashboardPage() {
+  return (
+    <ToastProvider>
+      <DashboardPageInner />
+    </ToastProvider>
   );
 }
 
