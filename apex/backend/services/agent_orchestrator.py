@@ -33,14 +33,30 @@ connected WebSocket clients via ws_manager.broadcast_sync().  Events:
 import asyncio
 import logging
 import os
+import threading
 import uuid
 from datetime import datetime, timezone
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.project import Project
 from apex.backend.models.token_usage import TokenUsage
 
 logger = logging.getLogger("apex.orchestrator")
+
+# ---------------------------------------------------------------------------
+# Project-level concurrency lock registry
+# ---------------------------------------------------------------------------
+_lock_registry_guard = threading.Lock()
+_project_locks: dict[int, threading.Lock] = {}
+
+
+def _get_project_lock(project_id: int) -> threading.Lock:
+    """Return (or create) a per-project lock."""
+    with _lock_registry_guard:
+        if project_id not in _project_locks:
+            _project_locks[project_id] = threading.Lock()
+        return _project_locks[project_id]
 
 AGENT_DEFINITIONS = {
     1: ("Document Ingestion Agent",   "apex.backend.agents.agent_1_ingestion",   "run_ingestion_agent"),
@@ -185,6 +201,23 @@ class AgentOrchestrator:
         Returns a dict with keys agent_1 … agent_6 plus pipeline_status and
         pipeline_mode.
         """
+        from apex.backend.agents.pipeline_contracts import ContractViolation
+        from apex.backend.services.ws_manager import ws_manager
+
+        project_lock = _get_project_lock(self.project_id)
+        if not project_lock.acquire(blocking=False):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Pipeline already running for project {self.project_id}",
+            )
+
+        try:
+            return self._run_pipeline_locked(document_id, pipeline_mode)
+        finally:
+            project_lock.release()
+
+    def _run_pipeline_locked(self, document_id: int = None, pipeline_mode: str = "spec") -> dict:
+        """Internal pipeline execution — called while holding the project lock."""
         from apex.backend.agents.pipeline_contracts import ContractViolation
         from apex.backend.services.ws_manager import ws_manager
 
