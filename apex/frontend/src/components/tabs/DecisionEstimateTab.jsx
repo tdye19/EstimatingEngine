@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 const fmt$ = (val) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
@@ -243,9 +243,11 @@ function LinesTab({ projectId, lines: propLines }) {
   if (loading) return <div className="text-gray-400 p-4">Loading estimate lines...</div>;
   if (!lines.length) return <div className="text-gray-400 p-4">No estimate lines yet. Run estimate first.</div>;
 
-  const directTotal = lines.reduce((s, ln) => s + (ln.recommended_total_cost || 0), 0);
-  const needsReview = lines.filter((ln) => ln.needs_review).length;
-  const lowConf = lines.filter((ln) => ['low', 'very_low'].includes(ln.confidence_level)).length;
+  const { directTotal, needsReview, lowConf } = useMemo(() => ({
+    directTotal: lines.reduce((s, ln) => s + (ln.recommended_total_cost || 0), 0),
+    needsReview: lines.filter((ln) => ln.needs_review).length,
+    lowConf: lines.filter((ln) => ['low', 'very_low'].includes(ln.confidence_level)).length,
+  }), [lines]);
 
   return (
     <div>
@@ -520,7 +522,7 @@ const SUB_TABS = [
   { id: 'risk', label: 'Risk' },
 ];
 
-export default function DecisionEstimateTab({ projectId }) {
+function DecisionEstimateTab({ projectId }) {
   const [activeTab, setActiveTab] = useState('context');
   const [estimateLines, setEstimateLines] = useState(null);
 
@@ -559,3 +561,5 @@ export default function DecisionEstimateTab({ projectId }) {
     </div>
   );
 }
+
+export default React.memo(DecisionEstimateTab);

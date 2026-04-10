@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { getTakeoff, updateTakeoffItem, bulkUpdateTakeoff } from '../../api';
 import { Ruler, Pencil, Check, X, ChevronUp, ChevronDown, Search, StickyNote, AlertTriangle } from 'lucide-react';
 
-export default function TakeoffTab({ projectId }) {
+function TakeoffTab({ projectId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -119,35 +119,36 @@ export default function TakeoffTab({ projectId }) {
       : <ChevronDown className="h-3 w-3 inline ml-0.5" />;
   };
 
-  // Apply search filter
-  const searchLower = searchText.toLowerCase();
-  const afterSearch = items.filter((item) => {
-    if (!searchText) return true;
-    return (
-      (item.csi_code || '').toLowerCase().includes(searchLower) ||
-      (item.description || '').toLowerCase().includes(searchLower)
-    );
-  });
+  // Memoize filter → sort → group pipeline
+  const { filtered, sorted, byDiv } = useMemo(() => {
+    const searchLower = searchText.toLowerCase();
+    const afterSearch = items.filter((item) => {
+      if (!searchText) return true;
+      return (
+        (item.csi_code || '').toLowerCase().includes(searchLower) ||
+        (item.description || '').toLowerCase().includes(searchLower)
+      );
+    });
 
-  // Apply confidence filter
-  const confThresholds = { 'all': 0, '> 90%': 0.9, '> 70%': 0.7, '> 50%': 0.5 };
-  const confMin = confThresholds[confidenceFilter] || 0;
-  const filtered = afterSearch.filter((item) => (item.confidence || 0) >= confMin);
+    const confThresholds = { 'all': 0, '> 90%': 0.9, '> 70%': 0.7, '> 50%': 0.5 };
+    const confMin = confThresholds[confidenceFilter] || 0;
+    const filt = afterSearch.filter((item) => (item.confidence || 0) >= confMin);
 
-  // Apply sort
-  const sorted = [...filtered].sort((a, b) => {
-    let va = a[sortField], vb = b[sortField];
-    if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va;
-    return sortDir === 'asc' ? String(va || '').localeCompare(String(vb || '')) : String(vb || '').localeCompare(String(va || ''));
-  });
+    const srt = [...filt].sort((a, b) => {
+      let va = a[sortField], vb = b[sortField];
+      if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va;
+      return sortDir === 'asc' ? String(va || '').localeCompare(String(vb || '')) : String(vb || '').localeCompare(String(va || ''));
+    });
 
-  // Group by CSI division
-  const byDiv = {};
-  sorted.forEach((item) => {
-    const div = item.csi_code?.substring(0, 2) || '??';
-    if (!byDiv[div]) byDiv[div] = [];
-    byDiv[div].push(item);
-  });
+    const divs = {};
+    srt.forEach((item) => {
+      const div = item.csi_code?.substring(0, 2) || '??';
+      if (!divs[div]) divs[div] = [];
+      divs[div].push(item);
+    });
+
+    return { filtered: filt, sorted: srt, byDiv: divs };
+  }, [items, searchText, confidenceFilter, sortField, sortDir]);
 
   const allFilteredSelected = sorted.length > 0 && selectedIds.size === sorted.length;
 
@@ -348,3 +349,5 @@ function ConfBadge({ value }) {
   const cls = pct >= 85 ? 'badge-success' : pct >= 70 ? 'badge-moderate' : 'badge-critical';
   return <span className={cls}>{pct}%</span>;
 }
+
+export default React.memo(TakeoffTab);

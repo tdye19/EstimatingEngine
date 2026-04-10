@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { listProjects, createProject, deleteProject, cloneProject } from '../api';
 import {
@@ -35,7 +35,7 @@ const EMPTY_FORM = {
   description: '',
 };
 
-export default function DashboardPage() {
+function DashboardPage() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -58,21 +58,24 @@ export default function DashboardPage() {
 
   useEffect(loadProjects, []);
 
-  const filtered = search
-    ? projects.filter((p) =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        (p.project_number || '').toLowerCase().includes(search.toLowerCase()) ||
-        (p.location || '').toLowerCase().includes(search.toLowerCase())
-      )
-    : projects;
+  const filtered = useMemo(() =>
+    search
+      ? projects.filter((p) =>
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          (p.project_number || '').toLowerCase().includes(search.toLowerCase()) ||
+          (p.location || '').toLowerCase().includes(search.toLowerCase())
+        )
+      : projects,
+    [projects, search]
+  );
 
-  const stats = {
+  const stats = useMemo(() => ({
     total: projects.length,
     estimating: projects.filter((p) => p.status === 'estimating').length,
     bid_submitted: projects.filter((p) => p.status === 'bid_submitted').length,
     completed: projects.filter((p) => p.status === 'completed').length,
     totalValue: projects.reduce((s, p) => s + (p.estimated_value || 0), 0),
-  };
+  }), [projects]);
 
   const openModal = () => {
     setForm(EMPTY_FORM);
@@ -335,3 +338,5 @@ function StatCard({ label, value, icon: Icon, color }) {
     </div>
   );
 }
+
+export default React.memo(DashboardPage);
