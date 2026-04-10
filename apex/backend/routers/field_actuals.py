@@ -3,6 +3,7 @@
 import os
 import tempfile
 
+import aiofiles
 from fastapi import APIRouter, Depends, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
@@ -26,10 +27,10 @@ async def upload_field_actuals(
     """Upload a WinEst close-out export as field actuals data."""
     # Save to temp file
     suffix = os.path.splitext(file.filename or "upload")[1] or ".xlsx"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        content = await file.read()
-        tmp.write(content)
-        tmp_path = tmp.name
+    tmp_path = os.path.join(tempfile.gettempdir(), f"apex_fa_{os.urandom(8).hex()}{suffix}")
+    content = await file.read()
+    async with aiofiles.open(tmp_path, "wb") as fh:
+        await fh.write(content)
 
     try:
         svc = FieldActualsService(db)

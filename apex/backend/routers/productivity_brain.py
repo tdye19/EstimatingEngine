@@ -1,9 +1,9 @@
 """Productivity Brain router — bulk upload, rates, and estimate comparison."""
 
 import os
-import shutil
-import tempfile
 from typing import Optional
+
+import aiofiles
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.orm import Session
@@ -42,22 +42,19 @@ async def upload_files(
             results.append({"filename": f.filename, "status": "error", "error": "Not an .xlsx file"})
             continue
 
-        # Save to temp then move to PB upload dir
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+        # Save directly to PB upload dir
+        dest = os.path.join(PB_UPLOAD_DIR, f.filename)
         try:
             content = await f.read()
-            tmp.write(content)
-            tmp.close()
-
-            dest = os.path.join(PB_UPLOAD_DIR, f.filename)
-            shutil.move(tmp.name, dest)
+            async with aiofiles.open(dest, "wb") as fh:
+                await fh.write(content)
 
             result = svc.ingest_file(dest, f.filename)
             results.append({"filename": f.filename, **result})
         except Exception as e:
             results.append({"filename": f.filename, "status": "error", "error": str(e)})
-            if os.path.exists(tmp.name):
-                os.unlink(tmp.name)
+            if os.path.exists(dest):
+                os.unlink(dest)
 
     return APIResponse(success=True, data=results)
 

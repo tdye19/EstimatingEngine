@@ -1,9 +1,9 @@
 """Bid Intelligence router — estimation history upload, analytics, and benchmarks."""
 
 import os
-import shutil
-import tempfile
 from typing import Optional
+
+import aiofiles
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.orm import Session
@@ -34,21 +34,18 @@ async def upload_file(
         return APIResponse(success=False, error="File must be .xlsx")
 
     os.makedirs(BI_UPLOAD_DIR, exist_ok=True)
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+    dest = os.path.join(BI_UPLOAD_DIR, file.filename)
     try:
         content = await file.read()
-        tmp.write(content)
-        tmp.close()
-
-        dest = os.path.join(BI_UPLOAD_DIR, file.filename)
-        shutil.move(tmp.name, dest)
+        async with aiofiles.open(dest, "wb") as fh:
+            await fh.write(content)
 
         svc = BidIntelligenceService(db)
         result = svc.ingest_file(dest, file.filename)
         return APIResponse(success=True, data=result)
     except Exception as e:
-        if os.path.exists(tmp.name):
-            os.unlink(tmp.name)
+        if os.path.exists(dest):
+            os.unlink(dest)
         return APIResponse(success=False, error=str(e))
 
 

@@ -16,6 +16,8 @@ import logging
 import os
 import tempfile
 import uuid
+
+import aiofiles
 from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, UploadFile
@@ -80,7 +82,7 @@ async def upload_zip(
     )
     total_bytes = 0
     try:
-        with open(tmp_path, "wb") as fh:
+        async with aiofiles.open(tmp_path, "wb") as fh:
             while True:
                 chunk = await file.read(256 * 1024)  # 256 KB
                 if not chunk:
@@ -91,7 +93,7 @@ async def upload_zip(
                         status_code=413,
                         detail="Zip file exceeds the 500 MB limit",
                     )
-                fh.write(chunk)
+                await fh.write(chunk)
 
         logger.info(
             "Received zip '%s' (%.1f MB) from user %d",
