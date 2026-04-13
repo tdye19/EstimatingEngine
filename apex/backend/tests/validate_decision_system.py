@@ -1141,7 +1141,9 @@ if fails:
 print()
 if fails:
     print("ACTION REQUIRED — see failures above.")
-    sys.exit(1)
+    if __name__ == "__main__":
+        sys.exit(1)
 else:
     print("All checks passed.")
-    sys.exit(0)
+    if __name__ == "__main__":
+        sys.exit(0)

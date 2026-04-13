@@ -1,6 +1,10 @@
 [tool.pytest.ini_options]
 testpaths = ["apex/backend/tests"]
 pythonpath = ["."]
+addopts = "-m 'not integration'"
+markers = [
+    "integration: mark test as an integration test requiring a running backend (deselected in CI)",
+]
 
 [tool.ruff]
 line-length = 120
