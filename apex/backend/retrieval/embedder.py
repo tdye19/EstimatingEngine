@@ -6,7 +6,6 @@ Falls back gracefully when OPENAI_API_KEY is not configured.
 
 import logging
 import os
-from typing import Optional
 
 import httpx
 
@@ -18,7 +17,7 @@ EMBED_BATCH_SIZE = 100           # OpenAI allows up to 2048 inputs per call
 REQUEST_TIMEOUT = 30.0           # seconds
 
 
-def _api_key() -> Optional[str]:
+def _api_key() -> str | None:
     return os.getenv("OPENAI_API_KEY") or None
 
 

@@ -11,6 +11,7 @@ Design:
 """
 
 import logging
+
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("apex.retrieval.pipeline")
@@ -30,11 +31,10 @@ def index_project_specs(db: Session, project_id: int, force: bool = False) -> in
         Number of chunks indexed (0 if already indexed and force=False,
         or 0 on any non-fatal error).
     """
-    from apex.backend.retrieval.embedder import is_available
-    from apex.backend.retrieval.store import collection_exists, upsert_chunks
-    from apex.backend.retrieval.chunker import chunk_spec_section
-    from apex.backend.retrieval.embedder import embed_texts
     from apex.backend.models.spec_section import SpecSection
+    from apex.backend.retrieval.chunker import chunk_spec_section
+    from apex.backend.retrieval.embedder import embed_texts, is_available
+    from apex.backend.retrieval.store import collection_exists, upsert_chunks
 
     if not is_available():
         logger.info(

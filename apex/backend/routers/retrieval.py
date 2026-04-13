@@ -7,14 +7,13 @@ Endpoints:
 """
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
-from apex.backend.utils.auth import require_auth, get_authorized_project
+from apex.backend.utils.auth import get_authorized_project, require_auth
 
 logger = logging.getLogger("apex.routers.retrieval")
 
@@ -89,7 +88,7 @@ def search_specs(
         chunks = search(project_id, request.query, top_k=request.top_k)
     except Exception as exc:
         logger.error(f"Spec search failed: {exc}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {exc}") from exc
 
     results = [
         SpecChunkResult(
@@ -128,7 +127,7 @@ def index_specs(
         count = index_project_specs(db, project_id, force=True)
     except Exception as exc:
         logger.error(f"Spec indexing failed for project {project_id}: {exc}")
-        raise HTTPException(status_code=500, detail=f"Indexing failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Indexing failed: {exc}") from exc
 
     if count == 0:
         from apex.backend.retrieval.embedder import is_available
@@ -154,8 +153,8 @@ def spec_index_status(
     project=Depends(get_authorized_project),
 ):
     """Check whether spec sections have been indexed for a project."""
-    from apex.backend.retrieval.store import collection_count
     from apex.backend.retrieval.embedder import is_available
+    from apex.backend.retrieval.store import collection_count
 
     count = collection_count(project_id)
     return IndexStatusResponse(

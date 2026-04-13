@@ -10,7 +10,6 @@ ChromaDB distance in cosine mode = 1 - cosine_similarity, so:
 
 import logging
 import os
-from typing import Optional
 
 logger = logging.getLogger("apex.retrieval.store")
 
@@ -112,7 +111,7 @@ def query_collection(
     metas = results.get("metadatas", [[]])[0]
     dists = results.get("distances", [[]])[0]
 
-    for doc, meta, dist in zip(docs, metas, dists):
+    for doc, meta, dist in zip(docs, metas, dists, strict=False):
         # cosine space: similarity = 1 - distance
         similarity = round(max(0.0, 1.0 - float(dist)), 4)
         retrieved.append({

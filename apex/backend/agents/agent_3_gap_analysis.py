@@ -8,22 +8,22 @@ falls back to rule-based checklist logic if the LLM is unavailable or fails.
 import json
 import logging
 import re
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
-from apex.backend.models.spec_section import SpecSection
-from apex.backend.models.gap_report import GapReport, GapReportItem
-from apex.backend.utils.csi_utils import MASTER_SCOPE_CHECKLIST
 from apex.backend.agents.pipeline_contracts import validate_agent_output
-from apex.backend.utils.async_helper import run_async as _run_async
-from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.gap_tools import (
     checklist_compare_tool,
     gap_scorer_tool,
     risk_tagger_tool,
 )
+from apex.backend.models.gap_report import GapReport, GapReportItem
+from apex.backend.models.spec_section import SpecSection
+from apex.backend.services.token_tracker import log_token_usage
+from apex.backend.utils.async_helper import run_async as _run_async
+from apex.backend.utils.csi_utils import MASTER_SCOPE_CHECKLIST
 
 logger = logging.getLogger("apex.agent.gap_analysis")
 
@@ -174,7 +174,7 @@ class LLMGapItem(BaseModel):
     severity: Literal["critical", "high", "medium", "low"]
     affected_csi_division: str
     recommendation: str
-    gap_type: Optional[str] = "missing_division"
+    gap_type: str | None = "missing_division"
 
     @field_validator("severity", mode="before")
     @classmethod
@@ -438,8 +438,8 @@ def _retrieve_spec_context_for_gaps(project_id: int) -> str:
         if not is_available():
             return ""
 
+        from apex.backend.retrieval.retriever import format_for_agent, search_multi
         from apex.backend.retrieval.store import collection_exists
-        from apex.backend.retrieval.retriever import search_multi, format_for_agent
 
         if not collection_exists(project_id):
             logger.info(

@@ -9,7 +9,6 @@ Rules (from spec):
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 MAX_CHUNK_CHARS = 3000   # ~750 tokens — safe for text-embedding-3-small (8191 token limit)
 OVERLAP_CHARS = 200      # characters of overlap between consecutive chunks

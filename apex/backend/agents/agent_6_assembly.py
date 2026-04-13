@@ -27,30 +27,30 @@ import logging
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from apex.backend.models.project import Project
-from apex.backend.models.takeoff_v2 import TakeoffItemV2
-from apex.backend.models.gap_report import GapReport, GapReportItem
-from apex.backend.models.spec_section import SpecSection
-from apex.backend.models.intelligence_report import IntelligenceReportModel
-from apex.backend.services.bid_intelligence.models import BIEstimate
-from apex.backend.services.productivity_brain.models import PBProject, PBLineItem
-from apex.backend.services.field_actuals.service import FieldActualsService
 from apex.backend.agents.pipeline_contracts import validate_agent_output
-from apex.backend.services.token_tracker import log_token_usage
-from apex.backend.utils.async_helper import run_async as _run_async
+from apex.backend.agents.tools.assembly_tools import (
+    assumption_logger_tool,
+    cost_rollup_tool,
+    exclusion_generator_tool,
+    markup_applier_tool,
+)
+from apex.backend.models.equipment_rate import EquipmentRate
+from apex.backend.models.estimate import Estimate, EstimateLineItem
+from apex.backend.models.gap_report import GapReport, GapReportItem
+from apex.backend.models.intelligence_report import IntelligenceReportModel
 
 # v1 imports (kept for run_assembly_agent_v1)
 from apex.backend.models.labor_estimate import LaborEstimate
 from apex.backend.models.material_price import MaterialPrice
-from apex.backend.models.estimate import Estimate, EstimateLineItem
-from apex.backend.models.equipment_rate import EquipmentRate
+from apex.backend.models.project import Project
+from apex.backend.models.spec_section import SpecSection
+from apex.backend.models.takeoff_v2 import TakeoffItemV2
+from apex.backend.services.bid_intelligence.models import BIEstimate
+from apex.backend.services.field_actuals.service import FieldActualsService
+from apex.backend.services.productivity_brain.models import PBLineItem, PBProject
+from apex.backend.services.token_tracker import log_token_usage
+from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.utils.csi_utils import parse_csi_division
-from apex.backend.agents.tools.assembly_tools import (
-    cost_rollup_tool,
-    markup_applier_tool,
-    exclusion_generator_tool,
-    assumption_logger_tool,
-)
 
 logger = logging.getLogger("apex.agent.assembly")
 
@@ -517,8 +517,8 @@ def _retrieve_spec_context_for_narrative(project_id: int) -> str:
         if not is_available():
             return ""
 
+        from apex.backend.retrieval.retriever import format_for_agent, search_multi
         from apex.backend.retrieval.store import collection_exists
-        from apex.backend.retrieval.retriever import search_multi, format_for_agent
 
         if not collection_exists(project_id):
             return ""
@@ -821,7 +821,7 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
                 else:
                     logger.warning("Agent 6 v2: LLM returned empty — using template")
             else:
-                logger.warning(f"Agent 6 v2: LLM unreachable — using template")
+                logger.warning("Agent 6 v2: LLM unreachable — using template")
         except Exception as exc:
             logger.warning(f"Agent 6 v2: LLM failed ({exc}) — using template")
 
