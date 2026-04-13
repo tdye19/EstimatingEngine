@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger("apex.retrieval.pipeline")
 
-BATCH_SIZE = 50    # OpenAI embedding batch size per request
+BATCH_SIZE = 50  # OpenAI embedding batch size per request
 
 
 def index_project_specs(db: Session, project_id: int, force: bool = False) -> int:
@@ -79,10 +79,7 @@ def index_project_specs(db: Session, project_id: int, force: bool = False) -> in
         logger.info(f"Project {project_id}: all SpecSections have no raw_text — nothing to index")
         return 0
 
-    logger.info(
-        f"Project {project_id}: indexing {len(all_chunks)} chunks "
-        f"from {len(sections)} spec sections"
-    )
+    logger.info(f"Project {project_id}: indexing {len(all_chunks)} chunks from {len(sections)} spec sections")
 
     total_indexed = 0
     try:
@@ -92,7 +89,7 @@ def index_project_specs(db: Session, project_id: int, force: bool = False) -> in
             embeddings = embed_texts(texts)
             upsert_chunks(project_id, batch, embeddings)
             total_indexed += len(batch)
-            logger.debug(f"Project {project_id}: indexed batch {i//BATCH_SIZE + 1} ({len(batch)} chunks)")
+            logger.debug(f"Project {project_id}: indexed batch {i // BATCH_SIZE + 1} ({len(batch)} chunks)")
     except Exception as exc:
         logger.error(f"Project {project_id}: indexing failed after {total_indexed} chunks — {exc}")
         # Return whatever we managed to index rather than raising

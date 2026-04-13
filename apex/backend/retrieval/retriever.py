@@ -17,6 +17,7 @@ logger = logging.getLogger("apex.retrieval.retriever")
 @dataclass
 class RetrievedChunk:
     """A single spec chunk returned by semantic search."""
+
     text: str
     section_number: str
     title: str
@@ -111,15 +112,11 @@ def format_for_agent(chunks: list[RetrievedChunk], label: str = "REFERENCE MATER
         f"=== {label} (from project specifications) ===",
     ]
     for i, chunk in enumerate(chunks, 1):
-        lines.append(
-            f"\n[REF {i}] Section {chunk.section_number} — {chunk.title}"
-        )
+        lines.append(f"\n[REF {i}] Section {chunk.section_number} — {chunk.title}")
         # Indent the spec text for visual separation
         for line in chunk.text.split("\n"):
             lines.append(f"  {line}")
-        lines.append(
-            f"  [Citation: Spec Section {chunk.section_number} | Score: {chunk.similarity_score:.2f}]"
-        )
+        lines.append(f"  [Citation: Spec Section {chunk.section_number} | Score: {chunk.similarity_score:.2f}]")
     lines.append(f"\n=== END {label} ===\n")
 
     return "\n".join(lines)

@@ -13,8 +13,8 @@ logger = logging.getLogger("apex.retrieval.embedder")
 
 EMBEDDING_MODEL = "text-embedding-3-small"
 OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings"
-EMBED_BATCH_SIZE = 100           # OpenAI allows up to 2048 inputs per call
-REQUEST_TIMEOUT = 30.0           # seconds
+EMBED_BATCH_SIZE = 100  # OpenAI allows up to 2048 inputs per call
+REQUEST_TIMEOUT = 30.0  # seconds
 
 
 def _api_key() -> str | None:
@@ -41,10 +41,7 @@ async def embed_texts_async(texts: list[str]) -> list[list[float]]:
     """
     key = _api_key()
     if not key:
-        raise RuntimeError(
-            "OPENAI_API_KEY is not configured. "
-            "Set it in your .env file to enable spec retrieval."
-        )
+        raise RuntimeError("OPENAI_API_KEY is not configured. Set it in your .env file to enable spec retrieval.")
 
     all_embeddings: list[list[float]] = []
 
@@ -65,14 +62,12 @@ async def embed_texts_async(texts: list[str]) -> list[list[float]]:
             sorted_items = sorted(data["data"], key=lambda x: x["index"])
             all_embeddings.extend(item["embedding"] for item in sorted_items)
 
-    logger.debug(
-        f"Embedded {len(texts)} texts with {EMBEDDING_MODEL} "
-        f"({len(all_embeddings[0])} dims)"
-    )
+    logger.debug(f"Embedded {len(texts)} texts with {EMBEDDING_MODEL} ({len(all_embeddings[0])} dims)")
     return all_embeddings
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
     """Synchronous wrapper around embed_texts_async for use in sync agent code."""
     from apex.backend.utils.async_helper import run_async
+
     return run_async(embed_texts_async(texts))

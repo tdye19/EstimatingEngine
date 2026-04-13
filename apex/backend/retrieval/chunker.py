@@ -10,20 +10,21 @@ Rules (from spec):
 
 from dataclasses import dataclass
 
-MAX_CHUNK_CHARS = 3000   # ~750 tokens — safe for text-embedding-3-small (8191 token limit)
-OVERLAP_CHARS = 200      # characters of overlap between consecutive chunks
+MAX_CHUNK_CHARS = 3000  # ~750 tokens — safe for text-embedding-3-small (8191 token limit)
+OVERLAP_CHARS = 200  # characters of overlap between consecutive chunks
 
 
 @dataclass
 class SpecChunk:
     """A single embeddable chunk derived from a SpecSection."""
-    text: str                    # section header + content
+
+    text: str  # section header + content
     section_id: int
-    section_number: str          # e.g. "03 30 00"
+    section_number: str  # e.g. "03 30 00"
     title: str
-    division_number: str         # e.g. "03"
+    division_number: str  # e.g. "03"
     document_id: int
-    chunk_index: int             # 0-based within the section
+    chunk_index: int  # 0-based within the section
 
 
 def _section_header(section_number: str, title: str) -> str:
@@ -45,15 +46,17 @@ def chunk_spec_section(section) -> list[SpecChunk]:
 
     # Single-chunk fast path
     if len(header) + len(raw) <= MAX_CHUNK_CHARS:
-        return [SpecChunk(
-            text=header + raw,
-            section_id=section.id,
-            section_number=section.section_number,
-            title=section.title,
-            division_number=section.division_number,
-            document_id=section.document_id,
-            chunk_index=0,
-        )]
+        return [
+            SpecChunk(
+                text=header + raw,
+                section_id=section.id,
+                section_number=section.section_number,
+                title=section.title,
+                division_number=section.division_number,
+                document_id=section.document_id,
+                chunk_index=0,
+            )
+        ]
 
     # Split on paragraph boundaries first
     body_budget = MAX_CHUNK_CHARS - len(header)
@@ -69,15 +72,17 @@ def chunk_spec_section(section) -> list[SpecChunk]:
         if current_len + para_len > body_budget and current:
             # Flush current buffer
             body = "\n\n".join(current)
-            chunks.append(SpecChunk(
-                text=header + body,
-                section_id=section.id,
-                section_number=section.section_number,
-                title=section.title,
-                division_number=section.division_number,
-                document_id=section.document_id,
-                chunk_index=chunk_idx,
-            ))
+            chunks.append(
+                SpecChunk(
+                    text=header + body,
+                    section_id=section.id,
+                    section_number=section.section_number,
+                    title=section.title,
+                    division_number=section.division_number,
+                    document_id=section.document_id,
+                    chunk_index=chunk_idx,
+                )
+            )
             chunk_idx += 1
             # Keep last paragraph for overlap
             overlap_text = current[-1] if current else ""
@@ -90,15 +95,17 @@ def chunk_spec_section(section) -> list[SpecChunk]:
             while start < len(para):
                 end = min(start + body_budget, len(para))
                 sub = para[start:end]
-                chunks.append(SpecChunk(
-                    text=header + sub,
-                    section_id=section.id,
-                    section_number=section.section_number,
-                    title=section.title,
-                    division_number=section.division_number,
-                    document_id=section.document_id,
-                    chunk_index=chunk_idx,
-                ))
+                chunks.append(
+                    SpecChunk(
+                        text=header + sub,
+                        section_id=section.id,
+                        section_number=section.section_number,
+                        title=section.title,
+                        division_number=section.division_number,
+                        document_id=section.document_id,
+                        chunk_index=chunk_idx,
+                    )
+                )
                 chunk_idx += 1
                 if end == len(para):
                     break
@@ -112,14 +119,16 @@ def chunk_spec_section(section) -> list[SpecChunk]:
     # Flush remainder
     if current:
         body = "\n\n".join(current)
-        chunks.append(SpecChunk(
-            text=header + body,
-            section_id=section.id,
-            section_number=section.section_number,
-            title=section.title,
-            division_number=section.division_number,
-            document_id=section.document_id,
-            chunk_index=chunk_idx,
-        ))
+        chunks.append(
+            SpecChunk(
+                text=header + body,
+                section_id=section.id,
+                section_number=section.section_number,
+                title=section.title,
+                division_number=section.division_number,
+                document_id=section.document_id,
+                chunk_index=chunk_idx,
+            )
+        )
 
     return chunks

@@ -79,6 +79,7 @@ NARRATIVE_SYSTEM_PROMPT_V2 = (
 # v2 Aggregation helpers — ALL DETERMINISTIC PYTHON
 # ---------------------------------------------------------------------------
 
+
 def _aggregate_rate_intelligence(db: Session, project_id: int) -> dict:
     """Query TakeoffItemV2 rows, count flags, compute optimism score."""
     items = db.query(TakeoffItemV2).filter_by(project_id=project_id).all()
@@ -104,13 +105,15 @@ def _aggregate_rate_intelligence(db: Session, project_id: int) -> dict:
         counts[flag] = counts.get(flag, 0) + 1
 
         if item.delta_pct is not None:
-            deviations.append({
-                "row_number": item.row_number,
-                "activity": item.activity,
-                "delta_pct": item.delta_pct,
-                "flag": flag,
-                "crew": item.crew,
-            })
+            deviations.append(
+                {
+                    "row_number": item.row_number,
+                    "activity": item.activity,
+                    "delta_pct": item.delta_pct,
+                    "flag": flag,
+                    "crew": item.crew,
+                }
+            )
 
     # optimism_score = average of delta_pct (positive = optimistic vs history)
     avg_dev = None
@@ -187,14 +190,16 @@ def _aggregate_field_calibration(db: Session, project_id: int) -> dict:
 
             # Critical alert: calibration factor outside 0.80-1.20
             if cal_factor < 0.80 or cal_factor > 1.20:
-                critical_alerts.append({
-                    "row_number": item.row_number,
-                    "activity": item.activity,
-                    "calibration_factor": cal_factor,
-                    "direction": direction,
-                    "field_avg_rate": field_avg,
-                    "estimator_rate": est_rate,
-                })
+                critical_alerts.append(
+                    {
+                        "row_number": item.row_number,
+                        "activity": item.activity,
+                        "calibration_factor": cal_factor,
+                        "direction": direction,
+                        "field_avg_rate": field_avg,
+                        "estimator_rate": est_rate,
+                    }
+                )
         else:
             without_data += 1
             direction_counts["no_data"] += 1
@@ -214,12 +219,7 @@ def _aggregate_field_calibration(db: Session, project_id: int) -> dict:
 
 def _aggregate_scope_risk(db: Session, project_id: int) -> dict:
     """Query GapReport + GapItems for this project."""
-    report = (
-        db.query(GapReport)
-        .filter_by(project_id=project_id)
-        .order_by(GapReport.id.desc())
-        .first()
-    )
+    report = db.query(GapReport).filter_by(project_id=project_id).order_by(GapReport.id.desc()).first()
 
     if not report:
         return {
@@ -387,8 +387,7 @@ def _get_spec_intelligence(db: Session, project_id: int) -> dict:
 
     total = len(sections)
     with_material = sum(
-        1 for s in sections
-        if s.material_specs and str(s.material_specs) not in ("null", "{}", "[]", "None")
+        1 for s in sections if s.material_specs and str(s.material_specs) not in ("null", "{}", "[]", "None")
     )
 
     return {
@@ -401,10 +400,7 @@ def _get_pb_coverage(db: Session) -> dict:
     """Stats on Productivity Brain data available."""
     project_count = db.query(func.count(PBProject.id)).scalar() or 0
     item_count = db.query(func.count(PBLineItem.id)).scalar() or 0
-    activity_count = (
-        db.query(func.count(func.distinct(PBLineItem.activity)))
-        .scalar() or 0
-    )
+    activity_count = db.query(func.count(func.distinct(PBLineItem.activity))).scalar() or 0
 
     return {
         "pb_projects_loaded": project_count,
@@ -416,6 +412,7 @@ def _get_pb_coverage(db: Session) -> dict:
 # ---------------------------------------------------------------------------
 # v2 Risk scoring — deterministic
 # ---------------------------------------------------------------------------
+
 
 def _compute_risk_level(rate_intel: dict, field_cal: dict, scope_risk: dict, pb_coverage: dict) -> tuple:
     """Compute overall risk level and confidence score.
@@ -514,6 +511,7 @@ def _retrieve_spec_context_for_narrative(project_id: int) -> str:
     """
     try:
         from apex.backend.retrieval.embedder import is_available
+
         if not is_available():
             return ""
 
@@ -533,10 +531,7 @@ def _retrieve_spec_context_for_narrative(project_id: int) -> str:
         if not chunks:
             return ""
 
-        logger.info(
-            f"Agent 6: retrieved {len(chunks)} spec chunks for narrative context "
-            f"(project {project_id})"
-        )
+        logger.info(f"Agent 6: retrieved {len(chunks)} spec chunks for narrative context (project {project_id})")
         return format_for_agent(chunks, label="PROJECT SPEC REFERENCE")
 
     except Exception as exc:
@@ -547,6 +542,7 @@ def _retrieve_spec_context_for_narrative(project_id: int) -> str:
 # ---------------------------------------------------------------------------
 # v2 Narrative — LLM with template fallback
 # ---------------------------------------------------------------------------
+
 
 def _build_narrative_prompt(report_data: dict, spec_context: str = "") -> str:
     """Build the user prompt with all intelligence data for the LLM."""
@@ -568,8 +564,7 @@ def _build_narrative_prompt(report_data: dict, spec_context: str = "") -> str:
     ]
 
     if ri.get("optimism_score") is not None:
-        lines.append(f"Overall optimism score: {ri['optimism_score']}% "
-                      "(positive = rates below history = optimistic)")
+        lines.append(f"Overall optimism score: {ri['optimism_score']}% (positive = rates below history = optimistic)")
 
     top_devs = ri.get("top_deviations", [])
     if top_devs:
@@ -580,8 +575,7 @@ def _build_narrative_prompt(report_data: dict, spec_context: str = "") -> str:
     lines += [
         "",
         "=== FIELD CALIBRATION ===",
-        f"{fc.get('items_with_field_data', 0)} items with field data, "
-        f"{fc.get('items_without_field_data', 0)} without.",
+        f"{fc.get('items_with_field_data', 0)} items with field data, {fc.get('items_without_field_data', 0)} without.",
         f"Optimistic: {fc.get('optimistic_count', 0)}, "
         f"Conservative: {fc.get('conservative_count', 0)}, "
         f"Aligned: {fc.get('aligned_count', 0)}.",
@@ -591,16 +585,12 @@ def _build_narrative_prompt(report_data: dict, spec_context: str = "") -> str:
     if alerts:
         lines.append("Critical calibration alerts:")
         for a in alerts[:5]:
-            lines.append(
-                f"  - {a['activity']}: cal_factor={a['calibration_factor']:.2f} "
-                f"({a['direction']})"
-            )
+            lines.append(f"  - {a['activity']}: cal_factor={a['calibration_factor']:.2f} ({a['direction']})")
 
     lines += [
         "",
         "=== SCOPE RISK ===",
-        f"{sr.get('critical_gaps', 0)} critical gaps, "
-        f"{sr.get('spec_vs_takeoff_gaps', 0)} spec-vs-takeoff gaps.",
+        f"{sr.get('critical_gaps', 0)} critical gaps, {sr.get('spec_vs_takeoff_gaps', 0)} spec-vs-takeoff gaps.",
     ]
 
     missing = sr.get("missing_divisions", [])
@@ -714,6 +704,7 @@ def _generate_fallback_narrative(report_data: dict) -> str:
 # v2 Main entry point
 # ---------------------------------------------------------------------------
 
+
 def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> dict:
     """Assemble the intelligence report from all upstream data.
 
@@ -753,14 +744,8 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
 
     # Compute takeoff totals
     takeoff_items = db.query(TakeoffItemV2).filter_by(project_id=project_id).all()
-    takeoff_total_labor = sum(
-        (item.labor_cost_per_unit or 0) * (item.quantity or 0)
-        for item in takeoff_items
-    )
-    takeoff_total_material = sum(
-        (item.material_cost_per_unit or 0) * (item.quantity or 0)
-        for item in takeoff_items
-    )
+    takeoff_total_labor = sum((item.labor_cost_per_unit or 0) * (item.quantity or 0) for item in takeoff_items)
+    takeoff_total_material = sum((item.material_cost_per_unit or 0) * (item.quantity or 0) for item in takeoff_items)
 
     # Assemble report data for narrative generation
     report_data = {
@@ -791,6 +776,7 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
     else:
         try:
             from apex.backend.services.llm_provider import get_llm_provider
+
             provider = get_llm_provider(agent_number=6, suffix="SUMMARY")
             llm_available = _run_async(provider.health_check())
 
@@ -830,11 +816,7 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
         narrative_method = "template"
 
     # 10. Persist IntelligenceReportModel
-    existing_count = (
-        db.query(func.count(IntelligenceReportModel.id))
-        .filter_by(project_id=project_id)
-        .scalar() or 0
-    )
+    existing_count = db.query(func.count(IntelligenceReportModel.id)).filter_by(project_id=project_id).scalar() or 0
 
     report_model = IntelligenceReportModel(
         project_id=project_id,
@@ -867,18 +849,21 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
     )
 
     # 11. Return validated Agent6Output
-    return validate_agent_output(6, {
-        "report_id": report_model.id,
-        "report_version": report_model.version,
-        "overall_risk_level": risk_level,
-        "confidence_score": confidence,
-        "rate_items_flagged": rate_intel["items_review"] + rate_intel["items_update"],
-        "scope_gaps_found": scope_risk["total_gaps"],
-        "field_calibration_alerts": len(field_cal["critical_alerts"]),
-        "comparable_projects_found": comparables["comparable_count"],
-        "narrative_method": narrative_method,
-        "narrative_tokens_used": narrative_tokens,
-    })
+    return validate_agent_output(
+        6,
+        {
+            "report_id": report_model.id,
+            "report_version": report_model.version,
+            "overall_risk_level": risk_level,
+            "confidence_score": confidence,
+            "rate_items_flagged": rate_intel["items_review"] + rate_intel["items_update"],
+            "scope_gaps_found": scope_risk["total_gaps"],
+            "field_calibration_alerts": len(field_cal["critical_alerts"]),
+            "comparable_projects_found": comparables["comparable_count"],
+            "narrative_method": narrative_method,
+            "narrative_tokens_used": narrative_tokens,
+        },
+    )
 
 
 # ===========================================================================
@@ -964,9 +949,7 @@ async def _llm_generate_summary(
 
     Returns (text, input_tokens, output_tokens).
     """
-    user_prompt = _build_summary_user_prompt(
-        project, estimate, line_items_data, rollup, exclusions, assumptions
-    )
+    user_prompt = _build_summary_user_prompt(project, estimate, line_items_data, rollup, exclusions, assumptions)
     try:
         response = await provider.complete(
             system_prompt=SUMMARY_SYSTEM_PROMPT,
@@ -981,8 +964,11 @@ async def _llm_generate_summary(
             f"duration_ms={response.duration_ms:.0f}ms"
         )
         return (
-            response.content.strip(), response.input_tokens, response.output_tokens,
-            response.cache_creation_input_tokens, response.cache_read_input_tokens,
+            response.content.strip(),
+            response.input_tokens,
+            response.output_tokens,
+            response.cache_creation_input_tokens,
+            response.cache_read_input_tokens,
         )
     except Exception as exc:
         logger.error(f"Agent 6 summary LLM: call failed — {exc}")
@@ -1002,9 +988,7 @@ def _generate_fallback_summary(
     # FALLBACK: Rule-based path when LLM unavailable (Sprint 8)
     project_name = getattr(project, "name", None) or f"Project {project.id}"
 
-    divisions = ", ".join(
-        f"Division {d}" for d in rollup["by_division"].keys()
-    ) or "various divisions"
+    divisions = ", ".join(f"Division {d}" for d in rollup["by_division"].keys()) or "various divisions"
 
     line_item_count = len(line_items_data)
 
@@ -1053,29 +1037,45 @@ def run_assembly_agent_v1(db: Session, project_id: int, use_llm: bool = True) ->
         raise ValueError(f"Project {project_id} not found")
 
     # Get labor estimates
-    labor_items = db.query(LaborEstimate).filter(
-        LaborEstimate.project_id == project_id,
-        LaborEstimate.is_deleted == False,  # noqa: E712
-    ).all()
+    labor_items = (
+        db.query(LaborEstimate)
+        .filter(
+            LaborEstimate.project_id == project_id,
+            LaborEstimate.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     # Get spec sections for division info
-    sections = db.query(SpecSection).filter(
-        SpecSection.project_id == project_id,
-        SpecSection.is_deleted == False,  # noqa: E712
-    ).all()
+    sections = (
+        db.query(SpecSection)
+        .filter(
+            SpecSection.project_id == project_id,
+            SpecSection.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
     # Get material prices
-    all_material_prices = db.query(MaterialPrice).filter(
-        MaterialPrice.is_deleted == False,  # noqa: E712
-    ).all()
+    all_material_prices = (
+        db.query(MaterialPrice)
+        .filter(
+            MaterialPrice.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
     material_map = {}
     for mp in all_material_prices:
         material_map[mp.csi_code] = mp
 
     # Determine version
-    existing_count = db.query(Estimate).filter(
-        Estimate.project_id == project_id,
-        Estimate.is_deleted == False,  # noqa: E712
-    ).count()
+    existing_count = (
+        db.query(Estimate)
+        .filter(
+            Estimate.project_id == project_id,
+            Estimate.is_deleted == False,  # noqa: E712
+        )
+        .count()
+    )
 
     # Build line items
     line_items_data = []
@@ -1089,28 +1089,34 @@ def run_assembly_agent_v1(db: Session, project_id: int, use_llm: bool = True) ->
             material_cost = mat.unit_cost * labor.quantity
 
         # Equipment estimate
-        eq_rate = db.query(EquipmentRate).filter(
-            EquipmentRate.division_number == div_num,
-            EquipmentRate.is_deleted == False,  # noqa: E712
-        ).first()
+        eq_rate = (
+            db.query(EquipmentRate)
+            .filter(
+                EquipmentRate.division_number == div_num,
+                EquipmentRate.is_deleted == False,  # noqa: E712
+            )
+            .first()
+        )
         equipment_pct = eq_rate.equipment_pct if eq_rate else (0.10 if div_num in ("03", "05", "31") else 0.05)
         equipment_cost = labor.total_labor_cost * equipment_pct
 
         total_cost = labor.total_labor_cost + material_cost + equipment_cost
 
-        line_items_data.append({
-            "division_number": div_num,
-            "csi_code": labor.csi_code,
-            "description": f"{labor.work_type or labor.csi_code} - {labor.crew_type or 'General'}",
-            "quantity": labor.quantity,
-            "unit_of_measure": labor.productivity_unit or "EA",
-            "labor_cost": labor.total_labor_cost,
-            "material_cost": round(material_cost, 2),
-            "equipment_cost": round(equipment_cost, 2),
-            "subcontractor_cost": 0.0,
-            "total_cost": round(total_cost, 2),
-            "unit_cost": round(total_cost / labor.quantity, 2) if labor.quantity else 0,
-        })
+        line_items_data.append(
+            {
+                "division_number": div_num,
+                "csi_code": labor.csi_code,
+                "description": f"{labor.work_type or labor.csi_code} - {labor.crew_type or 'General'}",
+                "quantity": labor.quantity,
+                "unit_of_measure": labor.productivity_unit or "EA",
+                "labor_cost": labor.total_labor_cost,
+                "material_cost": round(material_cost, 2),
+                "equipment_cost": round(equipment_cost, 2),
+                "subcontractor_cost": 0.0,
+                "total_cost": round(total_cost, 2),
+                "unit_cost": round(total_cost / labor.quantity, 2) if labor.quantity else 0,
+            }
+        )
 
     # Cost rollup
     rollup = cost_rollup_tool(line_items_data)
@@ -1195,6 +1201,7 @@ def run_assembly_agent_v1(db: Session, project_id: int, use_llm: bool = True) ->
     else:
         try:
             from apex.backend.services.llm_provider import get_llm_provider
+
             provider = get_llm_provider(agent_number=6, suffix="SUMMARY")
             llm_available = _run_async(provider.health_check())
 
@@ -1204,9 +1211,7 @@ def run_assembly_agent_v1(db: Session, project_id: int, use_llm: bool = True) ->
                     "is available — generating executive summary"
                 )
                 llm_text, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
-                    _llm_generate_summary(
-                        project, estimate, line_items_data, rollup, exclusions, assumptions, provider
-                    )
+                    _llm_generate_summary(project, estimate, line_items_data, rollup, exclusions, assumptions, provider)
                 )
                 summary_tokens_used = _in_tok + _out_tok
                 if llm_text:
@@ -1224,21 +1229,15 @@ def run_assembly_agent_v1(db: Session, project_id: int, use_llm: bool = True) ->
                     )
                     executive_summary = llm_text
                     summary_method = "llm"
-                    logger.info(
-                        f"Agent 6 v1 summary: LLM summary generated "
-                        f"({summary_tokens_used} tokens, method=llm)"
-                    )
+                    logger.info(f"Agent 6 v1 summary: LLM summary generated ({summary_tokens_used} tokens, method=llm)")
                 else:
                     logger.warning("Agent 6 v1 summary: LLM returned empty content — using fallback summary")
             else:
                 logger.warning(
-                    f"Agent 6 v1 summary: LLM provider '{provider.provider_name}' unreachable — "
-                    "using fallback summary"
+                    f"Agent 6 v1 summary: LLM provider '{provider.provider_name}' unreachable — using fallback summary"
                 )
         except Exception as exc:
-            logger.warning(
-                f"Agent 6 v1 summary: LLM call failed ({exc}) — using fallback summary"
-            )
+            logger.warning(f"Agent 6 v1 summary: LLM call failed ({exc}) — using fallback summary")
 
     if executive_summary is None:
         executive_summary = _generate_fallback_summary(
@@ -1257,15 +1256,18 @@ def run_assembly_agent_v1(db: Session, project_id: int, use_llm: bool = True) ->
 
     # v1 returns Agent6Output_V1-compatible dict but validated against v2 contract
     # with report_id=0 to signal v1 path
-    return validate_agent_output(6, {
-        "report_id": 0,
-        "report_version": estimate.version,
-        "overall_risk_level": "unknown",
-        "confidence_score": None,
-        "rate_items_flagged": 0,
-        "scope_gaps_found": 0,
-        "field_calibration_alerts": 0,
-        "comparable_projects_found": 0,
-        "narrative_method": summary_method,
-        "narrative_tokens_used": summary_tokens_used,
-    })
+    return validate_agent_output(
+        6,
+        {
+            "report_id": 0,
+            "report_version": estimate.version,
+            "overall_risk_level": "unknown",
+            "confidence_score": None,
+            "rate_items_flagged": 0,
+            "scope_gaps_found": 0,
+            "field_calibration_alerts": 0,
+            "comparable_projects_found": 0,
+            "narrative_method": summary_method,
+            "narrative_tokens_used": summary_tokens_used,
+        },
+    )

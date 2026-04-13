@@ -20,6 +20,7 @@ _COSINE_METADATA = {"hnsw:space": "cosine"}
 def _client():
     """Return a shared ChromaDB PersistentClient."""
     import chromadb
+
     return chromadb.PersistentClient(path=CHROMA_DIR)
 
 
@@ -31,9 +32,10 @@ def _collection_name(project_id: int) -> str:
 # Write
 # ---------------------------------------------------------------------------
 
+
 def upsert_chunks(
     project_id: int,
-    chunks: list,          # list[SpecChunk]
+    chunks: list,  # list[SpecChunk]
     embeddings: list[list[float]],
 ) -> int:
     """Upsert chunks + embeddings into the project's ChromaDB collection.
@@ -50,10 +52,7 @@ def upsert_chunks(
         metadata=_COSINE_METADATA,
     )
 
-    ids = [
-        f"proj{project_id}_sec{c.section_id}_chunk{c.chunk_index}"
-        for c in chunks
-    ]
+    ids = [f"proj{project_id}_sec{c.section_id}_chunk{c.chunk_index}" for c in chunks]
     documents = [c.text for c in chunks]
     metadatas = [
         {
@@ -75,6 +74,7 @@ def upsert_chunks(
 # ---------------------------------------------------------------------------
 # Read
 # ---------------------------------------------------------------------------
+
 
 def query_collection(
     project_id: int,
@@ -114,14 +114,16 @@ def query_collection(
     for doc, meta, dist in zip(docs, metas, dists, strict=False):
         # cosine space: similarity = 1 - distance
         similarity = round(max(0.0, 1.0 - float(dist)), 4)
-        retrieved.append({
-            "text": doc,
-            "section_number": meta.get("section_number", ""),
-            "title": meta.get("title", ""),
-            "division_number": meta.get("division_number", ""),
-            "document_id": meta.get("document_id", 0),
-            "similarity_score": similarity,
-        })
+        retrieved.append(
+            {
+                "text": doc,
+                "section_number": meta.get("section_number", ""),
+                "title": meta.get("title", ""),
+                "division_number": meta.get("division_number", ""),
+                "document_id": meta.get("document_id", 0),
+                "similarity_score": similarity,
+            }
+        )
 
     return retrieved
 
@@ -129,6 +131,7 @@ def query_collection(
 # ---------------------------------------------------------------------------
 # Utility
 # ---------------------------------------------------------------------------
+
 
 def collection_exists(project_id: int) -> bool:
     """Return True if the project collection exists and has at least one chunk."""

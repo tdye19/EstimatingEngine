@@ -28,6 +28,7 @@ router = APIRouter(
 # Request / Response schemas
 # ---------------------------------------------------------------------------
 
+
 class SpecSearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=500, description="Natural language query")
     top_k: int = Field(default=5, ge=1, le=20, description="Number of results to return")
@@ -66,6 +67,7 @@ class IndexStatusResponse(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.post("/{project_id}/specs/search", response_model=SpecSearchResponse)
 def search_specs(
     project_id: int,
@@ -82,9 +84,7 @@ def search_specs(
 
     get_authorized_project(project_id, user, db)
 
-    logger.info(
-        f"Spec search: project_id={project_id} query='{request.query[:60]}' top_k={request.top_k}"
-    )
+    logger.info(f"Spec search: project_id={project_id} query='{request.query[:60]}' top_k={request.top_k}")
 
     try:
         chunks = search(project_id, request.query, top_k=request.top_k)
@@ -136,6 +136,7 @@ def index_specs(
 
     if count == 0:
         from apex.backend.retrieval.embedder import is_available
+
         if not is_available():
             msg = "OPENAI_API_KEY not configured — indexing skipped."
         else:
