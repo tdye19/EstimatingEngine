@@ -92,8 +92,10 @@ def test_user(db_session):
 @pytest.fixture
 def admin_user(db_session):
     """Create an admin user."""
+    import uuid
+
     user = User(
-        email="admin@example.com",
+        email=f"admin-{uuid.uuid4().hex[:8]}@example.com",
         hashed_password=hash_password("adminpass123"),
         full_name="Admin User",
         role="admin",
@@ -121,9 +123,11 @@ def admin_headers(admin_user):
 @pytest.fixture
 def test_project(db_session, test_user):
     """Create a test project owned by test_user."""
+    import uuid
+
     project = Project(
         name="Test Project",
-        project_number="TP-001",
+        project_number=f"TP-{uuid.uuid4().hex[:8].upper()}",
         owner_id=test_user.id,
         status="draft",
         project_type="commercial",
