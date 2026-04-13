@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
+from apex.backend.models.user import User
 from apex.backend.utils.auth import get_authorized_project, require_auth
 
 logger = logging.getLogger("apex.routers.retrieval")
@@ -20,7 +21,6 @@ logger = logging.getLogger("apex.routers.retrieval")
 router = APIRouter(
     prefix="/api/projects",
     tags=["retrieval"],
-    dependencies=[Depends(require_auth)],
 )
 
 
@@ -71,7 +71,7 @@ def search_specs(
     project_id: int,
     request: SpecSearchRequest,
     db: Session = Depends(get_db),
-    project=Depends(get_authorized_project),
+    user: User = Depends(require_auth),
 ):
     """Semantic search over project specification chunks.
 
@@ -79,6 +79,8 @@ def search_specs(
     Performance target: <500ms.
     """
     from apex.backend.retrieval.retriever import search
+
+    get_authorized_project(project_id, user, db)
 
     logger.info(
         f"Spec search: project_id={project_id} query='{request.query[:60]}' top_k={request.top_k}"
@@ -113,13 +115,16 @@ def search_specs(
 def index_specs(
     project_id: int,
     db: Session = Depends(get_db),
-    project=Depends(get_authorized_project),
+    user: User = Depends(require_auth),
 ):
     """(Re-)index all parsed spec sections for a project into ChromaDB.
 
-    Safe to call multiple times — existing chunks are overwritten.
+    Deletes existing vectors before re-indexing so stale chunks from
+    deleted/shortened sections are never returned by search.
     """
     from apex.backend.retrieval.pipeline import index_project_specs
+
+    get_authorized_project(project_id, user, db)
 
     logger.info(f"Spec index requested: project_id={project_id}")
 
@@ -150,11 +155,13 @@ def index_specs(
 def spec_index_status(
     project_id: int,
     db: Session = Depends(get_db),
-    project=Depends(get_authorized_project),
+    user: User = Depends(require_auth),
 ):
     """Check whether spec sections have been indexed for a project."""
     from apex.backend.retrieval.embedder import is_available
     from apex.backend.retrieval.store import collection_count
+
+    get_authorized_project(project_id, user, db)
 
     count = collection_count(project_id)
     return IndexStatusResponse(

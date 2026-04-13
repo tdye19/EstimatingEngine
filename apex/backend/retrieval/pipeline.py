@@ -34,7 +34,11 @@ def index_project_specs(db: Session, project_id: int, force: bool = False) -> in
     from apex.backend.models.spec_section import SpecSection
     from apex.backend.retrieval.chunker import chunk_spec_section
     from apex.backend.retrieval.embedder import embed_texts, is_available
-    from apex.backend.retrieval.store import collection_exists, upsert_chunks
+    from apex.backend.retrieval.store import (
+        collection_exists,
+        delete_project_collection,
+        upsert_chunks,
+    )
 
     if not is_available():
         logger.info(
@@ -46,6 +50,12 @@ def index_project_specs(db: Session, project_id: int, force: bool = False) -> in
     if not force and collection_exists(project_id):
         logger.debug(f"Project {project_id} already indexed — skipping (use force=True to re-index)")
         return 0
+
+    if force:
+        # Delete existing vectors so stale chunks from deleted/shortened
+        # sections can never surface in search results after re-indexing.
+        delete_project_collection(project_id)
+        logger.info(f"Project {project_id}: cleared existing vectors for clean re-index")
 
     sections = (
         db.query(SpecSection)
