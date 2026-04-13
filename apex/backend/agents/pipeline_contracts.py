@@ -376,7 +376,7 @@ class Agent7VarianceItem(BaseModel):
     @field_validator("estimated_rate", "historical_actual_rate", "variance_pct", mode="before")
     @classmethod
     def _to_float(cls, v) -> float:
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return float(v)
         return float(str(v).replace(",", "").strip())
 

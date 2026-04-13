@@ -119,7 +119,7 @@ def _parse_date(val):
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return None
     # Already a datetime/Timestamp from pandas
-    if isinstance(val, (datetime, pd.Timestamp)):
+    if isinstance(val, datetime | pd.Timestamp):
         return val.date() if not pd.isna(val) else None
     s = _clean_value(val)
     if s is None:

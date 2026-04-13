@@ -113,7 +113,7 @@ def _score_agent_6(result: dict) -> dict:
     """Agent 6 — Estimate Assembly: total_cost > 0 and executive_summary non-empty."""
     checks = []
     total = result.get("total_cost")
-    checks.append(_check("total_cost_gt_0", isinstance(total, (int, float)) and total > 0))
+    checks.append(_check("total_cost_gt_0", isinstance(total, int | float) and total > 0))
     summary = result.get("executive_summary")
     checks.append(_check("executive_summary_non_empty", isinstance(summary, str) and len(summary.strip()) > 0))
     passed = sum(c["passed"] for c in checks)
@@ -211,7 +211,7 @@ def _build_gap_analysis(result: dict) -> dict:
 
 def _build_cost_summary(result: dict) -> dict:
     total_cost = result.get("total_cost")
-    if not isinstance(total_cost, (int, float)):
+    if not isinstance(total_cost, int | float):
         total_cost = 0.0
     has_summary = (
         isinstance(result.get("executive_summary"), str) and len((result.get("executive_summary") or "").strip()) > 0

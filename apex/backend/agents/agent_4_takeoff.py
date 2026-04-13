@@ -225,7 +225,7 @@ class LLMTakeoffItem(BaseModel):
     @classmethod
     def _normalise_quantity(cls, v) -> float:
         """Accept numeric quantities and clean comma-formatted strings."""
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return float(v)
         cleaned = str(v).replace(",", "").strip()
         return float(cleaned)

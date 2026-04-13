@@ -28,7 +28,7 @@ from apex.backend.agents.pipeline_contracts import TakeoffLineItem
 def _safe_float(val) -> float | None:
     if val is None:
         return None
-    if isinstance(val, (int, float)):
+    if isinstance(val, int | float):
         if pd.isna(val):
             return None
         return float(val)

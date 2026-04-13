@@ -262,7 +262,7 @@ class LLMProductivityMatch(BaseModel):
     @field_validator("labor_hours", "labor_rate_per_unit", "total_labor_cost", mode="before")
     @classmethod
     def _to_float(cls, v) -> float:
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return float(v)
         return float(str(v).replace(",", "").strip())
 
