@@ -18,39 +18,39 @@ Rules (§24):
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from apex.backend.services.benchmarking_engine.engine import BenchmarkingEngine, BenchmarkOutput
 from apex.backend.services.benchmarking_engine.context import ProjectContext
-
+from apex.backend.services.benchmarking_engine.engine import BenchmarkingEngine, BenchmarkOutput
 
 # ── Output ────────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class PricedLine:
     """All fields needed to create an EstimateLine record."""
+
     description: str
-    division_code: Optional[str]
+    division_code: str | None
     quantity: float
-    unit: Optional[str]
-    recommended_unit_cost: Optional[float]
-    recommended_total_cost: Optional[float]
-    pricing_basis: str          # contextual_benchmark_p50 | allowance | no_data
+    unit: str | None
+    recommended_unit_cost: float | None
+    recommended_total_cost: float | None
+    pricing_basis: str  # contextual_benchmark_p50 | allowance | no_data
     benchmark_sample_size: int
-    benchmark_p10: Optional[float]
-    benchmark_p25: Optional[float]
-    benchmark_p50: Optional[float]
-    benchmark_p75: Optional[float]
-    benchmark_p90: Optional[float]
-    benchmark_mean: Optional[float]
-    benchmark_std_dev: Optional[float]
+    benchmark_p10: float | None
+    benchmark_p25: float | None
+    benchmark_p50: float | None
+    benchmark_p75: float | None
+    benchmark_p90: float | None
+    benchmark_mean: float | None
+    benchmark_std_dev: float | None
     benchmark_context_similarity: float
     confidence_score: float
     confidence_level: str
     missing_quantity: bool
-    line_status: str            # needs_review | accepted | overridden | excluded
+    line_status: str  # needs_review | accepted | overridden | excluded
     explanation: str
 
 
@@ -59,11 +59,11 @@ class PricedLine:
 # Allowance rates — used when there is no benchmark data but the item is required.
 # These are conservative fallbacks; they must be reviewed by an estimator.
 _ALLOWANCES: dict[str, float] = {
-    "Mobilization":                  15_000.0,   # LS
-    "Traffic Control":               8_000.0,    # LS
-    "Temporary Facilities":          25_000.0,   # LS
-    "Testing / Inspection":          12_000.0,   # LS
-    "Cleanup / Closeout":            5_000.0,    # LS
+    "Mobilization": 15_000.0,  # LS
+    "Traffic Control": 8_000.0,  # LS
+    "Temporary Facilities": 25_000.0,  # LS
+    "Testing / Inspection": 12_000.0,  # LS
+    "Cleanup / Closeout": 5_000.0,  # LS
 }
 
 
@@ -81,9 +81,9 @@ class PricingEngine:
     def price_scope_item(
         self,
         canonical_name: str,
-        division_code: Optional[str],
-        quantity: Optional[float],
-        unit: Optional[str],
+        division_code: str | None,
+        quantity: float | None,
+        unit: str | None,
     ) -> PricedLine:
         """Price a single scope item.
 
@@ -109,9 +109,7 @@ class PricingEngine:
             return self._no_quantity_line(canonical_name, division_code, unit, bm)
 
         if bm.sample_size >= 1 and bm.p50 is not None:
-            return self._benchmark_line(
-                canonical_name, division_code, quantity, unit, bm
-            )
+            return self._benchmark_line(canonical_name, division_code, quantity, unit, bm)
 
         if canonical_name in _ALLOWANCES:
             return self._allowance_line(canonical_name, division_code, quantity, unit, bm)
@@ -123,9 +121,9 @@ class PricingEngine:
     def _benchmark_line(
         self,
         name: str,
-        division_code: Optional[str],
+        division_code: str | None,
         quantity: float,
-        unit: Optional[str],
+        unit: str | None,
         bm: BenchmarkOutput,
     ) -> PricedLine:
         unit_cost = bm.p50
@@ -163,9 +161,9 @@ class PricingEngine:
     def _allowance_line(
         self,
         name: str,
-        division_code: Optional[str],
+        division_code: str | None,
         quantity: float,
-        unit: Optional[str],
+        unit: str | None,
         bm: BenchmarkOutput,
     ) -> PricedLine:
         allowance = _ALLOWANCES[name]
@@ -183,9 +181,13 @@ class PricingEngine:
             recommended_total_cost=allowance,
             pricing_basis="allowance",
             benchmark_sample_size=0,
-            benchmark_p10=None, benchmark_p25=None, benchmark_p50=None,
-            benchmark_p75=None, benchmark_p90=None,
-            benchmark_mean=None, benchmark_std_dev=None,
+            benchmark_p10=None,
+            benchmark_p25=None,
+            benchmark_p50=None,
+            benchmark_p75=None,
+            benchmark_p90=None,
+            benchmark_mean=None,
+            benchmark_std_dev=None,
             benchmark_context_similarity=0.0,
             confidence_score=0.15,
             confidence_level="very_low",
@@ -197,15 +199,12 @@ class PricingEngine:
     def _no_data_line(
         self,
         name: str,
-        division_code: Optional[str],
+        division_code: str | None,
         quantity: float,
-        unit: Optional[str],
+        unit: str | None,
         bm: BenchmarkOutput,
     ) -> PricedLine:
-        explanation = (
-            f"No historical data or allowance rule for '{name}'. "
-            f"Estimator must provide unit cost."
-        )
+        explanation = f"No historical data or allowance rule for '{name}'. Estimator must provide unit cost."
         return PricedLine(
             description=name,
             division_code=division_code,
@@ -215,9 +214,13 @@ class PricingEngine:
             recommended_total_cost=None,
             pricing_basis="no_data",
             benchmark_sample_size=0,
-            benchmark_p10=None, benchmark_p25=None, benchmark_p50=None,
-            benchmark_p75=None, benchmark_p90=None,
-            benchmark_mean=None, benchmark_std_dev=None,
+            benchmark_p10=None,
+            benchmark_p25=None,
+            benchmark_p50=None,
+            benchmark_p75=None,
+            benchmark_p90=None,
+            benchmark_mean=None,
+            benchmark_std_dev=None,
             benchmark_context_similarity=0.0,
             confidence_score=0.0,
             confidence_level="very_low",
@@ -229,15 +232,14 @@ class PricingEngine:
     def _no_quantity_line(
         self,
         name: str,
-        division_code: Optional[str],
-        unit: Optional[str],
+        division_code: str | None,
+        unit: str | None,
         bm: BenchmarkOutput,
     ) -> PricedLine:
-        explanation = (
-            f"Quantity missing for '{name}'. "
-            f"Cannot compute total cost. "
-            + (f"Benchmark p50=${bm.p50:,.2f}/{unit or '?'} available when quantity is provided."
-               if bm.p50 else "No benchmark data found.")
+        explanation = f"Quantity missing for '{name}'. Cannot compute total cost. " + (
+            f"Benchmark p50=${bm.p50:,.2f}/{unit or '?'} available when quantity is provided."
+            if bm.p50
+            else "No benchmark data found."
         )
         return PricedLine(
             description=name,
@@ -267,12 +269,13 @@ class PricingEngine:
         self,
         db: Session,
         estimate_run_id: str,
-        scope_item_id: Optional[str],
-        benchmark_result_id: Optional[str],
+        scope_item_id: str | None,
+        benchmark_result_id: str | None,
         priced: PricedLine,
     ):
         """Write a PricedLine into the decision_estimate_lines table."""
         from apex.backend.models.decision_models import EstimateLine
+
         line = EstimateLine(
             estimate_run_id=estimate_run_id,
             scope_item_id=scope_item_id,

@@ -13,7 +13,15 @@ CHUNK_SIZE_BYTES: int = CHUNK_SIZE  # alias used by validation code
 SESSION_TTL: int = int(os.getenv("UPLOAD_SESSION_TTL", "1800"))  # 30 minutes
 MAX_UPLOAD_BYTES: int = int(os.getenv("MAX_UPLOAD_MB", "2048")) * 1024 * 1024
 ALLOWED_EXTENSIONS: set[str] = {
-    "pdf", "docx", "doc", "xlsx", "xls", "csv", "est", "txt", "rtf",
+    "pdf",
+    "docx",
+    "doc",
+    "xlsx",
+    "xls",
+    "csv",
+    "est",
+    "txt",
+    "rtf",
 }
 
 # ── LLM defaults ─────────────────────────────────────────────────────

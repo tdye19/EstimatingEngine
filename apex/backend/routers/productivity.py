@@ -2,11 +2,14 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
 from apex.backend.db.database import get_db
 from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import (
-    ProductivityHistoryOut, ProductivityUpdate, APIResponse,
+    APIResponse,
+    ProductivityHistoryOut,
+    ProductivityUpdate,
 )
 
 router = APIRouter(prefix="/api/productivity-library", tags=["productivity"], dependencies=[Depends(require_auth)])
@@ -41,10 +44,14 @@ def update_productivity_rate(
     data: ProductivityUpdate,
     db: Session = Depends(get_db),
 ):
-    record = db.query(ProductivityHistory).filter(
-        ProductivityHistory.csi_code == csi_code,
-        ProductivityHistory.is_deleted == False,  # noqa: E712
-    ).first()
+    record = (
+        db.query(ProductivityHistory)
+        .filter(
+            ProductivityHistory.csi_code == csi_code,
+            ProductivityHistory.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
 
     if not record:
         raise HTTPException(status_code=404, detail=f"No productivity record for CSI code {csi_code}")

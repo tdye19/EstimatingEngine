@@ -1,13 +1,11 @@
 """Subcontractor bid comparison router."""
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
-from apex.backend.models.sub_bid import SubBidPackage, SubBid, SubBidLineItem
+from apex.backend.models.sub_bid import SubBidPackage
 from apex.backend.services.sub_bid_service import SubBidService
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
@@ -21,14 +19,14 @@ router = APIRouter(
 
 class PackageCreate(BaseModel):
     trade: str
-    csi_division: Optional[str] = None
-    base_scope_items: Optional[list] = None
+    csi_division: str | None = None
+    base_scope_items: list | None = None
 
 
 class BidCreate(BaseModel):
     subcontractor_name: str
-    total_bid_amount: Optional[float] = None
-    line_items: Optional[list[dict]] = None
+    total_bid_amount: float | None = None
+    line_items: list[dict] | None = None
 
 
 @router.post("/{project_id}/packages", response_model=APIResponse, status_code=201)
@@ -74,10 +72,14 @@ def add_bid(
     body: BidCreate,
     db: Session = Depends(get_db),
 ):
-    pkg = db.query(SubBidPackage).filter(
-        SubBidPackage.id == package_id,
-        SubBidPackage.project_id == project_id,
-    ).first()
+    pkg = (
+        db.query(SubBidPackage)
+        .filter(
+            SubBidPackage.id == package_id,
+            SubBidPackage.project_id == project_id,
+        )
+        .first()
+    )
     if not pkg:
         raise HTTPException(status_code=404, detail="Package not found")
 
@@ -97,10 +99,14 @@ def list_bids(
     package_id: int,
     db: Session = Depends(get_db),
 ):
-    pkg = db.query(SubBidPackage).filter(
-        SubBidPackage.id == package_id,
-        SubBidPackage.project_id == project_id,
-    ).first()
+    pkg = (
+        db.query(SubBidPackage)
+        .filter(
+            SubBidPackage.id == package_id,
+            SubBidPackage.project_id == project_id,
+        )
+        .first()
+    )
     if not pkg:
         raise HTTPException(status_code=404, detail="Package not found")
 
@@ -125,10 +131,14 @@ def compare_bids(
     package_id: int,
     db: Session = Depends(get_db),
 ):
-    pkg = db.query(SubBidPackage).filter(
-        SubBidPackage.id == package_id,
-        SubBidPackage.project_id == project_id,
-    ).first()
+    pkg = (
+        db.query(SubBidPackage)
+        .filter(
+            SubBidPackage.id == package_id,
+            SubBidPackage.project_id == project_id,
+        )
+        .first()
+    )
     if not pkg:
         raise HTTPException(status_code=404, detail="Package not found")
 

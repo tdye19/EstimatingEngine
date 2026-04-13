@@ -19,16 +19,16 @@ Outputs:
 import json
 import logging
 import re
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
-from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.agents.pipeline_contracts import (
     FieldActualsComparison,
     validate_agent_output,
 )
+from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.services.field_actuals.service import FieldActualsService
 
 logger = logging.getLogger("apex.agent.labor")
@@ -37,6 +37,7 @@ logger = logging.getLogger("apex.agent.labor")
 # ---------------------------------------------------------------------------
 # Main agent entry point (v2)
 # ---------------------------------------------------------------------------
+
 
 def run_labor_agent(db: Session, project_id: int) -> dict:
     """Compare takeoff line items against field actuals.
@@ -49,25 +50,36 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
     Returns validated Agent5Output dict.
     """
     # ── Step 1: Load takeoff items from Agent 4 ──────────────────────────
-    rows = db.query(TakeoffItemV2).filter(
-        TakeoffItemV2.project_id == project_id,
-    ).order_by(TakeoffItemV2.row_number).all()
+    rows = (
+        db.query(TakeoffItemV2)
+        .filter(
+            TakeoffItemV2.project_id == project_id,
+        )
+        .order_by(TakeoffItemV2.row_number)
+        .all()
+    )
 
     if not rows:
         logger.info(
             "Agent 5: no TakeoffItemV2 rows for project %d — returning empty output",
             project_id,
         )
-        return validate_agent_output(5, {
-            "items_compared": 0,
-            "items_with_field_data": 0,
-            "items_without_field_data": 0,
-            "comparisons": [],
-            "avg_calibration_factor": None,
-            "calibration_summary": {
-                "optimistic": 0, "conservative": 0, "aligned": 0, "no_data": 0,
+        return validate_agent_output(
+            5,
+            {
+                "items_compared": 0,
+                "items_with_field_data": 0,
+                "items_without_field_data": 0,
+                "comparisons": [],
+                "avg_calibration_factor": None,
+                "calibration_summary": {
+                    "optimistic": 0,
+                    "conservative": 0,
+                    "aligned": 0,
+                    "no_data": 0,
+                },
             },
-        })
+        )
 
     # ── Step 2: Initialize field actuals service ─────────────────────────
     fa_service = FieldActualsService(db)
@@ -95,16 +107,12 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
             # Estimating-to-field delta: how far are PB estimates from field reality?
             est_to_field_delta = None
             if estimating_avg and estimating_avg > 0:
-                est_to_field_delta = round(
-                    ((estimating_avg - field_avg) / field_avg) * 100, 2
-                )
+                est_to_field_delta = round(((estimating_avg - field_avg) / field_avg) * 100, 2)
 
             # Entered-to-field delta: how far is THIS estimator from field reality?
             entered_to_field_delta = None
             if estimator_rate and estimator_rate > 0:
-                entered_to_field_delta = round(
-                    ((estimator_rate - field_avg) / field_avg) * 100, 2
-                )
+                entered_to_field_delta = round(((estimator_rate - field_avg) / field_avg) * 100, 2)
 
             # Calibration factor: field_avg / estimating_avg
             cal_factor = None
@@ -122,74 +130,85 @@ def run_labor_agent(db: Session, project_id: int) -> dict:
 
             # Build recommendation text
             recommendation = _build_recommendation(
-                row.activity, row.unit, estimator_rate,
-                estimating_avg, field_avg, cal_factor, cal_direction,
+                row.activity,
+                row.unit,
+                estimator_rate,
+                estimating_avg,
+                field_avg,
+                cal_factor,
+                cal_direction,
             )
 
             direction_counts[cal_direction] += 1
 
-            comparisons.append(FieldActualsComparison(
-                line_item_row=row.row_number,
-                activity=row.activity,
-                unit=row.unit,
-                estimator_rate=estimator_rate,
-                estimating_avg_rate=estimating_avg,
-                field_avg_rate=field_avg,
-                field_sample_count=field_count,
-                estimating_to_field_delta_pct=est_to_field_delta,
-                entered_to_field_delta_pct=entered_to_field_delta,
-                calibration_factor=cal_factor,
-                calibration_direction=cal_direction,
-                recommendation=recommendation,
-                field_projects=field_projects,
-            ).model_dump())
+            comparisons.append(
+                FieldActualsComparison(
+                    line_item_row=row.row_number,
+                    activity=row.activity,
+                    unit=row.unit,
+                    estimator_rate=estimator_rate,
+                    estimating_avg_rate=estimating_avg,
+                    field_avg_rate=field_avg,
+                    field_sample_count=field_count,
+                    estimating_to_field_delta_pct=est_to_field_delta,
+                    entered_to_field_delta_pct=entered_to_field_delta,
+                    calibration_factor=cal_factor,
+                    calibration_direction=cal_direction,
+                    recommendation=recommendation,
+                    field_projects=field_projects,
+                ).model_dump()
+            )
 
         else:
             # No field data available
             direction_counts["no_data"] += 1
 
-            comparisons.append(FieldActualsComparison(
-                line_item_row=row.row_number,
-                activity=row.activity,
-                unit=row.unit,
-                estimator_rate=estimator_rate,
-                estimating_avg_rate=estimating_avg,
-                calibration_direction="no_data",
-                recommendation="No field actuals available for this activity. Rate based on estimating history only.",
-            ).model_dump())
+            comparisons.append(
+                FieldActualsComparison(
+                    line_item_row=row.row_number,
+                    activity=row.activity,
+                    unit=row.unit,
+                    estimator_rate=estimator_rate,
+                    estimating_avg_rate=estimating_avg,
+                    calibration_direction="no_data",
+                    recommendation="No field actuals available for this activity. Rate based on estimating history only.",
+                ).model_dump()
+            )
 
     # ── Step 4: Compute summary ──────────────────────────────────────────
     items_with = sum(1 for c in comparisons if c["calibration_direction"] != "no_data")
     items_without = len(comparisons) - items_with
-    avg_cal = (
-        round(sum(calibration_factors) / len(calibration_factors), 4)
-        if calibration_factors else None
-    )
+    avg_cal = round(sum(calibration_factors) / len(calibration_factors), 4) if calibration_factors else None
 
     logger.info(
         "Agent 5: %d items compared, %d with field data, %d without, avg_cal=%.4f",
-        len(comparisons), items_with, items_without,
+        len(comparisons),
+        items_with,
+        items_without,
         avg_cal if avg_cal is not None else 0.0,
     )
 
     # ── Step 5: Return validated output ──────────────────────────────────
-    return validate_agent_output(5, {
-        "items_compared": len(comparisons),
-        "items_with_field_data": items_with,
-        "items_without_field_data": items_without,
-        "comparisons": comparisons,
-        "avg_calibration_factor": avg_cal,
-        "calibration_summary": direction_counts,
-    })
+    return validate_agent_output(
+        5,
+        {
+            "items_compared": len(comparisons),
+            "items_with_field_data": items_with,
+            "items_without_field_data": items_without,
+            "comparisons": comparisons,
+            "avg_calibration_factor": avg_cal,
+            "calibration_summary": direction_counts,
+        },
+    )
 
 
 def _build_recommendation(
     activity: str,
-    unit: Optional[str],
-    estimator_rate: Optional[float],
-    estimating_avg: Optional[float],
+    unit: str | None,
+    estimator_rate: float | None,
+    estimating_avg: float | None,
     field_avg: float,
-    cal_factor: Optional[float],
+    cal_factor: float | None,
     cal_direction: str,
 ) -> str:
     """Generate human-readable guidance for a single line item."""
@@ -221,18 +240,19 @@ def _build_recommendation(
 # DEPRECATED — v1 labor productivity agent (LLM-based rate matching)
 # ===========================================================================
 
+
 # Pydantic contract for v1 LLM matches
 class LLMProductivityMatch(BaseModel):
     """Validated productivity match parsed from LLM JSON response."""
 
     takeoff_item_id: int
-    matched_productivity_id: Optional[int] = None
+    matched_productivity_id: int | None = None
     labor_hours: float
     labor_rate_per_unit: float
     crew_size: int
     total_labor_cost: float
     match_confidence: Literal["exact", "similar", "estimated"]
-    notes: Optional[str] = None
+    notes: str | None = None
 
     @field_validator("match_confidence", mode="before")
     @classmethod
@@ -294,12 +314,14 @@ def _build_labor_user_prompt(takeoff_items: list, productivity_records: list) ->
         for rec in productivity_records
     ]
 
-    return "\n".join([
-        "TAKEOFF ITEMS — match each to the best historical productivity rate:",
-        json.dumps(items_data, indent=2),
-        "\nHISTORICAL PRODUCTIVITY RATE TABLE — full database:",
-        json.dumps(rates_data, indent=2),
-    ])
+    return "\n".join(
+        [
+            "TAKEOFF ITEMS — match each to the best historical productivity rate:",
+            json.dumps(items_data, indent=2),
+            "\nHISTORICAL PRODUCTIVITY RATE TABLE — full database:",
+            json.dumps(rates_data, indent=2),
+        ]
+    )
 
 
 def _parse_llm_labor_response(raw_content: str) -> list[LLMProductivityMatch]:
@@ -319,7 +341,7 @@ def _parse_llm_labor_response(raw_content: str) -> list[LLMProductivityMatch]:
         return []
 
     validated: list[LLMProductivityMatch] = []
-    for i, item in enumerate(data):
+    for _i, item in enumerate(data):
         try:
             validated.append(LLMProductivityMatch.model_validate(item))
         except Exception:
@@ -342,24 +364,23 @@ def run_labor_agent_v1(db: Session, project_id: int) -> dict:
     DEPRECATED — v1 only. Kept for backward compatibility.
     Use run_labor_agent() (v2) which compares against field actuals.
     """
-    from apex.backend.models.project import Project
-    from apex.backend.models.takeoff_item import TakeoffItem
-    from apex.backend.models.labor_estimate import LaborEstimate
-    from apex.backend.models.productivity_history import ProductivityHistory
-    from apex.backend.services.benchmark_engine import query_benchmarks
-    from apex.backend.services.token_tracker import log_token_usage
-    from apex.backend.utils.async_helper import run_async as _run_async
-    from apex.backend.utils.csi_utils import normalize_uom
     from apex.backend.agents.tools.labor_tools import (
-        productivity_lookup_tool,
         crew_config_tool,
         duration_calculator_tool,
+        productivity_lookup_tool,
     )
+    from apex.backend.models.labor_estimate import LaborEstimate
+    from apex.backend.models.project import Project
+    from apex.backend.models.takeoff_item import TakeoffItem
 
-    takeoff_items = db.query(TakeoffItem).filter(
-        TakeoffItem.project_id == project_id,
-        TakeoffItem.is_deleted == False,  # noqa: E712
-    ).all()
+    takeoff_items = (
+        db.query(TakeoffItem)
+        .filter(
+            TakeoffItem.project_id == project_id,
+            TakeoffItem.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     estimates_created = 0
     total_labor_cost = 0.0
@@ -368,9 +389,7 @@ def run_labor_agent_v1(db: Session, project_id: int) -> dict:
     labor_method = "db"
     tokens_used = 0
 
-    project = db.query(Project).filter(Project.id == project_id).first()
-    org_id = project.organization_id if project else None
-    proj_type = project.project_type if project else None
+    db.query(Project).filter(Project.id == project_id).first()
 
     # DB fallback path
     for item in takeoff_items:
@@ -403,24 +422,28 @@ def run_labor_agent_v1(db: Session, project_id: int) -> dict:
             estimates_created += 1
             total_labor_cost += round(labor_cost, 2)
             total_labor_hours += duration["total_man_hours"]
-            item_results.append({
-                "takeoff_item_id": item.id,
-                "csi_code": item.csi_code,
-                "quantity": item.quantity,
-                "rate": prod["rate"],
-                "crew_type": prod["crew_type"],
-                "labor_hours": duration["labor_hours"],
-                "labor_cost": round(labor_cost, 2),
-                "confidence": prod["confidence"],
-                "source": "bls_default",
-            })
+            item_results.append(
+                {
+                    "takeoff_item_id": item.id,
+                    "csi_code": item.csi_code,
+                    "quantity": item.quantity,
+                    "rate": prod["rate"],
+                    "crew_type": prod["crew_type"],
+                    "labor_hours": duration["labor_hours"],
+                    "labor_cost": round(labor_cost, 2),
+                    "confidence": prod["confidence"],
+                    "source": "bls_default",
+                }
+            )
         except Exception as exc:
             logger.error(f"Agent 5 v1: failed for takeoff item {item.id}: {exc}")
-            item_results.append({
-                "takeoff_item_id": item.id,
-                "csi_code": item.csi_code,
-                "error": str(exc),
-            })
+            item_results.append(
+                {
+                    "takeoff_item_id": item.id,
+                    "csi_code": item.csi_code,
+                    "error": str(exc),
+                }
+            )
 
     db.commit()
 

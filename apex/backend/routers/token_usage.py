@@ -2,9 +2,9 @@
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+
 from apex.backend.db.database import get_db
-from apex.backend.models.token_usage import TokenUsage, AGENT_LABELS, calculate_cost
+from apex.backend.models.token_usage import AGENT_LABELS, TokenUsage, calculate_cost
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
 
@@ -77,14 +77,17 @@ def get_token_usage_summary(
     # Cost by agent
     agent_agg: dict[int, dict] = {}
     for r in records:
-        entry = agent_agg.setdefault(r.agent_number, {
-            "agent_number": r.agent_number,
-            "agent_name": AGENT_LABELS.get(r.agent_number, f"Agent {r.agent_number}"),
-            "total_cost": 0.0,
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "call_count": 0,
-        })
+        entry = agent_agg.setdefault(
+            r.agent_number,
+            {
+                "agent_number": r.agent_number,
+                "agent_name": AGENT_LABELS.get(r.agent_number, f"Agent {r.agent_number}"),
+                "total_cost": 0.0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "call_count": 0,
+            },
+        )
         entry["total_cost"] = round(entry["total_cost"] + r.estimated_cost, 8)
         entry["input_tokens"] += r.input_tokens
         entry["output_tokens"] += r.output_tokens
@@ -93,13 +96,16 @@ def get_token_usage_summary(
     # Cost by provider
     provider_agg: dict[str, dict] = {}
     for r in records:
-        entry = provider_agg.setdefault(r.provider, {
-            "provider": r.provider,
-            "total_cost": 0.0,
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "call_count": 0,
-        })
+        entry = provider_agg.setdefault(
+            r.provider,
+            {
+                "provider": r.provider,
+                "total_cost": 0.0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "call_count": 0,
+            },
+        )
         entry["total_cost"] = round(entry["total_cost"] + r.estimated_cost, 8)
         entry["input_tokens"] += r.input_tokens
         entry["output_tokens"] += r.output_tokens
@@ -108,9 +114,7 @@ def get_token_usage_summary(
     # Cache savings = what you would have paid at full price for cache_read tokens
     # minus what you actually paid (0.1x). Savings = 0.9x full price of cache_read tokens.
     cache_savings = sum(
-        calculate_cost(r.model, r.cache_read_tokens or 0, 0) * 0.9
-        for r in records
-        if (r.cache_read_tokens or 0) > 0
+        calculate_cost(r.model, r.cache_read_tokens or 0, 0) * 0.9 for r in records if (r.cache_read_tokens or 0) > 0
     )
 
     return APIResponse(

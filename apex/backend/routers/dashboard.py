@@ -3,13 +3,12 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import Optional
 
 from apex.backend.db.database import get_db
-from apex.backend.models.project import Project
-from apex.backend.models.estimate import Estimate
-from apex.backend.models.user import User
 from apex.backend.models.decision_models import BidOutcome
+from apex.backend.models.estimate import Estimate
+from apex.backend.models.project import Project
+from apex.backend.models.user import User
 from apex.backend.utils.auth import require_auth, require_role
 from apex.backend.utils.schemas import APIResponse
 
@@ -24,10 +23,14 @@ router = APIRouter(
 def dashboard_summary(db: Session = Depends(get_db)):
     """Total projects, active count, total bid volume, win rate."""
     total = db.query(func.count(Project.id)).filter(Project.is_deleted == False).scalar()  # noqa: E712
-    active = db.query(func.count(Project.id)).filter(
-        Project.is_deleted == False,  # noqa: E712
-        Project.status.in_(["draft", "estimating", "bid_submitted"]),
-    ).scalar()
+    active = (
+        db.query(func.count(Project.id))
+        .filter(
+            Project.is_deleted == False,  # noqa: E712
+            Project.status.in_(["draft", "estimating", "bid_submitted"]),
+        )
+        .scalar()
+    )
 
     total_bid_volume = (
         db.query(func.coalesce(func.sum(Project.estimated_value), 0.0))
@@ -36,25 +39,26 @@ def dashboard_summary(db: Session = Depends(get_db)):
     )
 
     # Win rate from bid_outcomes
-    total_outcomes = db.query(func.count(BidOutcome.id)).filter(
-        BidOutcome.outcome.in_(["won", "lost"])
-    ).scalar()
+    total_outcomes = db.query(func.count(BidOutcome.id)).filter(BidOutcome.outcome.in_(["won", "lost"])).scalar()
     wins = db.query(func.count(BidOutcome.id)).filter(BidOutcome.outcome == "won").scalar()
     win_rate = round(wins / total_outcomes * 100, 1) if total_outcomes > 0 else None
 
-    return APIResponse(success=True, data={
-        "total_projects": total,
-        "active_projects": active,
-        "total_bid_volume": float(total_bid_volume),
-        "win_rate": win_rate,
-        "total_bids_tracked": total_outcomes,
-    })
+    return APIResponse(
+        success=True,
+        data={
+            "total_projects": total,
+            "active_projects": active,
+            "total_bid_volume": float(total_bid_volume),
+            "win_rate": win_rate,
+            "total_bids_tracked": total_outcomes,
+        },
+    )
 
 
 @router.get("/win-loss", response_model=APIResponse)
 def win_loss_analysis(
-    project_type: Optional[str] = Query(None),
-    region: Optional[str] = Query(None),
+    project_type: str | None = Query(None),
+    region: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """Win/loss rates by project_type, with optional filters."""
@@ -84,13 +88,15 @@ def win_loss_analysis(
     result = []
     for ptype, counts in sorted(by_type.items()):
         total = counts["won"] + counts["lost"]
-        result.append({
-            "project_type": ptype,
-            "won": counts["won"],
-            "lost": counts["lost"],
-            "total": total,
-            "win_rate": round(counts["won"] / total * 100, 1) if total > 0 else 0,
-        })
+        result.append(
+            {
+                "project_type": ptype,
+                "won": counts["won"],
+                "lost": counts["lost"],
+                "total": total,
+                "win_rate": round(counts["won"] / total * 100, 1) if total > 0 else 0,
+            }
+        )
 
     return APIResponse(success=True, data=result)
 
@@ -124,15 +130,17 @@ def estimate_vs_actual_variance(db: Session = Depends(get_db)):
     for pid, name, ptype, estimated, actual in rows:
         variance = actual - estimated
         variance_pct = round(variance / estimated * 100, 2) if estimated else None
-        result.append({
-            "project_id": pid,
-            "project_name": name,
-            "project_type": ptype,
-            "estimated_value": estimated,
-            "actual_cost": actual,
-            "variance": round(variance, 2),
-            "variance_pct": variance_pct,
-        })
+        result.append(
+            {
+                "project_id": pid,
+                "project_name": name,
+                "project_type": ptype,
+                "estimated_value": estimated,
+                "actual_cost": actual,
+                "variance": round(variance, 2),
+                "variance_pct": variance_pct,
+            }
+        )
 
     return APIResponse(success=True, data=result)
 
@@ -166,13 +174,15 @@ def estimator_metrics(
             .filter(Project.owner_id == uid, Estimate.is_deleted == False)  # noqa: E712
             .scalar()
         )
-        result.append({
-            "user_id": uid,
-            "email": email,
-            "full_name": name,
-            "project_count": proj_count,
-            "estimate_count": est_count,
-            "total_bid_volume": float(bid_vol),
-        })
+        result.append(
+            {
+                "user_id": uid,
+                "email": email,
+                "full_name": name,
+                "project_count": proj_count,
+                "estimate_count": est_count,
+                "total_bid_volume": float(bid_vol),
+            }
+        )
 
     return APIResponse(success=True, data=result)

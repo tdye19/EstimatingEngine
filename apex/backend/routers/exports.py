@@ -2,18 +2,18 @@
 
 import io
 from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
+from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.estimate import Estimate
-from apex.backend.models.project import Project
+from apex.backend.models.gap_report import GapReport
 from apex.backend.models.organization import Organization
 from apex.backend.models.user import User
-from apex.backend.models.gap_report import GapReport, GapReportItem
-from apex.backend.models.agent_run_log import AgentRunLog
-from apex.backend.utils.auth import require_auth, get_authorized_project
+from apex.backend.utils.auth import get_authorized_project, require_auth
 
 router = APIRouter(prefix="/api/exports", tags=["exports"])
 
@@ -21,10 +21,15 @@ router = APIRouter(prefix="/api/exports", tags=["exports"])
 def _get_estimate_or_404(project_id: int, db: Session, user: User):
     project = get_authorized_project(project_id, user, db)
 
-    estimate = db.query(Estimate).filter(
-        Estimate.project_id == project_id,
-        Estimate.is_deleted == False,  # noqa: E712
-    ).order_by(Estimate.version.desc()).first()
+    estimate = (
+        db.query(Estimate)
+        .filter(
+            Estimate.project_id == project_id,
+            Estimate.is_deleted == False,  # noqa: E712
+        )
+        .order_by(Estimate.version.desc())
+        .first()
+    )
     if not estimate:
         raise HTTPException(status_code=404, detail="No estimate available for this project")
 
@@ -34,6 +39,7 @@ def _get_estimate_or_404(project_id: int, db: Session, user: User):
 
 # ─────────────────────────── PDF ───────────────────────────
 
+
 @router.get("/projects/{project_id}/estimate/pdf")
 def export_estimate_pdf(
     project_id: int,
@@ -42,24 +48,39 @@ def export_estimate_pdf(
 ):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import inch
     from reportlab.platypus import (
-        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable,
+        HRFlowable,
         PageBreak,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
     )
 
     project, estimate, org = _get_estimate_or_404(project_id, db, current_user)
 
     # Fetch gap report and agent run logs for this project
-    gap_report = db.query(GapReport).filter(
-        GapReport.project_id == project_id,
-        GapReport.is_deleted == False,  # noqa: E712
-    ).order_by(GapReport.id.desc()).first()
+    gap_report = (
+        db.query(GapReport)
+        .filter(
+            GapReport.project_id == project_id,
+            GapReport.is_deleted == False,  # noqa: E712
+        )
+        .order_by(GapReport.id.desc())
+        .first()
+    )
 
-    agent_logs = db.query(AgentRunLog).filter(
-        AgentRunLog.project_id == project_id,
-    ).order_by(AgentRunLog.agent_number).all()
+    agent_logs = (
+        db.query(AgentRunLog)
+        .filter(
+            AgentRunLog.project_id == project_id,
+        )
+        .order_by(AgentRunLog.agent_number)
+        .all()
+    )
 
     buf = io.BytesIO()
 
@@ -90,13 +111,43 @@ def export_estimate_pdf(
     )
 
     styles = getSampleStyleSheet()
-    style_cover_title = ParagraphStyle("cover_title", parent=styles["Normal"], fontSize=28, fontName="Helvetica-Bold", textColor=TCA_NAVY, alignment=1, spaceAfter=8)
-    style_cover_sub = ParagraphStyle("cover_sub", parent=styles["Normal"], fontSize=14, fontName="Helvetica", textColor=colors.HexColor("#475569"), alignment=1, spaceAfter=4)
-    style_cover_meta = ParagraphStyle("cover_meta", parent=styles["Normal"], fontSize=10, textColor=MID_GRAY, alignment=1)
-    style_section = ParagraphStyle("section", parent=styles["Normal"], fontSize=12, fontName="Helvetica-Bold", textColor=TCA_NAVY, spaceBefore=14, spaceAfter=6)
+    style_cover_title = ParagraphStyle(
+        "cover_title",
+        parent=styles["Normal"],
+        fontSize=28,
+        fontName="Helvetica-Bold",
+        textColor=TCA_NAVY,
+        alignment=1,
+        spaceAfter=8,
+    )
+    style_cover_sub = ParagraphStyle(
+        "cover_sub",
+        parent=styles["Normal"],
+        fontSize=14,
+        fontName="Helvetica",
+        textColor=colors.HexColor("#475569"),
+        alignment=1,
+        spaceAfter=4,
+    )
+    style_cover_meta = ParagraphStyle(
+        "cover_meta", parent=styles["Normal"], fontSize=10, textColor=MID_GRAY, alignment=1
+    )
+    style_section = ParagraphStyle(
+        "section",
+        parent=styles["Normal"],
+        fontSize=12,
+        fontName="Helvetica-Bold",
+        textColor=TCA_NAVY,
+        spaceBefore=14,
+        spaceAfter=6,
+    )
     style_body = ParagraphStyle("body", parent=styles["Normal"], fontSize=9, leading=13)
-    style_small = ParagraphStyle("small", parent=styles["Normal"], fontSize=8, leading=11, textColor=colors.HexColor("#475569"))
-    style_footer_text = ParagraphStyle("footer_text", parent=styles["Normal"], fontSize=8, textColor=MID_GRAY, alignment=1)
+    style_small = ParagraphStyle(
+        "small", parent=styles["Normal"], fontSize=8, leading=11, textColor=colors.HexColor("#475569")
+    )
+    style_footer_text = ParagraphStyle(
+        "footer_text", parent=styles["Normal"], fontSize=8, textColor=MID_GRAY, alignment=1
+    )
 
     def fmt_dollar(val):
         return f"${val:,.0f}" if val is not None else "$0"
@@ -116,16 +167,34 @@ def export_estimate_pdf(
 
     # Logo placeholder
     logo_tbl = Table(
-        [[Paragraph("<b>TCA</b>", ParagraphStyle("logo", parent=styles["Normal"], fontSize=24, fontName="Helvetica-Bold", textColor=colors.white, alignment=1))]],
+        [
+            [
+                Paragraph(
+                    "<b>TCA</b>",
+                    ParagraphStyle(
+                        "logo",
+                        parent=styles["Normal"],
+                        fontSize=24,
+                        fontName="Helvetica-Bold",
+                        textColor=colors.white,
+                        alignment=1,
+                    ),
+                )
+            ]
+        ],
         colWidths=[2 * inch],
         rowHeights=[0.7 * inch],
     )
-    logo_tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), TCA_NAVY),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ROUNDEDCORNERS", [6, 6, 6, 6]),
-    ]))
+    logo_tbl.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), TCA_NAVY),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ROUNDEDCORNERS", [6, 6, 6, 6]),
+            ]
+        )
+    )
     logo_tbl.hAlign = "CENTER"
     story.append(logo_tbl)
     story.append(Spacer(1, 0.5 * inch))
@@ -172,25 +241,28 @@ def export_estimate_pdf(
     metric_cells = []
     for label, value in metrics:
         cell = Paragraph(
-            f'<font size="8" color="#64748B">{label}</font><br/>'
-            f'<font size="16"><b>{value}</b></font>',
+            f'<font size="8" color="#64748B">{label}</font><br/><font size="16"><b>{value}</b></font>',
             ParagraphStyle("metric", parent=styles["Normal"], alignment=1, leading=20),
         )
         metric_cells.append(cell)
 
     card_w = usable_w / 4
     metric_tbl = Table([metric_cells], colWidths=[card_w] * 4, rowHeights=[0.8 * inch])
-    metric_tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), LIGHT_GRAY),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("BOX", (0, 0), (-1, -1), 0.5, GRID_COLOR),
-        ("LINEBEFORE", (1, 0), (1, 0), 0.5, GRID_COLOR),
-        ("LINEBEFORE", (2, 0), (2, 0), 0.5, GRID_COLOR),
-        ("LINEBEFORE", (3, 0), (3, 0), 0.5, GRID_COLOR),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-    ]))
+    metric_tbl.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), LIGHT_GRAY),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOX", (0, 0), (-1, -1), 0.5, GRID_COLOR),
+                ("LINEBEFORE", (1, 0), (1, 0), 0.5, GRID_COLOR),
+                ("LINEBEFORE", (2, 0), (2, 0), 0.5, GRID_COLOR),
+                ("LINEBEFORE", (3, 0), (3, 0), 0.5, GRID_COLOR),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
     story.append(metric_tbl)
     story.append(Spacer(1, 16))
 
@@ -210,39 +282,45 @@ def export_estimate_pdf(
     summary_rows = [
         [Paragraph("<b>Item</b>", styles["Normal"]), Paragraph("<b>Amount</b>", styles["Normal"])],
         ["Subtotal (Direct Cost)", fmt_dollar(estimate.total_direct_cost)],
-        [f"  Labor", fmt_dollar(estimate.total_labor_cost)],
-        [f"  Materials", fmt_dollar(estimate.total_material_cost)],
-        [f"  Subcontractor", fmt_dollar(estimate.total_subcontractor_cost)],
+        ["  Labor", fmt_dollar(estimate.total_labor_cost)],
+        ["  Materials", fmt_dollar(estimate.total_material_cost)],
+        ["  Subcontractor", fmt_dollar(estimate.total_subcontractor_cost)],
         [f"Overhead ({fmt_pct(estimate.overhead_pct)})", fmt_dollar(estimate.overhead_amount)],
         [f"Profit ({fmt_pct(estimate.profit_pct)})", fmt_dollar(estimate.profit_amount)],
         [f"Contingency ({fmt_pct(estimate.contingency_pct)})", fmt_dollar(estimate.contingency_amount)],
     ]
     if estimate.bid_bond_required:
         summary_rows.append(["Bond", "Included"])
-    summary_rows.append([
-        Paragraph("<b>GRAND TOTAL BID</b>", styles["Normal"]),
-        Paragraph(f"<b>{fmt_dollar(estimate.total_bid_amount)}</b>", styles["Normal"]),
-    ])
+    summary_rows.append(
+        [
+            Paragraph("<b>GRAND TOTAL BID</b>", styles["Normal"]),
+            Paragraph(f"<b>{fmt_dollar(estimate.total_bid_amount)}</b>", styles["Normal"]),
+        ]
+    )
 
     sum_tbl = Table(summary_rows, colWidths=[4.0 * inch, 1.5 * inch])
     grand_row = len(summary_rows) - 1
-    sum_tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), TCA_NAVY),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-        ("ROWBACKGROUNDS", (0, 1), (-1, grand_row - 1), [colors.white, LIGHT_GRAY]),
-        ("BACKGROUND", (0, grand_row), (-1, grand_row), TCA_NAVY_DARK),
-        ("TEXTCOLOR", (0, grand_row), (-1, grand_row), colors.white),
-        ("FONTNAME", (0, grand_row), (-1, grand_row), "Helvetica-Bold"),
-        ("FONTSIZE", (0, grand_row), (-1, grand_row), 11),
-        ("GRID", (0, 0), (-1, -1), 0.25, GRID_COLOR),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
+    sum_tbl.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), TCA_NAVY),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, grand_row - 1), [colors.white, LIGHT_GRAY]),
+                ("BACKGROUND", (0, grand_row), (-1, grand_row), TCA_NAVY_DARK),
+                ("TEXTCOLOR", (0, grand_row), (-1, grand_row), colors.white),
+                ("FONTNAME", (0, grand_row), (-1, grand_row), "Helvetica-Bold"),
+                ("FONTSIZE", (0, grand_row), (-1, grand_row), 11),
+                ("GRID", (0, 0), (-1, -1), 0.25, GRID_COLOR),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
     story.append(sum_tbl)
 
     story.append(PageBreak())
@@ -298,32 +376,48 @@ def export_estimate_pdf(
             unit_cost = li.unit_cost or 0
             total = li.total_cost or 0
             div_total += total
-            tbl_data.append([
-                li.division_number or "",
-                li.csi_code or "",
-                li.description or "",
-                f"{qty:,.1f}",
-                li.unit_of_measure or "",
-                fmt_dollar(unit_cost),
-                fmt_dollar(total),
-            ])
+            tbl_data.append(
+                [
+                    li.division_number or "",
+                    li.csi_code or "",
+                    li.description or "",
+                    f"{qty:,.1f}",
+                    li.unit_of_measure or "",
+                    fmt_dollar(unit_cost),
+                    fmt_dollar(total),
+                ]
+            )
             row_idx += 1
 
         grand_total += div_total
         # Subtotal row
-        tbl_data.append([
-            "", "", Paragraph(f"<b>Division {div_num} Subtotal</b>", styles["Normal"]),
-            "", "", "", Paragraph(f"<b>{fmt_dollar(div_total)}</b>", styles["Normal"]),
-        ])
+        tbl_data.append(
+            [
+                "",
+                "",
+                Paragraph(f"<b>Division {div_num} Subtotal</b>", styles["Normal"]),
+                "",
+                "",
+                "",
+                Paragraph(f"<b>{fmt_dollar(div_total)}</b>", styles["Normal"]),
+            ]
+        )
         tbl_style_cmds.append(("BACKGROUND", (0, row_idx), (-1, row_idx), SUBTOTAL_BG))
         tbl_style_cmds.append(("FONTNAME", (0, row_idx), (-1, row_idx), "Helvetica-Bold"))
         row_idx += 1
 
     # Grand total row
-    tbl_data.append([
-        "", "", Paragraph("<b>GRAND TOTAL (Direct)</b>", styles["Normal"]),
-        "", "", "", Paragraph(f"<b>{fmt_dollar(grand_total)}</b>", styles["Normal"]),
-    ])
+    tbl_data.append(
+        [
+            "",
+            "",
+            Paragraph("<b>GRAND TOTAL (Direct)</b>", styles["Normal"]),
+            "",
+            "",
+            "",
+            Paragraph(f"<b>{fmt_dollar(grand_total)}</b>", styles["Normal"]),
+        ]
+    )
     tbl_style_cmds.append(("BACKGROUND", (0, row_idx), (-1, row_idx), TCA_NAVY_DARK))
     tbl_style_cmds.append(("TEXTCOLOR", (0, row_idx), (-1, row_idx), colors.white))
     tbl_style_cmds.append(("FONTNAME", (0, row_idx), (-1, row_idx), "Helvetica-Bold"))
@@ -364,10 +458,7 @@ def export_estimate_pdf(
         story.append(Spacer(1, 8))
 
         # Filter to critical/moderate gaps for the table
-        significant_gaps = [
-            g for g in gap_report.items
-            if g.severity in ("critical", "moderate")
-        ]
+        significant_gaps = [g for g in gap_report.items if g.severity in ("critical", "moderate")]
 
         if significant_gaps:
             gap_col_widths = [0.7 * inch, 1.0 * inch, 2.0 * inch, 2.35 * inch]
@@ -380,27 +471,35 @@ def export_estimate_pdf(
             gap_data = [gap_header]
             for g in significant_gaps:
                 sev_color = "#DC2626" if g.severity == "critical" else "#D97706"
-                gap_data.append([
-                    g.section_number or g.division_number or "",
-                    Paragraph(f'<font color="{sev_color}"><b>{(g.severity or "").title()}</b></font>', styles["Normal"]),
-                    Paragraph(g.description or g.title or "", style_small),
-                    Paragraph(g.recommendation or "—", style_small),
-                ])
+                gap_data.append(
+                    [
+                        g.section_number or g.division_number or "",
+                        Paragraph(
+                            f'<font color="{sev_color}"><b>{(g.severity or "").title()}</b></font>', styles["Normal"]
+                        ),
+                        Paragraph(g.description or g.title or "", style_small),
+                        Paragraph(g.recommendation or "—", style_small),
+                    ]
+                )
 
             gap_tbl = Table(gap_data, colWidths=gap_col_widths, repeatRows=1)
-            gap_tbl.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), TCA_NAVY),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
-                ("GRID", (0, 0), (-1, -1), 0.25, GRID_COLOR),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ]))
+            gap_tbl.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), TCA_NAVY),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, -1), 8),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+                        ("GRID", (0, 0), (-1, -1), 0.25, GRID_COLOR),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                        ("TOPPADDING", (0, 0), (-1, -1), 3),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    ]
+                )
+            )
             story.append(gap_tbl)
         story.append(Spacer(1, 12))
 
@@ -422,20 +521,24 @@ def export_estimate_pdf(
     story.append(Paragraph(methodology_text, style_body))
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph(
-        "<b>Important:</b> All dollar amounts in this report are computed using deterministic "
-        "Python arithmetic. No LLM generates or modifies financial figures. AI is used for "
-        "document parsing, scope analysis, and rate matching only.",
-        style_body,
-    ))
+    story.append(
+        Paragraph(
+            "<b>Important:</b> All dollar amounts in this report are computed using deterministic "
+            "Python arithmetic. No LLM generates or modifies financial figures. AI is used for "
+            "document parsing, scope analysis, and rate matching only.",
+            style_body,
+        )
+    )
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph(
-        "Data sources include uploaded project specifications, the APEX productivity library "
-        "(historical labor rates), material price databases, and benchmark data from completed "
-        "projects within the organization.",
-        style_body,
-    ))
+    story.append(
+        Paragraph(
+            "Data sources include uploaded project specifications, the APEX productivity library "
+            "(historical labor rates), material price databases, and benchmark data from completed "
+            "projects within the organization.",
+            style_body,
+        )
+    )
     story.append(Spacer(1, 16))
 
     # ══════════════════════════════════════════════════════════
@@ -463,38 +566,48 @@ def export_estimate_pdf(
             if len(log.output_summary or "") > 80:
                 summary += "…"
 
-            log_data.append([
-                str(log.agent_number),
-                log.agent_name or "",
-                Paragraph(f'<font color="{status_color}"><b>{(log.status or "").title()}</b></font>', styles["Normal"]),
-                duration,
-                tokens,
-                Paragraph(summary or "—", style_small),
-            ])
+            log_data.append(
+                [
+                    str(log.agent_number),
+                    log.agent_name or "",
+                    Paragraph(
+                        f'<font color="{status_color}"><b>{(log.status or "").title()}</b></font>', styles["Normal"]
+                    ),
+                    duration,
+                    tokens,
+                    Paragraph(summary or "—", style_small),
+                ]
+            )
 
         log_tbl = Table(log_data, colWidths=log_col_widths, repeatRows=1)
-        log_tbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), TCA_NAVY),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
-            ("GRID", (0, 0), (-1, -1), 0.25, GRID_COLOR),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ]))
+        log_tbl.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), TCA_NAVY),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+                    ("GRID", (0, 0), (-1, -1), 0.25, GRID_COLOR),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ]
+            )
+        )
         story.append(log_tbl)
         story.append(Spacer(1, 12))
 
     # ── Final footer ──
     story.append(HRFlowable(width="100%", thickness=1, color=MID_GRAY, spaceBefore=16, spaceAfter=6))
-    story.append(Paragraph(
-        f"Prepared by {current_user.full_name} &nbsp;|&nbsp; Generated by APEX Estimating Platform &nbsp;|&nbsp; {date.today().strftime('%B %d, %Y')}",
-        style_footer_text,
-    ))
+    story.append(
+        Paragraph(
+            f"Prepared by {current_user.full_name} &nbsp;|&nbsp; Generated by APEX Estimating Platform &nbsp;|&nbsp; {date.today().strftime('%B %d, %Y')}",
+            style_footer_text,
+        )
+    )
 
     doc.build(story, onFirstPage=_add_page_number, onLaterPages=_add_page_number)
     buf.seek(0)
@@ -509,6 +622,7 @@ def export_estimate_pdf(
 
 # ─────────────────────────── XLSX ───────────────────────────
 
+
 @router.get("/projects/{project_id}/estimate/xlsx")
 def export_estimate_xlsx(
     project_id: int,
@@ -516,7 +630,7 @@ def export_estimate_xlsx(
     current_user: User = Depends(require_auth),
 ):
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
 
     project, estimate, org = _get_estimate_or_404(project_id, db, current_user)
@@ -631,7 +745,9 @@ def export_estimate_xlsx(
         # Division subtotal row with SUM formula
         div_last = current_row - 1
         subtotal_col_g = f"G{div_first}:G{div_last}"
-        ws.cell(row=current_row, column=3, value=f"Division {div_num} Subtotal").font = hdr_font(color=APEX_BLUE, size=9)
+        ws.cell(row=current_row, column=3, value=f"Division {div_num} Subtotal").font = hdr_font(
+            color=APEX_BLUE, size=9
+        )
         ws.cell(row=current_row, column=7, value=f"=SUM({subtotal_col_g})").font = hdr_font(color=APEX_BLUE, size=9)
         ws.cell(row=current_row, column=7).number_format = '"$"#,##0.00'
 
@@ -675,7 +791,7 @@ def export_estimate_xlsx(
     contingency_pct = (estimate.contingency_pct or 0) / 100
 
     subtotal_ref = f"G{current_row}"
-    sum_row(f"Subtotal (Direct Cost)", subtotal_formula, bg=LIGHT_GRAY, bold=True)
+    sum_row("Subtotal (Direct Cost)", subtotal_formula, bg=LIGHT_GRAY, bold=True)
     current_row += 1
 
     overhead_ref = f"G{current_row}"
@@ -683,17 +799,25 @@ def export_estimate_xlsx(
     current_row += 1
 
     profit_ref = f"G{current_row}"
-    sum_row(f"Profit ({estimate.profit_pct or 0:.1f}%)", f"=({subtotal_ref}+{overhead_ref})*{profit_pct}", bg=LIGHT_GRAY)
+    sum_row(
+        f"Profit ({estimate.profit_pct or 0:.1f}%)", f"=({subtotal_ref}+{overhead_ref})*{profit_pct}", bg=LIGHT_GRAY
+    )
     current_row += 1
 
     contingency_ref = f"G{current_row}"
-    sum_row(f"Contingency ({estimate.contingency_pct or 0:.1f}%)", f"=({subtotal_ref}+{overhead_ref}+{profit_ref})*{contingency_pct}", bg=LIGHT_GRAY)
+    sum_row(
+        f"Contingency ({estimate.contingency_pct or 0:.1f}%)",
+        f"=({subtotal_ref}+{overhead_ref}+{profit_ref})*{contingency_pct}",
+        bg=LIGHT_GRAY,
+    )
     current_row += 1
 
     sum_row(
         "GRAND TOTAL BID",
         f"={subtotal_ref}+{overhead_ref}+{profit_ref}+{contingency_ref}",
-        bold=True, bg=DARK_BLUE, text_color=WHITE,
+        bold=True,
+        bg=DARK_BLUE,
+        text_color=WHITE,
     )
     for col in [6, 7]:
         ws.cell(row=current_row, column=col).font = Font(name="Calibri", bold=True, size=11, color=WHITE)
@@ -785,9 +909,9 @@ def export_subcontractor_package_pdf(
     """Generate a PDF bid package for a single trade / CSI division."""
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     project, estimate, org = _get_estimate_or_404(project_id, db)
 
@@ -799,7 +923,8 @@ def export_subcontractor_package_pdf(
         None,
     )
     line_items = [
-        li for li in (estimate.line_items or [])
+        li
+        for li in (estimate.line_items or [])
         if (li.division_number or "").startswith(div_prefix or "__NOMATCH__")
         or (li.division_number or "") == trade_decoded
     ]
@@ -816,21 +941,40 @@ def export_subcontractor_package_pdf(
     LIGHT_GRAY = colors.HexColor("#f1f5f9")
     MID_GRAY = colors.HexColor("#94a3b8")
 
-    style_title = ParagraphStyle("title", parent=styles["Normal"], fontSize=18, fontName="Helvetica-Bold", textColor=APEX_BLUE, spaceAfter=4)
-    style_sub = ParagraphStyle("sub", parent=styles["Normal"], fontSize=11, fontName="Helvetica-Bold", textColor=APEX_BLUE, spaceBefore=10, spaceAfter=4)
+    style_title = ParagraphStyle(
+        "title", parent=styles["Normal"], fontSize=18, fontName="Helvetica-Bold", textColor=APEX_BLUE, spaceAfter=4
+    )
+    style_sub = ParagraphStyle(
+        "sub",
+        parent=styles["Normal"],
+        fontSize=11,
+        fontName="Helvetica-Bold",
+        textColor=APEX_BLUE,
+        spaceBefore=10,
+        spaceAfter=4,
+    )
     style_meta = ParagraphStyle("meta", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#475569"))
     style_footer = ParagraphStyle("footer", parent=styles["Normal"], fontSize=8, textColor=MID_GRAY, alignment=1)
 
     def fmt_dollar(val):
         return f"${val:,.0f}" if val is not None else "$0"
 
-    doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=0.75*inch, rightMargin=0.75*inch, topMargin=0.75*inch, bottomMargin=0.75*inch)
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=letter,
+        leftMargin=0.75 * inch,
+        rightMargin=0.75 * inch,
+        topMargin=0.75 * inch,
+        bottomMargin=0.75 * inch,
+    )
     story = []
 
     org_name = org.name if org else "General Contractor"
-    story.append(Paragraph(org_name.upper(), ParagraphStyle("org", parent=styles["Normal"], fontSize=9, textColor=MID_GRAY)))
+    story.append(
+        Paragraph(org_name.upper(), ParagraphStyle("org", parent=styles["Normal"], fontSize=9, textColor=MID_GRAY))
+    )
     story.append(Spacer(1, 4))
-    story.append(Paragraph(f"SUBCONTRACTOR BID PACKAGE", style_title))
+    story.append(Paragraph("SUBCONTRACTOR BID PACKAGE", style_title))
     story.append(Paragraph(f"{project.name} — {trade_decoded}", style_sub))
     story.append(HRFlowable(width="100%", thickness=2, color=APEX_BLUE, spaceAfter=6))
 
@@ -844,16 +988,18 @@ def export_subcontractor_package_pdf(
     story.append(Spacer(1, 16))
 
     story.append(Paragraph("Scope of Work", style_sub))
-    story.append(Paragraph(
-        f"The following scope of work is to be performed by the subcontractor for "
-        f"<b>{trade_decoded}</b> work. All work shall conform to project specifications, "
-        f"applicable codes, and general contractor requirements.",
-        styles["Normal"],
-    ))
+    story.append(
+        Paragraph(
+            f"The following scope of work is to be performed by the subcontractor for "
+            f"<b>{trade_decoded}</b> work. All work shall conform to project specifications, "
+            f"applicable codes, and general contractor requirements.",
+            styles["Normal"],
+        )
+    )
     story.append(Spacer(1, 12))
 
     story.append(Paragraph("Bid Items", style_sub))
-    col_widths = [0.7*inch, 2.8*inch, 0.6*inch, 0.5*inch, 0.9*inch, 0.9*inch]
+    col_widths = [0.7 * inch, 2.8 * inch, 0.6 * inch, 0.5 * inch, 0.9 * inch, 0.9 * inch]
     header_row = [
         Paragraph("<b>CSI Code</b>", styles["Normal"]),
         Paragraph("<b>Description</b>", styles["Normal"]),
@@ -866,39 +1012,50 @@ def export_subcontractor_package_pdf(
     total_cost = 0.0
 
     for li in line_items:
-        tbl_data.append([
-            li.csi_code or "",
-            li.description or "",
-            f"{li.quantity or 0:,.1f}",
-            li.unit_of_measure or "",
-            fmt_dollar(li.unit_cost),
-            fmt_dollar(li.total_cost),
-        ])
+        tbl_data.append(
+            [
+                li.csi_code or "",
+                li.description or "",
+                f"{li.quantity or 0:,.1f}",
+                li.unit_of_measure or "",
+                fmt_dollar(li.unit_cost),
+                fmt_dollar(li.total_cost),
+            ]
+        )
         total_cost += li.total_cost or 0.0
 
-    tbl_data.append([
-        "", Paragraph("<b>SUBTOTAL</b>", styles["Normal"]),
-        "", "", "",
-        Paragraph(f"<b>{fmt_dollar(total_cost)}</b>", styles["Normal"]),
-    ])
+    tbl_data.append(
+        [
+            "",
+            Paragraph("<b>SUBTOTAL</b>", styles["Normal"]),
+            "",
+            "",
+            "",
+            Paragraph(f"<b>{fmt_dollar(total_cost)}</b>", styles["Normal"]),
+        ]
+    )
 
     tbl = Table(tbl_data, colWidths=col_widths, repeatRows=1)
     last = len(tbl_data) - 1
-    tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), APEX_BLUE),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
-        ("ROWBACKGROUNDS", (0, 1), (-1, last - 1), [colors.white, LIGHT_GRAY]),
-        ("BACKGROUND", (0, last), (-1, last), colors.HexColor("#dbeafe")),
-        ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
-        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-    ]))
+    tbl.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), APEX_BLUE),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, last - 1), [colors.white, LIGHT_GRAY]),
+                ("BACKGROUND", (0, last), (-1, last), colors.HexColor("#dbeafe")),
+                ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ]
+        )
+    )
     story.append(tbl)
     story.append(Spacer(1, 20))
 
@@ -914,10 +1071,12 @@ def export_subcontractor_package_pdf(
     story.append(Spacer(1, 12))
 
     story.append(HRFlowable(width="100%", thickness=1, color=MID_GRAY, spaceBefore=12, spaceAfter=6))
-    story.append(Paragraph(
-        f"Package prepared by {current_user.full_name} | APEX Estimating Platform",
-        style_footer,
-    ))
+    story.append(
+        Paragraph(
+            f"Package prepared by {current_user.full_name} | APEX Estimating Platform",
+            style_footer,
+        )
+    )
 
     doc.build(story)
     buf.seek(0)
@@ -929,7 +1088,10 @@ def export_subcontractor_package_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
 # ─────────────────────────── CSV ───────────────────────────
+
 
 @router.get("/projects/{project_id}/estimate/csv")
 def export_estimate_csv(
@@ -944,25 +1106,79 @@ def export_estimate_csv(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
-        "Item #", "CSI Code", "Division", "Description",
-        "Quantity", "UOM", "Labor Cost", "Material Cost",
-        "Equipment Cost", "Subcontractor Cost", "Total Cost", "Unit Cost"
-    ])
+    writer.writerow(
+        [
+            "Item #",
+            "CSI Code",
+            "Division",
+            "Description",
+            "Quantity",
+            "UOM",
+            "Labor Cost",
+            "Material Cost",
+            "Equipment Cost",
+            "Subcontractor Cost",
+            "Total Cost",
+            "Unit Cost",
+        ]
+    )
     for idx, li in enumerate(estimate.line_items, 1):
-        writer.writerow([
-            idx, li.csi_code, li.division_number, li.description,
-            li.quantity, li.unit_of_measure,
-            f"{li.labor_cost:.2f}", f"{li.material_cost:.2f}",
-            f"{li.equipment_cost:.2f}", f"{li.subcontractor_cost:.2f}",
-            f"{li.total_cost:.2f}", f"{li.unit_cost:.2f}",
-        ])
+        writer.writerow(
+            [
+                idx,
+                li.csi_code,
+                li.division_number,
+                li.description,
+                li.quantity,
+                li.unit_of_measure,
+                f"{li.labor_cost:.2f}",
+                f"{li.material_cost:.2f}",
+                f"{li.equipment_cost:.2f}",
+                f"{li.subcontractor_cost:.2f}",
+                f"{li.total_cost:.2f}",
+                f"{li.unit_cost:.2f}",
+            ]
+        )
     # Summary rows
     writer.writerow([])
-    writer.writerow(["", "", "", "Subtotal (Direct Cost)", "", "", "", "", "", "", f"{estimate.total_direct_cost:.2f}", ""])
-    writer.writerow(["", "", "", f"Overhead ({estimate.overhead_pct}%)", "", "", "", "", "", "", f"{estimate.overhead_amount:.2f}", ""])
-    writer.writerow(["", "", "", f"Profit ({estimate.profit_pct}%)", "", "", "", "", "", "", f"{estimate.profit_amount:.2f}", ""])
-    writer.writerow(["", "", "", f"Contingency ({estimate.contingency_pct}%)", "", "", "", "", "", "", f"{estimate.contingency_amount:.2f}", ""])
+    writer.writerow(
+        ["", "", "", "Subtotal (Direct Cost)", "", "", "", "", "", "", f"{estimate.total_direct_cost:.2f}", ""]
+    )
+    writer.writerow(
+        [
+            "",
+            "",
+            "",
+            f"Overhead ({estimate.overhead_pct}%)",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            f"{estimate.overhead_amount:.2f}",
+            "",
+        ]
+    )
+    writer.writerow(
+        ["", "", "", f"Profit ({estimate.profit_pct}%)", "", "", "", "", "", "", f"{estimate.profit_amount:.2f}", ""]
+    )
+    writer.writerow(
+        [
+            "",
+            "",
+            "",
+            f"Contingency ({estimate.contingency_pct}%)",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            f"{estimate.contingency_amount:.2f}",
+            "",
+        ]
+    )
     writer.writerow(["", "", "", "GRAND TOTAL", "", "", "", "", "", "", f"{estimate.total_bid_amount:.2f}", ""])
 
     filename = f"{project.project_number}_estimate.csv"
@@ -975,6 +1191,7 @@ def export_estimate_csv(
 
 
 # ─────────────────────────── QuickBooks IIF ───────────────────────────
+
 
 @router.get("/projects/{project_id}/estimate/qb")
 def export_estimate_quickbooks(
@@ -993,18 +1210,28 @@ def export_estimate_quickbooks(
     today = date.today().strftime("%m/%d/%Y")
 
     # Main transaction
-    lines.append(f"TRNS\tESTIMATE\t{today}\tAccounts Receivable\t{project.name}\t{estimate.total_bid_amount:.2f}\tProject Estimate {project.project_number}")
+    lines.append(
+        f"TRNS\tESTIMATE\t{today}\tAccounts Receivable\t{project.name}\t{estimate.total_bid_amount:.2f}\tProject Estimate {project.project_number}"
+    )
 
     for li in estimate.line_items:
-        lines.append(f"SPL\tESTIMATE\t{today}\tConstruction Income:{li.division_number}\t{project.name}\t-{li.total_cost:.2f}\t{li.csi_code} {li.description[:50]}")
+        lines.append(
+            f"SPL\tESTIMATE\t{today}\tConstruction Income:{li.division_number}\t{project.name}\t-{li.total_cost:.2f}\t{li.csi_code} {li.description[:50]}"
+        )
 
     # Markup splits
     if estimate.overhead_amount > 0:
-        lines.append(f"SPL\tESTIMATE\t{today}\tOverhead\t{project.name}\t-{estimate.overhead_amount:.2f}\tOverhead {estimate.overhead_pct}%")
+        lines.append(
+            f"SPL\tESTIMATE\t{today}\tOverhead\t{project.name}\t-{estimate.overhead_amount:.2f}\tOverhead {estimate.overhead_pct}%"
+        )
     if estimate.profit_amount > 0:
-        lines.append(f"SPL\tESTIMATE\t{today}\tProfit\t{project.name}\t-{estimate.profit_amount:.2f}\tProfit {estimate.profit_pct}%")
+        lines.append(
+            f"SPL\tESTIMATE\t{today}\tProfit\t{project.name}\t-{estimate.profit_amount:.2f}\tProfit {estimate.profit_pct}%"
+        )
     if estimate.contingency_amount > 0:
-        lines.append(f"SPL\tESTIMATE\t{today}\tContingency\t{project.name}\t-{estimate.contingency_amount:.2f}\tContingency {estimate.contingency_pct}%")
+        lines.append(
+            f"SPL\tESTIMATE\t{today}\tContingency\t{project.name}\t-{estimate.contingency_amount:.2f}\tContingency {estimate.contingency_pct}%"
+        )
 
     lines.append("ENDTRNS")
 

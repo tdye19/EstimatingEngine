@@ -15,14 +15,16 @@ optionally Agent 4 (Quantity Takeoff) if quantities are already present.
 """
 
 import logging
+
 from sqlalchemy.orm import Session
-from apex.backend.models.document import Document
+
+from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.agents.tools.document_tools import (
-    pdf_reader_tool,
     docx_reader_tool,
     file_classifier_tool,
+    pdf_reader_tool,
 )
-from apex.backend.agents.pipeline_contracts import validate_agent_output
+from apex.backend.models.document import Document
 
 logger = logging.getLogger("apex.agent.ingestion")
 
@@ -40,11 +42,15 @@ def run_ingestion_agent(db: Session, project_id: int) -> dict:
     """
     from apex.backend.utils.winest_parser import parse_winest_file
 
-    documents = db.query(Document).filter(
-        Document.project_id == project_id,
-        Document.processing_status == "pending",
-        Document.is_deleted == False,  # noqa: E712
-    ).all()
+    documents = (
+        db.query(Document)
+        .filter(
+            Document.project_id == project_id,
+            Document.processing_status == "pending",
+            Document.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     results = []
     processed = 0
@@ -86,15 +92,17 @@ def run_ingestion_agent(db: Session, project_id: int) -> dict:
                 db.commit()
 
                 processed += 1
-                results.append({
-                    "document_id":   doc.id,
-                    "filename":      doc.filename,
-                    "classification": "winest_import",
-                    "pages":         0,
-                    "chars":         0,
-                    "status":        "success",
-                    "winest_format": winest_format,
-                })
+                results.append(
+                    {
+                        "document_id": doc.id,
+                        "filename": doc.filename,
+                        "classification": "winest_import",
+                        "pages": 0,
+                        "chars": 0,
+                        "status": "success",
+                        "winest_format": winest_format,
+                    }
+                )
                 continue  # skip standard text-extraction path
 
             # ------------------------------------------------------------------
@@ -103,10 +111,7 @@ def run_ingestion_agent(db: Session, project_id: int) -> dict:
             if doc.file_type in _WINEST_EXCEL_TYPES:
                 winest_result = parse_winest_file(doc.file_path)
 
-                if (
-                    winest_result["success"]
-                    and winest_result["format_detected"] != "unknown_xlsx"
-                ):
+                if winest_result["success"] and winest_result["format_detected"] != "unknown_xlsx":
                     line_items = winest_result["line_items"]
                     winest_format = winest_result["format_detected"]
                     all_winest_items.extend(line_items)
@@ -125,15 +130,17 @@ def run_ingestion_agent(db: Session, project_id: int) -> dict:
                     db.commit()
 
                     processed += 1
-                    results.append({
-                        "document_id":   doc.id,
-                        "filename":      doc.filename,
-                        "classification": "winest_import",
-                        "pages":         0,
-                        "chars":         0,
-                        "status":        "success",
-                        "winest_format": winest_format,
-                    })
+                    results.append(
+                        {
+                            "document_id": doc.id,
+                            "filename": doc.filename,
+                            "classification": "winest_import",
+                            "pages": 0,
+                            "chars": 0,
+                            "status": "success",
+                            "winest_format": winest_format,
+                        }
+                    )
                     continue  # skip standard text-extraction path
                 # Headers didn't match either WinEst format → fall through to
                 # standard text processing below (treat as generic spreadsheet).
@@ -164,7 +171,7 @@ def run_ingestion_agent(db: Session, project_id: int) -> dict:
             else:
                 # For unsupported types, try reading as plain text
                 try:
-                    with open(doc.file_path, "r", errors="ignore") as f:
+                    with open(doc.file_path, errors="ignore") as f:
                         raw_text = f.read()
                     page_count = max(1, len(raw_text) // 3000)
                 except Exception:
@@ -180,21 +187,23 @@ def run_ingestion_agent(db: Session, project_id: int) -> dict:
             doc.classification = classification
             doc.processing_status = "completed"
             doc.metadata_json = {
-                "char_count":     len(raw_text),
-                "page_count":     page_count,
+                "char_count": len(raw_text),
+                "page_count": page_count,
                 "classification": classification,
             }
             db.commit()
 
             processed += 1
-            results.append({
-                "document_id":   doc.id,
-                "filename":      doc.filename,
-                "classification": classification,
-                "pages":         page_count,
-                "chars":         len(raw_text),
-                "status":        "success",
-            })
+            results.append(
+                {
+                    "document_id": doc.id,
+                    "filename": doc.filename,
+                    "classification": classification,
+                    "pages": page_count,
+                    "chars": len(raw_text),
+                    "status": "success",
+                }
+            )
 
         except Exception as e:
             logger.error(f"Failed to process document {doc.id}: {e}")
@@ -202,17 +211,19 @@ def run_ingestion_agent(db: Session, project_id: int) -> dict:
             doc.metadata_json = {"error": str(e)}
             db.commit()
 
-            results.append({
-                "document_id": doc.id,
-                "filename":    doc.filename,
-                "status":      "error",
-                "error":       str(e),
-            })
+            results.append(
+                {
+                    "document_id": doc.id,
+                    "filename": doc.filename,
+                    "status": "error",
+                    "error": str(e),
+                }
+            )
 
     output: dict = {
         "documents_processed": processed,
-        "total_documents":     len(documents),
-        "results":             results,
+        "total_documents": len(documents),
+        "results": results,
     }
 
     if is_winest_pipeline:

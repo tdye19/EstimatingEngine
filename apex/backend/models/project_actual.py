@@ -1,7 +1,8 @@
 """Project Actual model for field production data."""
 
-from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey
+from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from apex.backend.db.database import Base
 from apex.backend.models.base import TimestampMixin
 

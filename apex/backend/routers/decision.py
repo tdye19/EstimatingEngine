@@ -4,10 +4,10 @@ New endpoints alongside existing routes. Does NOT modify any existing routes.
 """
 
 import logging
-from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
@@ -21,11 +21,10 @@ from apex.backend.models.decision_models import (
     RiskItem,
 )
 from apex.backend.models.project import Project
-from sqlalchemy import func
-from apex.backend.utils.auth import require_auth
-from apex.backend.utils.pagination import paginate_query
 from apex.backend.services.decision_assembly import DecisionAssemblyEngine
 from apex.backend.services.decision_benchmark import DecisionBenchmarkEngine
+from apex.backend.utils.auth import require_auth
+from apex.backend.utils.pagination import paginate_query
 
 logger = logging.getLogger("apex.decision")
 
@@ -36,40 +35,42 @@ router = APIRouter(prefix="/api/decision", tags=["decision"], dependencies=[Depe
 # Pydantic schemas
 # ---------------------------------------------------------------------------
 
+
 class ProjectContextUpdate(BaseModel):
-    project_type: Optional[str] = None
-    market_sector: Optional[str] = None
-    region: Optional[str] = None
-    delivery_method: Optional[str] = None
-    contract_type: Optional[str] = None
-    complexity_level: Optional[str] = None
-    schedule_pressure: Optional[str] = None
-    size_sf: Optional[float] = None
-    scope_types: Optional[str] = None
+    project_type: str | None = None
+    market_sector: str | None = None
+    region: str | None = None
+    delivery_method: str | None = None
+    contract_type: str | None = None
+    complexity_level: str | None = None
+    schedule_pressure: str | None = None
+    size_sf: float | None = None
+    scope_types: str | None = None
 
 
 class QuantityItem(BaseModel):
     description: str
     quantity: float
-    unit: Optional[str] = None
-    division_code: Optional[str] = None
+    unit: str | None = None
+    division_code: str | None = None
 
 
 class EstimateRequest(BaseModel):
-    quantities: List[QuantityItem]
+    quantities: list[QuantityItem]
 
 
 class OverrideRequest(BaseModel):
     overridden_value: float
     override_type: str
-    reason_code: Optional[str] = None
-    reason_text: Optional[str] = None
-    created_by: Optional[str] = None
+    reason_code: str | None = None
+    reason_text: str | None = None
+    created_by: str | None = None
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_project_or_404(project_id: int, db: Session) -> Project:
     proj = db.query(Project).filter(Project.id == project_id).first()
@@ -97,6 +98,7 @@ def _project_dict(proj: Project) -> dict:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.patch("/projects/{project_id}/context")
 def update_project_context(
@@ -141,17 +143,19 @@ def get_comparable_projects(
 
     result = []
     for comp, sim in scored:
-        result.append({
-            "id": comp.id,
-            "name": comp.name,
-            "project_type": comp.project_type,
-            "region": comp.region,
-            "delivery_method": comp.delivery_method,
-            "final_contract_value": comp.final_contract_value,
-            "data_quality_score": comp.data_quality_score,
-            "context_similarity": round(sim, 4),
-            "observation_count": obs_counts.get(comp.id, 0),
-        })
+        result.append(
+            {
+                "id": comp.id,
+                "name": comp.name,
+                "project_type": comp.project_type,
+                "region": comp.region,
+                "delivery_method": comp.delivery_method,
+                "final_contract_value": comp.final_contract_value,
+                "data_quality_score": comp.data_quality_score,
+                "context_similarity": round(sim, 4),
+                "observation_count": obs_counts.get(comp.id, 0),
+            }
+        )
     return result
 
 
@@ -159,7 +163,7 @@ def get_comparable_projects(
 def benchmark_activity(
     project_id: int,
     activity_name: str,
-    division_code: Optional[str] = None,
+    division_code: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Return benchmark data for a specific activity."""
@@ -259,10 +263,7 @@ def get_cost_breakdown(
 ):
     """Return cost breakdown buckets for a project (paginated)."""
     _get_project_or_404(project_id, db)
-    query = (
-        db.query(CostBreakdownBucket)
-        .filter(CostBreakdownBucket.project_id == project_id)
-    )
+    query = db.query(CostBreakdownBucket).filter(CostBreakdownBucket.project_id == project_id)
     page = paginate_query(query, offset=offset, limit=limit)
     buckets = page["items"]
 
@@ -295,10 +296,7 @@ def get_risk_items(
 ):
     """Return risk items for a project with expected_value computed (paginated)."""
     _get_project_or_404(project_id, db)
-    query = (
-        db.query(RiskItem)
-        .filter(RiskItem.project_id == project_id)
-    )
+    query = db.query(RiskItem).filter(RiskItem.project_id == project_id)
     page = paginate_query(query, offset=offset, limit=limit)
     result = []
     for item in page["items"]:
@@ -322,6 +320,7 @@ def decision_health(db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 # Serializers
 # ---------------------------------------------------------------------------
+
 
 def _line_dict(ln: EstimateLine) -> dict:
     return {

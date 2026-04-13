@@ -72,8 +72,7 @@ import logging
 import os
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -87,7 +86,7 @@ logger = logging.getLogger("apex.crew_orchestrator")
 # ---------------------------------------------------------------------------
 
 try:
-    from crewai import Crew, Task, Process  # type: ignore
+    from crewai import Crew, Process, Task  # type: ignore
 
     CREWAI_AVAILABLE = True
     logger.debug("crewai imported successfully — CrewOrchestrator ready")
@@ -99,7 +98,7 @@ except ImportError:
         "Requests with USE_CREWAI_ORCHESTRATOR=true will fall back to "
         "the existing sequential orchestrator."
     )
-    Task = None     # type: ignore
+    Task = None  # type: ignore
     Process = None  # type: ignore
 
 
@@ -110,13 +109,13 @@ except ImportError:
 # Mirrors agent_orchestrator.AGENT_DEFINITIONS — kept in sync intentionally
 # so this module is self-contained and doesn't cross-import from the old one.
 AGENT_DEFINITIONS = {
-    1: ("Document Ingestion Agent",  "apex.backend.agents.agent_1_ingestion",    "run_ingestion_agent"),
-    2: ("Spec Parser Agent",         "apex.backend.agents.agent_2_spec_parser",  "run_spec_parser_agent"),
-    3: ("Scope Gap Analysis Agent",  "apex.backend.agents.agent_3_gap_analysis", "run_gap_analysis_agent"),
-    4: ("Quantity Takeoff Agent",    "apex.backend.agents.agent_4_takeoff",       "run_takeoff_agent"),
-    5: ("Labor Productivity Agent",  "apex.backend.agents.agent_5_labor",         "run_labor_agent"),
-    6: ("Estimate Assembly Agent",   "apex.backend.agents.agent_6_assembly",      "run_assembly_agent"),
-    7: ("IMPROVE Feedback Agent",    "apex.backend.agents.agent_7_improve",       "run_improve_agent"),
+    1: ("Document Ingestion Agent", "apex.backend.agents.agent_1_ingestion", "run_ingestion_agent"),
+    2: ("Spec Parser Agent", "apex.backend.agents.agent_2_spec_parser", "run_spec_parser_agent"),
+    3: ("Scope Gap Analysis Agent", "apex.backend.agents.agent_3_gap_analysis", "run_gap_analysis_agent"),
+    4: ("Quantity Takeoff Agent", "apex.backend.agents.agent_4_takeoff", "run_takeoff_agent"),
+    5: ("Labor Productivity Agent", "apex.backend.agents.agent_5_labor", "run_labor_agent"),
+    6: ("Estimate Assembly Agent", "apex.backend.agents.agent_6_assembly", "run_assembly_agent"),
+    7: ("IMPROVE Feedback Agent", "apex.backend.agents.agent_7_improve", "run_improve_agent"),
 }
 
 # Canonical APEX pipeline dependency graph.
@@ -146,6 +145,7 @@ PIPELINE_AGENTS: list[int] = [1, 2, 3, 4, 5, 6]
 # ---------------------------------------------------------------------------
 # ApexTask wrapper
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ApexTask:
@@ -223,9 +223,7 @@ def _build_apex_tasks(active_agents: list[int]) -> dict[int, "ApexTask"]:
                 context=context if context else None,
             )
         except Exception as exc:
-            logger.debug(
-                "CrewAI Task creation for Agent %d skipped: %s", num, exc
-            )
+            logger.debug("CrewAI Task creation for Agent %d skipped: %s", num, exc)
             crewai_tasks[num] = None
 
         apex_tasks[num].crewai_task = crewai_tasks[num]
@@ -236,6 +234,7 @@ def _build_apex_tasks(active_agents: list[int]) -> dict[int, "ApexTask"]:
 # ---------------------------------------------------------------------------
 # CrewOrchestrator
 # ---------------------------------------------------------------------------
+
 
 class CrewOrchestrator:
     """Pipeline orchestrator backed by the CrewAI task-dependency model.
@@ -267,7 +266,7 @@ class CrewOrchestrator:
             agent_name=agent_name,
             agent_number=agent_number,
             status="running",
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
         )
         self.db.add(log)
         self.db.commit()
@@ -279,9 +278,9 @@ class CrewOrchestrator:
         log: AgentRunLog,
         summary: str,
         tokens: int = 0,
-        output_data: Optional[dict] = None,
+        output_data: dict | None = None,
     ) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         log.status = "completed"
         log.completed_at = now
         log.duration_seconds = (now - log.started_at).total_seconds() if log.started_at else 0
@@ -291,16 +290,14 @@ class CrewOrchestrator:
         self.db.commit()
 
     def _log_error(self, log: AgentRunLog, error_msg: str) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         log.status = "failed"
         log.completed_at = now
         log.duration_seconds = (now - log.started_at).total_seconds() if log.started_at else 0
         log.error_message = error_msg
         self.db.commit()
 
-    def _log_skipped(
-        self, agent_name: str, agent_number: int, reason: str = ""
-    ) -> AgentRunLog:
+    def _log_skipped(self, agent_name: str, agent_number: int, reason: str = "") -> AgentRunLog:
         log = AgentRunLog(
             project_id=self.project_id,
             agent_name=agent_name,
@@ -321,7 +318,7 @@ class CrewOrchestrator:
 
     def run_pipeline(
         self,
-        document_id: Optional[int] = None,
+        document_id: int | None = None,
         pipeline_mode: str = "spec",
     ) -> dict:
         """Run agents 1-6 via the CrewAI dependency graph.
@@ -333,23 +330,20 @@ class CrewOrchestrator:
         from apex.backend.services.ws_manager import ws_manager
 
         pipeline_id = str(uuid.uuid4())
-        pipeline_start = datetime.now(timezone.utc)
+        pipeline_start = datetime.now(UTC)
         results: dict[str, dict] = {}
-        failed_at: Optional[int] = None
+        failed_at: int | None = None
         effective_mode = pipeline_mode
 
         def _elapsed_ms() -> int:
-            return int((datetime.now(timezone.utc) - pipeline_start).total_seconds() * 1000)
+            return int((datetime.now(UTC) - pipeline_start).total_seconds() * 1000)
 
         # -----------------------------------------------------------------
         # Determine agents to skip before building the task graph
         # -----------------------------------------------------------------
         pre_skips: dict[int, str] = {}  # agent_num → reason
         if effective_mode == "winest_import":
-            pre_skips[2] = (
-                "WinEst import: data already structured — "
-                "no spec document to parse"
-            )
+            pre_skips[2] = "WinEst import: data already structured — no spec document to parse"
 
         # Active agents (those not already known-skipped)
         active_agents = [n for n in PIPELINE_AGENTS if n not in pre_skips]
@@ -362,10 +356,7 @@ class CrewOrchestrator:
         # not Crew.kickoff(). Switch to kickoff() in a future sprint
         # when parallel execution is enabled.
         if CREWAI_AVAILABLE:
-            crewai_task_list = [
-                t.crewai_task for t in apex_tasks.values()
-                if t.crewai_task is not None
-            ]
+            crewai_task_list = [t.crewai_task for t in apex_tasks.values() if t.crewai_task is not None]
             if crewai_task_list:
                 self._crew = Crew(
                     agents=[],
@@ -379,19 +370,19 @@ class CrewOrchestrator:
         # -----------------------------------------------------------------
         ws_status: dict[int, dict] = {
             num: {
-                "agent_number":   num,
-                "agent_name":     AGENT_DEFINITIONS[num][0],
-                "status":         "pending",
-                "started_at":     None,
-                "duration_ms":    None,
-                "error_message":  None,
+                "agent_number": num,
+                "agent_name": AGENT_DEFINITIONS[num][0],
+                "status": "pending",
+                "started_at": None,
+                "duration_ms": None,
+                "error_message": None,
                 "output_summary": None,
             }
             for num in PIPELINE_AGENTS
         }
         skipped_agents: list[int] = []
 
-        def _broadcast(overall: str, current_agent: Optional[int] = None) -> None:
+        def _broadcast(overall: str, current_agent: int | None = None) -> None:
             """Emit a pipeline_update WebSocket event.
 
             This is the CrewAI task callback integration point:
@@ -403,18 +394,16 @@ class CrewOrchestrator:
             ws_manager.broadcast_sync(
                 self.project_id,
                 {
-                    "type":               "pipeline_update",
-                    "project_id":         self.project_id,
-                    "pipeline_id":        pipeline_id,
-                    "pipeline_mode":      effective_mode,
-                    "status":             overall,
-                    "current_agent":      current_agent,
-                    "current_agent_name": (
-                        ws_status[current_agent]["agent_name"] if current_agent else None
-                    ),
-                    "agents":             list(ws_status.values()),
-                    "skipped_agents":     skipped_agents,
-                    "total_elapsed_ms":   _elapsed_ms(),
+                    "type": "pipeline_update",
+                    "project_id": self.project_id,
+                    "pipeline_id": pipeline_id,
+                    "pipeline_mode": effective_mode,
+                    "status": overall,
+                    "current_agent": current_agent,
+                    "current_agent_name": (ws_status[current_agent]["agent_name"] if current_agent else None),
+                    "agents": list(ws_status.values()),
+                    "skipped_agents": skipped_agents,
+                    "total_elapsed_ms": _elapsed_ms(),
                 },
             )
 
@@ -456,16 +445,10 @@ class CrewOrchestrator:
             # WinEst Agent 4: conditional skip when quantities are already present
             if effective_mode == "winest_import" and agent_num == 4:
                 agent1_items = results.get("agent_1", {}).get("winest_line_items") or []
-                quantities_present = any(
-                    item.get("quantity") is not None for item in agent1_items
-                )
+                quantities_present = any(item.get("quantity") is not None for item in agent1_items)
                 if quantities_present:
-                    skip_reason = (
-                        "WinEst import: quantities already present in import data"
-                    )
-                    logger.info(
-                        "CrewOrchestrator: skipping Agent 4 — %s", skip_reason
-                    )
+                    skip_reason = "WinEst import: quantities already present in import data"
+                    logger.info("CrewOrchestrator: skipping Agent 4 — %s", skip_reason)
                     self._log_skipped(agent_name, agent_num, reason=skip_reason)
                     results[key] = {"status": "skipped", "skipped_because": skip_reason}
                     ws_status[agent_num]["status"] = "skipped"
@@ -477,10 +460,8 @@ class CrewOrchestrator:
             # Task lifecycle — BEFORE execution → broadcast "running"
             # (CrewAI callback integration point)
             # -----------------------------------------------------------
-            agent_start_time = datetime.now(timezone.utc)
-            ws_status[agent_num].update(
-                {"status": "running", "started_at": agent_start_time.isoformat()}
-            )
+            agent_start_time = datetime.now(UTC)
+            ws_status[agent_num].update({"status": "running", "started_at": agent_start_time.isoformat()})
             _broadcast("running", agent_num)
             log = self._log_start(agent_name, agent_num)
 
@@ -498,8 +479,12 @@ class CrewOrchestrator:
                     effective_mode = "winest_import"
 
                 summary_keys = (
-                    "documents_processed", "sections_parsed", "total_gaps",
-                    "items_created", "estimates_created", "estimate_id",
+                    "documents_processed",
+                    "sections_parsed",
+                    "total_gaps",
+                    "items_created",
+                    "estimates_created",
+                    "estimate_id",
                 )
                 summary = next(
                     (f"{k}={result[k]}" for k in summary_keys if k in result),
@@ -508,12 +493,8 @@ class CrewOrchestrator:
                 self._log_complete(log, summary, output_data=result)
                 results[key] = result
 
-                duration_ms = int(
-                    (datetime.now(timezone.utc) - agent_start_time).total_seconds() * 1000
-                )
-                ws_status[agent_num].update(
-                    {"status": "completed", "duration_ms": duration_ms}
-                )
+                duration_ms = int((datetime.now(UTC) - agent_start_time).total_seconds() * 1000)
+                ws_status[agent_num].update({"status": "completed", "duration_ms": duration_ms})
                 # Task lifecycle — AFTER execution → broadcast "complete"
                 _broadcast("running")
 
@@ -522,13 +503,12 @@ class CrewOrchestrator:
                 self._log_error(log, error_msg)
                 logger.error(
                     "CrewOrchestrator: Agent %d contract violation: %s",
-                    agent_num, exc.detail,
+                    agent_num,
+                    exc.detail,
                 )
                 results[key] = {"error": error_msg, "status": "failed"}
                 failed_at = agent_num
-                ws_status[agent_num].update(
-                    {"status": "failed", "error_message": error_msg}
-                )
+                ws_status[agent_num].update({"status": "failed", "error_message": error_msg})
                 # Task lifecycle — ON FAILURE → broadcast "failed"
                 _broadcast("running", agent_num)
 
@@ -538,9 +518,7 @@ class CrewOrchestrator:
                 logger.error("CrewOrchestrator: Agent %d failed: %s", agent_num, exc)
                 results[key] = {"error": error_msg, "status": "failed"}
                 failed_at = agent_num
-                ws_status[agent_num].update(
-                    {"status": "failed", "error_message": error_msg}
-                )
+                ws_status[agent_num].update({"status": "failed", "error_message": error_msg})
                 # Task lifecycle — ON FAILURE → broadcast "failed"
                 _broadcast("running", agent_num)
 
@@ -552,9 +530,7 @@ class CrewOrchestrator:
             project.status = "estimating" if failed_at is None else project.status
             self.db.commit()
 
-        pipeline_final_status = (
-            "completed" if failed_at is None else f"stopped_at_agent_{failed_at}"
-        )
+        pipeline_final_status = "completed" if failed_at is None else f"stopped_at_agent_{failed_at}"
         results["pipeline_status"] = pipeline_final_status
         results["pipeline_mode"] = effective_mode
 
@@ -563,13 +539,13 @@ class CrewOrchestrator:
             ws_manager.broadcast_sync(
                 self.project_id,
                 {
-                    "type":             "pipeline_complete",
-                    "project_id":       self.project_id,
-                    "pipeline_id":      pipeline_id,
-                    "pipeline_mode":    effective_mode,
-                    "status":           "completed",
-                    "agents":           list(ws_status.values()),
-                    "skipped_agents":   skipped_agents,
+                    "type": "pipeline_complete",
+                    "project_id": self.project_id,
+                    "pipeline_id": pipeline_id,
+                    "pipeline_mode": effective_mode,
+                    "status": "completed",
+                    "agents": list(ws_status.values()),
+                    "skipped_agents": skipped_agents,
                     "total_elapsed_ms": _elapsed_ms(),
                 },
             )
@@ -577,14 +553,14 @@ class CrewOrchestrator:
             ws_manager.broadcast_sync(
                 self.project_id,
                 {
-                    "type":             "pipeline_error",
-                    "project_id":       self.project_id,
-                    "pipeline_id":      pipeline_id,
-                    "pipeline_mode":    effective_mode,
-                    "status":           "failed",
-                    "failed_at_agent":  failed_at,
-                    "agents":           list(ws_status.values()),
-                    "skipped_agents":   skipped_agents,
+                    "type": "pipeline_error",
+                    "project_id": self.project_id,
+                    "pipeline_id": pipeline_id,
+                    "pipeline_mode": effective_mode,
+                    "status": "failed",
+                    "failed_at_agent": failed_at,
+                    "agents": list(ws_status.values()),
+                    "skipped_agents": skipped_agents,
                     "total_elapsed_ms": _elapsed_ms(),
                 },
             )
@@ -598,22 +574,26 @@ class CrewOrchestrator:
     def get_pipeline_status(self) -> list[dict]:
         """Delegate to AgentOrchestrator (reads same AgentRunLog table)."""
         from apex.backend.services.agent_orchestrator import AgentOrchestrator
+
         return AgentOrchestrator(self.db, self.project_id).get_pipeline_status()
 
     def run_single_agent(self, agent_number: int) -> dict:
         """Delegate to AgentOrchestrator (unchanged behaviour)."""
         from apex.backend.services.agent_orchestrator import AgentOrchestrator
+
         return AgentOrchestrator(self.db, self.project_id).run_single_agent(agent_number)
 
     def run_improve_agent(self) -> dict:
         """Delegate to AgentOrchestrator (unchanged behaviour)."""
         from apex.backend.services.agent_orchestrator import AgentOrchestrator
+
         return AgentOrchestrator(self.db, self.project_id).run_improve_agent()
 
 
 # ---------------------------------------------------------------------------
 # Factory function — the primary integration point for callers
 # ---------------------------------------------------------------------------
+
 
 def get_orchestrator(db: Session, project_id: int):
     """Return the appropriate orchestrator based on the toggle env var.
@@ -662,8 +642,7 @@ def get_orchestrator(db: Session, project_id: int):
                 return orchestrator
             except Exception as exc:
                 logger.warning(
-                    "CrewOrchestrator instantiation failed (%s); "
-                    "falling back to AgentOrchestrator.",
+                    "CrewOrchestrator instantiation failed (%s); falling back to AgentOrchestrator.",
                     exc,
                 )
 

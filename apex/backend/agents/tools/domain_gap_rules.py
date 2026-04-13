@@ -9,8 +9,9 @@ producing richer gap findings than the generic checklist comparison.
 """
 
 from __future__ import annotations
+
 import logging
-from typing import Optional
+
 from pydantic import BaseModel
 
 logger = logging.getLogger("apex.tools.domain_gap_rules")
@@ -18,21 +19,22 @@ logger = logging.getLogger("apex.tools.domain_gap_rules")
 
 class DomainGapRule(BaseModel):
     """A domain-specific gap analysis rule with trigger conditions and output data."""
+
     id: str
     name: str
-    gap_type: str          # "missing", "ambiguous", "scope_boundary"
-    severity: str          # "critical", "moderate", "watch"
-    scope_includes_any: list[str] = []    # CSI codes — at least one must be in parsed sections
-    scope_excludes_all: list[str] = []    # CSI codes — ALL must be absent for rule to fire
-    spec_keywords: list[str] = []         # Keywords to find in spec content
-    spec_keyword_match: str = "any"       # "any" or "all"
+    gap_type: str  # "missing", "ambiguous", "scope_boundary"
+    severity: str  # "critical", "moderate", "watch"
+    scope_includes_any: list[str] = []  # CSI codes — at least one must be in parsed sections
+    scope_excludes_all: list[str] = []  # CSI codes — ALL must be absent for rule to fire
+    spec_keywords: list[str] = []  # Keywords to find in spec content
+    spec_keyword_match: str = "any"  # "any" or "all"
     title: str = ""
     description: str = ""
     recommendation: str = ""
     typical_responsibility: str = ""
     cost_impact_description: str = ""
-    cost_impact_low: Optional[float] = None
-    cost_impact_high: Optional[float] = None
+    cost_impact_low: float | None = None
+    cost_impact_high: float | None = None
     rfi_language: str = ""
     affected_csi_codes: list[str] = []
 
@@ -46,8 +48,13 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 31 09", "03 31 10"],
         scope_excludes_all=["03 15 05"],
         spec_keywords=[
-            "vapor barrier", "vapor retarder", "underslab membrane",
-            "moisture barrier", "ASTM E1745", "15-mil", "10-mil",
+            "vapor barrier",
+            "vapor retarder",
+            "underslab membrane",
+            "moisture barrier",
+            "ASTM E1745",
+            "15-mil",
+            "10-mil",
         ],
         title="Vapor Barrier / Retarder Under SOG",
         description=(
@@ -68,7 +75,6 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         affected_csi_codes=["03 15 05", "07 26 00"],
     ),
-
     DomainGapRule(
         id="CGR-002",
         name="Embedded Items — Anchor Bolts & Embeds",
@@ -77,8 +83,14 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 31 04", "03 31 06", "03 31 01", "03 31 02", "03 31 12"],
         scope_excludes_all=["03 15 06", "03 15 08"],
         spec_keywords=[
-            "anchor bolt", "embed", "steel embed", "embed plate",
-            "nelson stud", "headed stud", "base plate", "connection",
+            "anchor bolt",
+            "embed",
+            "steel embed",
+            "embed plate",
+            "nelson stud",
+            "headed stud",
+            "base plate",
+            "connection",
         ],
         title="Anchor Bolts & Steel Embeds Responsibility",
         description=(
@@ -101,7 +113,6 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         affected_csi_codes=["03 15 06", "03 15 08", "05 12 00"],
     ),
-
     DomainGapRule(
         id="CGR-003",
         name="Rebar Coating Specification",
@@ -110,9 +121,15 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 21 01"],
         scope_excludes_all=["03 21 02", "03 21 03", "03 21 05"],
         spec_keywords=[
-            "epoxy coated", "epoxy-coated", "galvanized rebar",
-            "ASTM A775", "ASTM A934", "ASTM A767",
-            "fusion bonded", "corrosion protection", "stainless steel rebar",
+            "epoxy coated",
+            "epoxy-coated",
+            "galvanized rebar",
+            "ASTM A775",
+            "ASTM A934",
+            "ASTM A767",
+            "fusion bonded",
+            "corrosion protection",
+            "stainless steel rebar",
         ],
         title="Rebar Coating Required by Spec",
         description=(
@@ -130,7 +147,6 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         affected_csi_codes=["03 21 02", "03 21 03", "03 21 05"],
     ),
-
     DomainGapRule(
         id="CGR-004",
         name="Architectural Concrete Requirements",
@@ -139,10 +155,19 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 11 01", "03 11 02", "03 11 04", "03 31 04", "03 31 05"],
         scope_excludes_all=["03 33 01", "03 33 02", "03 33 03", "03 33 04"],
         spec_keywords=[
-            "architectural concrete", "exposed concrete", "form liner",
-            "board form", "board-formed", "special finish",
-            "Class A finish", "Class B finish", "rubbed finish",
-            "bush hammer", "sandblast finish", "concrete mockup", "sample panel",
+            "architectural concrete",
+            "exposed concrete",
+            "form liner",
+            "board form",
+            "board-formed",
+            "special finish",
+            "Class A finish",
+            "Class B finish",
+            "rubbed finish",
+            "bush hammer",
+            "sandblast finish",
+            "concrete mockup",
+            "sample panel",
         ],
         title="Architectural / Exposed Concrete Finish Required",
         description=(
@@ -165,7 +190,6 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         affected_csi_codes=["03 33 01", "03 33 02", "03 33 03", "03 33 04"],
     ),
-
     DomainGapRule(
         id="CGR-005",
         name="Concrete Pumping Costs",
@@ -174,8 +198,12 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 31 08", "03 31 09", "03 31 03"],
         scope_excludes_all=[],
         spec_keywords=[
-            "concrete pump", "pumping", "boom pump", "line pump",
-            "pump mix", "pumpable",
+            "concrete pump",
+            "pumping",
+            "boom pump",
+            "line pump",
+            "pump mix",
+            "pumpable",
         ],
         title="Concrete Pumping Responsibility",
         description=(
@@ -187,12 +215,9 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         cost_impact_description="Line pump: $1,500–$3,500/day; Boom pump: $2,500–$6,000/day",
         cost_impact_low=1500,
         cost_impact_high=30000,
-        recommendation=(
-            "Include pump costs. Estimate number of pump days based on pour volumes and schedule."
-        ),
+        recommendation=("Include pump costs. Estimate number of pump days based on pour volumes and schedule."),
         affected_csi_codes=["03 30 00"],
     ),
-
     DomainGapRule(
         id="CGR-006",
         name="Cold/Hot Weather Concrete Provisions",
@@ -201,10 +226,18 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 30 00", "03 31 00"],
         scope_excludes_all=[],
         spec_keywords=[
-            "cold weather", "hot weather", "winter protection",
-            "heated enclosure", "thermal blanket", "hoarding",
-            "ACI 306", "ACI 305", "curing temperature",
-            "minimum temperature", "accelerator", "calcium chloride",
+            "cold weather",
+            "hot weather",
+            "winter protection",
+            "heated enclosure",
+            "thermal blanket",
+            "hoarding",
+            "ACI 306",
+            "ACI 305",
+            "curing temperature",
+            "minimum temperature",
+            "accelerator",
+            "calcium chloride",
         ],
         title="Weather Protection for Concrete",
         description=(
@@ -214,15 +247,12 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "retarders, shade structures, and night pours."
         ),
         typical_responsibility="Concrete contractor — often carried as separate line item or allowance",
-        cost_impact_description=(
-            "Winter: $2–$8/SF enclosure + $500–$2,000/day heating; Hot weather: $1–$3/CY"
-        ),
+        cost_impact_description=("Winter: $2–$8/SF enclosure + $500–$2,000/day heating; Hot weather: $1–$3/CY"),
         cost_impact_low=5000,
         cost_impact_high=100000,
         recommendation="Carry as separate allowance. Review project schedule vs. weather windows.",
         affected_csi_codes=["03 30 00"],
     ),
-
     DomainGapRule(
         id="CGR-007",
         name="Waterstop at Construction & Expansion Joints",
@@ -231,9 +261,14 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 31 04", "03 31 05"],
         scope_excludes_all=["03 15 01"],
         spec_keywords=[
-            "waterstop", "water stop", "hydrophilic",
-            "PVC waterstop", "bentonite", "construction joint",
-            "water-tight", "below grade waterproofing",
+            "waterstop",
+            "water stop",
+            "hydrophilic",
+            "PVC waterstop",
+            "bentonite",
+            "construction joint",
+            "water-tight",
+            "below grade waterproofing",
         ],
         title="Waterstops Required at Joints",
         description=(
@@ -245,12 +280,9 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         cost_impact_description="PVC: $3–$8/LF installed; Hydrophilic: $5–$12/LF installed",
         cost_impact_low=3,
         cost_impact_high=12,
-        recommendation=(
-            "Add waterstop to scope. Calculate total LF of construction joints in below-grade walls."
-        ),
+        recommendation=("Add waterstop to scope. Calculate total LF of construction joints in below-grade walls."),
         affected_csi_codes=["03 15 01"],
     ),
-
     DomainGapRule(
         id="CGR-008",
         name="Post-Tensioning Required",
@@ -259,9 +291,15 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 31 08", "03 31 09"],
         scope_excludes_all=["03 22 01", "03 22 02"],
         spec_keywords=[
-            "post-tension", "post tension", "PT slab", "PT strand",
-            "unbonded tendon", "bonded tendon", "stressing",
-            "PTI", "post-tensioning institute",
+            "post-tension",
+            "post tension",
+            "PT slab",
+            "PT strand",
+            "unbonded tendon",
+            "bonded tendon",
+            "stressing",
+            "PTI",
+            "post-tensioning institute",
         ],
         title="Post-Tensioning Specified",
         description=(
@@ -275,16 +313,13 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         cost_impact_description="PT system: $3–$8/SF of PT slab; coordination: LS",
         cost_impact_low=3,
         cost_impact_high=8,
-        recommendation=(
-            "Get PT sub quote. Include coordination effort and potential schedule impact in your scope."
-        ),
+        recommendation=("Get PT sub quote. Include coordination effort and potential schedule impact in your scope."),
         rfi_language=(
             "Please confirm post-tensioning system type (bonded vs. unbonded), "
             "and identify all PT elements on drawings."
         ),
         affected_csi_codes=["03 22 01", "03 22 02"],
     ),
-
     DomainGapRule(
         id="CGR-009",
         name="Testing & Inspection Responsibility",
@@ -293,9 +328,16 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 30 00", "03 31 00"],
         scope_excludes_all=[],
         spec_keywords=[
-            "concrete testing", "compressive strength test", "cylinder", "slump test",
-            "air content", "field testing", "special inspection", "third party testing",
-            "Section 01 45", "Section 01 40",
+            "concrete testing",
+            "compressive strength test",
+            "cylinder",
+            "slump test",
+            "air content",
+            "field testing",
+            "special inspection",
+            "third party testing",
+            "Section 01 45",
+            "Section 01 40",
         ],
         title="Concrete Testing & Special Inspection",
         description=(
@@ -311,7 +353,6 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         recommendation="Review Division 01 for testing requirements. Include in bid qualifications.",
         affected_csi_codes=["01 45 00", "01 40 00"],
     ),
-
     DomainGapRule(
         id="CGR-010",
         name="High-Strength or Specialty Mix Designs",
@@ -320,11 +361,21 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 31 00", "03 30 00"],
         scope_excludes_all=["03 37 06", "03 37 05"],
         spec_keywords=[
-            "6000 psi", "7000 psi", "8000 psi", "10000 psi",
-            "high strength", "high-strength", "high performance",
-            "self-consolidating", "SCC", "low heat",
-            "supplementary cementitious", "fly ash", "slag cement",
-            "silica fume", "GGBFS",
+            "6000 psi",
+            "7000 psi",
+            "8000 psi",
+            "10000 psi",
+            "high strength",
+            "high-strength",
+            "high performance",
+            "self-consolidating",
+            "SCC",
+            "low heat",
+            "supplementary cementitious",
+            "fly ash",
+            "slag cement",
+            "silica fume",
+            "GGBFS",
         ],
         title="High-Strength or Specialty Concrete Mix",
         description=(
@@ -340,7 +391,6 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         recommendation="Get ready-mix quotes for all specified mixes. Carry premium per CY.",
         affected_csi_codes=["03 37 06", "03 37 05"],
     ),
-
     DomainGapRule(
         id="CGR-011",
         name="Mechanical Rebar Splices / Couplers",
@@ -349,9 +399,15 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 21 01", "03 21 00"],
         scope_excludes_all=["03 21 11"],
         spec_keywords=[
-            "mechanical splice", "coupler", "mechanical coupler", "cadweld",
-            "headed bar", "headed rebar", "ASTM A1034",
-            "Type 1 splice", "Type 2 splice",
+            "mechanical splice",
+            "coupler",
+            "mechanical coupler",
+            "cadweld",
+            "headed bar",
+            "headed rebar",
+            "ASTM A1034",
+            "Type 1 splice",
+            "Type 2 splice",
         ],
         title="Mechanical Rebar Splices Required",
         description=(
@@ -364,12 +420,9 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         cost_impact_description="$5–$50 per splice depending on bar size and type",
         cost_impact_low=5,
         cost_impact_high=50,
-        recommendation=(
-            "Count splices on drawings. Get supplier quote for specific coupler type and bar sizes."
-        ),
+        recommendation=("Count splices on drawings. Get supplier quote for specific coupler type and bar sizes."),
         affected_csi_codes=["03 21 11"],
     ),
-
     DomainGapRule(
         id="CGR-012",
         name="Control Joint Sawcutting",
@@ -378,8 +431,13 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 31 09", "03 31 10"],
         scope_excludes_all=["03 15 03"],
         spec_keywords=[
-            "saw cut", "sawcut", "control joint", "contraction joint",
-            "joint spacing", "joint layout", "slab joint",
+            "saw cut",
+            "sawcut",
+            "control joint",
+            "contraction joint",
+            "joint spacing",
+            "joint layout",
+            "slab joint",
         ],
         title="Control Joint Sawcutting for Slabs",
         description=(
@@ -391,12 +449,9 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         cost_impact_description="$0.75–$2.00/LF sawcut",
         cost_impact_low=0.75,
         cost_impact_high=2.00,
-        recommendation=(
-            "Calculate total LF of sawcuts based on joint spacing and slab area. Include in scope."
-        ),
+        recommendation=("Calculate total LF of sawcuts based on joint spacing and slab area. Include in scope."),
         affected_csi_codes=["03 15 03"],
     ),
-
     DomainGapRule(
         id="CGR-013",
         name="Special Curing Requirements",
@@ -405,10 +460,19 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 35 00", "03 31 00"],
         scope_excludes_all=[],
         spec_keywords=[
-            "wet cure", "wet curing", "7-day cure", "14-day cure",
-            "moist cure", "ponding", "burlap", "curing blanket",
-            "curing compound", "membrane curing", "extended curing",
-            "ASTM C309", "ASTM C171",
+            "wet cure",
+            "wet curing",
+            "7-day cure",
+            "14-day cure",
+            "moist cure",
+            "ponding",
+            "burlap",
+            "curing blanket",
+            "curing compound",
+            "membrane curing",
+            "extended curing",
+            "ASTM C309",
+            "ASTM C171",
         ],
         title="Special Curing Beyond Standard",
         description=(
@@ -417,17 +481,12 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "cost and can impact the schedule. Verify curing requirements for each concrete element."
         ),
         typical_responsibility="Concrete contractor",
-        cost_impact_description=(
-            "Standard cure: $0.10–$0.20/SF; Wet cure: $0.50–$1.50/SF; Extended: +$/day"
-        ),
+        cost_impact_description=("Standard cure: $0.10–$0.20/SF; Wet cure: $0.50–$1.50/SF; Extended: +$/day"),
         cost_impact_low=0.10,
         cost_impact_high=1.50,
-        recommendation=(
-            "Identify elements requiring special curing. Add labor for daily wet cure maintenance."
-        ),
+        recommendation=("Identify elements requiring special curing. Add labor for daily wet cure maintenance."),
         affected_csi_codes=["03 35 07"],
     ),
-
     DomainGapRule(
         id="CGR-014",
         name="Fiber Reinforcement Specified",
@@ -436,9 +495,14 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 31 09", "03 31 10"],
         scope_excludes_all=["03 21 07", "03 21 08", "03 21 09"],
         spec_keywords=[
-            "fiber reinforcement", "steel fiber", "synthetic fiber",
-            "macro fiber", "micro fiber", "polypropylene fiber",
-            "fiber dosage", "fibers per cubic yard",
+            "fiber reinforcement",
+            "steel fiber",
+            "synthetic fiber",
+            "macro fiber",
+            "micro fiber",
+            "polypropylene fiber",
+            "fiber dosage",
+            "fibers per cubic yard",
         ],
         title="Fiber Reinforcement Required",
         description=(
@@ -447,17 +511,12 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "or furnished by the contractor. Verify type, dosage, and responsibility."
         ),
         typical_responsibility="Usually specified as ready-mix additive; contractor pays upcharge",
-        cost_impact_description=(
-            "Micro synthetic: $3–$6/CY; Macro synthetic: $8–$15/CY; Steel: $20–$45/CY"
-        ),
+        cost_impact_description=("Micro synthetic: $3–$6/CY; Macro synthetic: $8–$15/CY; Steel: $20–$45/CY"),
         cost_impact_low=3,
         cost_impact_high=45,
-        recommendation=(
-            "Get ready-mix pricing with fiber dosage. May replace or supplement WWR — verify."
-        ),
+        recommendation=("Get ready-mix pricing with fiber dosage. May replace or supplement WWR — verify."),
         affected_csi_codes=["03 21 07", "03 21 08", "03 21 09"],
     ),
-
     DomainGapRule(
         id="CGR-015",
         name="Reshoring & Stripping Requirements",
@@ -466,9 +525,15 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["03 11 05", "03 31 08"],
         scope_excludes_all=[],
         spec_keywords=[
-            "reshoring", "reshore", "shoring plan", "stripping time",
-            "minimum strip time", "shore removal", "backshore",
-            "28-day strength", "75% strength",
+            "reshoring",
+            "reshore",
+            "shoring plan",
+            "stripping time",
+            "minimum strip time",
+            "shore removal",
+            "backshore",
+            "28-day strength",
+            "75% strength",
         ],
         title="Reshoring & Formwork Stripping Requirements",
         description=(
@@ -478,14 +543,10 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "strip times affect schedule."
         ),
         typical_responsibility="Concrete contractor per structural engineer's shoring plan",
-        cost_impact_description=(
-            "Each additional level of reshoring: $1.50–$3.00/SF; Extended strip: schedule impact"
-        ),
+        cost_impact_description=("Each additional level of reshoring: $1.50–$3.00/SF; Extended strip: schedule impact"),
         cost_impact_low=1.50,
         cost_impact_high=3.00,
-        recommendation=(
-            "Get or develop shoring plan early. Price reshoring materials and extended rental."
-        ),
+        recommendation=("Get or develop shoring plan early. Price reshoring materials and extended rental."),
         affected_csi_codes=["03 11 05"],
     ),
 ]
@@ -499,8 +560,15 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["31 22 01", "31 23 00", "31 23 01", "31 23 02"],
         scope_excludes_all=["31 23 19"],
         spec_keywords=[
-            "dewatering", "water table", "groundwater", "high water table",
-            "well points", "sump pump", "cofferdam", "geotechnical report", "seasonal water",
+            "dewatering",
+            "water table",
+            "groundwater",
+            "high water table",
+            "well points",
+            "sump pump",
+            "cofferdam",
+            "geotechnical report",
+            "seasonal water",
         ],
         title="Dewatering Excluded from Earthwork Scope",
         description=(
@@ -520,7 +588,6 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         ),
         affected_csi_codes=["31 23 19"],
     ),
-
     DomainGapRule(
         id="CIV-002",
         name="Rock Excavation Potential",
@@ -529,8 +596,16 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["31 22 01", "31 23 00", "31 23 01"],
         scope_excludes_all=["31 33 00"],
         spec_keywords=[
-            "rock excavation", "rock removal", "blasting", "rock line", "bedrock",
-            "rock encountered", "hard excavation", "ripping", "hoe ram", "rock unit price",
+            "rock excavation",
+            "rock removal",
+            "blasting",
+            "rock line",
+            "bedrock",
+            "rock encountered",
+            "hard excavation",
+            "ripping",
+            "hoe ram",
+            "rock unit price",
         ],
         title="Rock Excavation Not Addressed",
         description=(
@@ -546,7 +621,6 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         recommendation="Carry rock excavation as unit price alternate in bid. Review geotech borings.",
         affected_csi_codes=["31 33 00"],
     ),
-
     DomainGapRule(
         id="CIV-003",
         name="Contaminated / Unsuitable Soil",
@@ -555,9 +629,19 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["31 22 01", "31 23 00", "31 25 01"],
         scope_excludes_all=[],
         spec_keywords=[
-            "contaminated", "hazardous", "LNAPL", "DNAPL", "petroleum",
-            "underground storage tank", "UST", "Phase I", "Phase II",
-            "environmental", "special waste", "unsuitable material", "regulated material",
+            "contaminated",
+            "hazardous",
+            "LNAPL",
+            "DNAPL",
+            "petroleum",
+            "underground storage tank",
+            "UST",
+            "Phase I",
+            "Phase II",
+            "environmental",
+            "special waste",
+            "unsuitable material",
+            "regulated material",
         ],
         title="Potential Contaminated Soil",
         description=(
@@ -567,14 +651,11 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
             "budget if not properly addressed."
         ),
         typical_responsibility="Varies — often owner risk with contractor handling. Verify contract terms.",
-        cost_impact_description=(
-            "Clean disposal: $10–$25/CY; Contaminated: $50–$300+/CY; Hazardous: $200–$1,000+/CY"
-        ),
+        cost_impact_description=("Clean disposal: $10–$25/CY; Contaminated: $50–$300+/CY; Hazardous: $200–$1,000+/CY"),
         cost_impact_low=50,
         cost_impact_high=300,
         recommendation=(
-            "Qualify bid: clean soil only. Contaminated soil as change order or unit price. "
-            "Review Phase I/II."
+            "Qualify bid: clean soil only. Contaminated soil as change order or unit price. Review Phase I/II."
         ),
         rfi_language=(
             "Has a Phase I or Phase II environmental assessment been performed? Are there known "
@@ -582,7 +663,6 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         ),
         affected_csi_codes=["31 25 01"],
     ),
-
     DomainGapRule(
         id="CIV-004",
         name="Cut/Fill Imbalance — Import/Export",
@@ -591,8 +671,17 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["31 22 01", "31 22 02"],
         scope_excludes_all=[],
         spec_keywords=[
-            "import", "export", "borrow", "waste", "haul off", "disposal",
-            "off-site", "spoils", "cut and fill", "earthwork balance", "mass diagram",
+            "import",
+            "export",
+            "borrow",
+            "waste",
+            "haul off",
+            "disposal",
+            "off-site",
+            "spoils",
+            "cut and fill",
+            "earthwork balance",
+            "mass diagram",
         ],
         title="Earthwork Balance — Import/Export Costs",
         description=(
@@ -607,7 +696,6 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         recommendation="Calculate cut/fill balance from grading plan. Get haul distance and disposal/source quotes.",
         affected_csi_codes=["31 25 00", "31 25 01", "31 25 02"],
     ),
-
     DomainGapRule(
         id="CIV-005",
         name="Erosion Control Maintenance Duration",
@@ -616,9 +704,17 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["31 14 00", "31 14 01"],
         scope_excludes_all=[],
         spec_keywords=[
-            "SWPPP", "NPDES", "erosion control maintenance", "inspection",
-            "weekly inspection", "storm event", "BMP maintenance", "sediment removal",
-            "final stabilization", "EGLE", "DEQ",
+            "SWPPP",
+            "NPDES",
+            "erosion control maintenance",
+            "inspection",
+            "weekly inspection",
+            "storm event",
+            "BMP maintenance",
+            "sediment removal",
+            "final stabilization",
+            "EGLE",
+            "DEQ",
         ],
         title="Erosion Control Maintenance Responsibility & Duration",
         description=(
@@ -636,7 +732,6 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         recommendation="Clarify maintenance duration and responsibility in bid. Include monthly allowance.",
         affected_csi_codes=["31 14 00"],
     ),
-
     DomainGapRule(
         id="CIV-006",
         name="Utility Crossings & Conflicts",
@@ -645,8 +740,15 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["33 11 00", "33 31 00", "33 41 00"],
         scope_excludes_all=[],
         spec_keywords=[
-            "utility crossing", "conflict", "existing utility", "Miss Dig", "MISS DIG",
-            "pothole", "test pit", "utility relocation", "protect in place",
+            "utility crossing",
+            "conflict",
+            "existing utility",
+            "Miss Dig",
+            "MISS DIG",
+            "pothole",
+            "test pit",
+            "utility relocation",
+            "protect in place",
         ],
         title="Existing Utility Crossings & Conflicts",
         description=(
@@ -657,8 +759,7 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Civil contractor; relocations may be by utility company",
         cost_impact_description=(
-            "Test pits: $500–$1,500/each; Protection: $1,000–$5,000/crossing; "
-            "Relocation: $5,000–$50,000+"
+            "Test pits: $500–$1,500/each; Protection: $1,000–$5,000/crossing; Relocation: $5,000–$50,000+"
         ),
         cost_impact_low=500,
         cost_impact_high=50000,
@@ -667,7 +768,6 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         ),
         affected_csi_codes=["33 10 00", "33 30 00", "33 40 00"],
     ),
-
     DomainGapRule(
         id="CIV-007",
         name="Compaction Testing Responsibility",
@@ -676,8 +776,14 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["31 23 16", "31 23 10"],
         scope_excludes_all=[],
         spec_keywords=[
-            "compaction test", "proctor", "nuclear density", "field density",
-            "95% compaction", "90% compaction", "modified proctor", "standard proctor",
+            "compaction test",
+            "proctor",
+            "nuclear density",
+            "field density",
+            "95% compaction",
+            "90% compaction",
+            "modified proctor",
+            "standard proctor",
         ],
         title="Compaction Testing Responsibility",
         description=(
@@ -692,7 +798,6 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         recommendation="Verify testing responsibility in Division 01. Budget for potential rework.",
         affected_csi_codes=["31 23 16"],
     ),
-
     DomainGapRule(
         id="CIV-008",
         name="Trench Safety & OSHA Requirements",
@@ -701,8 +806,16 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["31 23 02", "33 11 00", "33 31 00", "33 41 00"],
         scope_excludes_all=["31 54 00"],
         spec_keywords=[
-            "trench safety", "trench box", "shoring", "sloping", "benching",
-            "trench shield", "OSHA", "competent person", "excavation safety", "29 CFR 1926",
+            "trench safety",
+            "trench box",
+            "shoring",
+            "sloping",
+            "benching",
+            "trench shield",
+            "OSHA",
+            "competent person",
+            "excavation safety",
+            "29 CFR 1926",
         ],
         title="Trench Safety / Shoring for Utilities",
         description=(
@@ -718,7 +831,6 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         recommendation="Budget trench box rental for duration of utility work. Always required >5 ft depth.",
         affected_csi_codes=["31 54 00"],
     ),
-
     DomainGapRule(
         id="CIV-009",
         name="Subgrade Preparation for Building/Paving",
@@ -727,8 +839,15 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["31 23 20", "31 22 00"],
         scope_excludes_all=[],
         spec_keywords=[
-            "subgrade", "subbase", "proof roll", "lime stabilization", "cement stabilization",
-            "geogrid", "geotextile", "bearing capacity", "subgrade modulus",
+            "subgrade",
+            "subbase",
+            "proof roll",
+            "lime stabilization",
+            "cement stabilization",
+            "geogrid",
+            "geotextile",
+            "bearing capacity",
+            "subgrade modulus",
         ],
         title="Subgrade Preparation Scope Boundary",
         description=(
@@ -744,7 +863,6 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         recommendation="Define handoff tolerance clearly. Include in bid qualifications.",
         affected_csi_codes=["31 23 20", "31 31 00"],
     ),
-
     DomainGapRule(
         id="CIV-010",
         name="Utility Connection / Tap Fees",
@@ -753,8 +871,16 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         scope_includes_any=["33 11 00", "33 12 00", "33 31 00", "33 32 00"],
         scope_excludes_all=[],
         spec_keywords=[
-            "tap fee", "connection fee", "permit", "road cut", "road opening",
-            "utility tap", "main connection", "wet tap", "hot tap", "shutdown",
+            "tap fee",
+            "connection fee",
+            "permit",
+            "road cut",
+            "road opening",
+            "utility tap",
+            "main connection",
+            "wet tap",
+            "hot tap",
+            "shutdown",
         ],
         title="Utility Connection & Tap Fees",
         description=(
@@ -762,17 +888,12 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
             "road opening permits included in your scope or paid by the owner? Also verify who "
             "performs the actual connection to existing mains — utility company or contractor."
         ),
-        typical_responsibility=(
-            "Owner typically pays fees; contractor performs connections (varies by municipality)"
-        ),
-        cost_impact_description=(
-            "Tap fees: $500–$10,000+ per connection; Road cut: $2,000–$15,000 per opening"
-        ),
+        typical_responsibility=("Owner typically pays fees; contractor performs connections (varies by municipality)"),
+        cost_impact_description=("Tap fees: $500–$10,000+ per connection; Road cut: $2,000–$15,000 per opening"),
         cost_impact_low=500,
         cost_impact_high=25000,
         recommendation=(
-            "Contact local utility and municipality for fee schedules. "
-            "Exclude fees; include labor for connections."
+            "Contact local utility and municipality for fee schedules. Exclude fees; include labor for connections."
         ),
         affected_csi_codes=["33 10 00", "33 30 00"],
     ),
@@ -848,21 +969,23 @@ def run_domain_rules(
                     continue
 
         # Rule triggered — build gap dict
-        triggered.append({
-            "division_number": rule.affected_csi_codes[0][:2] if rule.affected_csi_codes else "00",
-            "section_number": rule.affected_csi_codes[0] if rule.affected_csi_codes else None,
-            "title": rule.title,
-            "gap_type": rule.gap_type,
-            "severity": rule.severity,
-            "description": rule.description,
-            "recommendation": rule.recommendation,
-            "cost_impact_description": rule.cost_impact_description,
-            "cost_impact_low": rule.cost_impact_low,
-            "cost_impact_high": rule.cost_impact_high,
-            "typical_responsibility": rule.typical_responsibility,
-            "rfi_language": rule.rfi_language,
-            "rule_id": rule.id,
-        })
+        triggered.append(
+            {
+                "division_number": rule.affected_csi_codes[0][:2] if rule.affected_csi_codes else "00",
+                "section_number": rule.affected_csi_codes[0] if rule.affected_csi_codes else None,
+                "title": rule.title,
+                "gap_type": rule.gap_type,
+                "severity": rule.severity,
+                "description": rule.description,
+                "recommendation": rule.recommendation,
+                "cost_impact_description": rule.cost_impact_description,
+                "cost_impact_low": rule.cost_impact_low,
+                "cost_impact_high": rule.cost_impact_high,
+                "typical_responsibility": rule.typical_responsibility,
+                "rfi_language": rule.rfi_language,
+                "rule_id": rule.id,
+            }
+        )
 
     logger.info(f"Domain rules: {len(triggered)} of {len(ALL_DOMAIN_RULES)} rules triggered")
     return triggered

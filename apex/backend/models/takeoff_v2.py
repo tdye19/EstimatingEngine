@@ -1,9 +1,11 @@
 """TakeoffItemV2 — rate-intelligence takeoff items (Agent 4 v2)."""
 
-from sqlalchemy import Column, Integer, String, Float, Text, DateTime, ForeignKey, Index
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from apex.backend.db.database import Base
-from datetime import datetime, timezone
 
 
 class TakeoffItemV2(Base):
@@ -32,11 +34,9 @@ class TakeoffItemV2(Base):
     flag = Column(String, default="NO_DATA")
     matching_projects = Column(Text)  # JSON array of project names
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     # Relationships
     project = relationship("Project", back_populates="takeoff_items_v2")
 
-    __table_args__ = (
-        Index("ix_takeoff_v2_project_activity", "project_id", "activity"),
-    )
+    __table_args__ = (Index("ix_takeoff_v2_project_activity", "project_id", "activity"),)

@@ -1,7 +1,8 @@
 """Document model."""
 
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, JSON
+from sqlalchemy import JSON, Column, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from apex.backend.db.database import Base
 from apex.backend.models.base import TimestampMixin
 

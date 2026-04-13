@@ -21,7 +21,7 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,8 +32,8 @@ import httpx
 # ---------------------------------------------------------------------------
 
 LARGE_FILE_THRESHOLD = 2 * 1024 * 1024  # 2 MB → use chunked upload
-POLL_INTERVAL = 5          # seconds between status checks
-PIPELINE_TIMEOUT = 300     # 5 minutes total
+POLL_INTERVAL = 5  # seconds between status checks
+PIPELINE_TIMEOUT = 300  # 5 minutes total
 
 AGENT_NAMES = {
     1: "Document Ingestion",
@@ -80,16 +80,13 @@ class AgentResult:
         icon = STATUS_ICON[self.verdict]
         label = f"Agent {self.number} — {self.name}"
         pad = max(0, 36 - len(label))
-        return (
-            f"  {label}{' ' * pad}"
-            f"{icon} {self.verdict:<4}  "
-            f"({self.duration:.1f}s)  {self.detail}"
-        )
+        return f"  {label}{' ' * pad}{icon} {self.verdict:<4}  ({self.duration:.1f}s)  {self.detail}"
 
 
 # ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
+
 
 def _raise_for_status(resp: httpx.Response, context: str) -> dict:
     if resp.status_code >= 400:
@@ -97,15 +94,14 @@ def _raise_for_status(resp: httpx.Response, context: str) -> dict:
             body = resp.json()
         except Exception:
             body = resp.text
-        raise RuntimeError(
-            f"{context} — HTTP {resp.status_code}: {body}"
-        )
+        raise RuntimeError(f"{context} — HTTP {resp.status_code}: {body}")
     return resp.json()
 
 
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
+
 
 def authenticate(client: httpx.Client, email: str, password: str) -> str:
     resp = client.post(
@@ -123,6 +119,7 @@ def authenticate(client: httpx.Client, email: str, password: str) -> str:
 # Project
 # ---------------------------------------------------------------------------
 
+
 def create_project(client: httpx.Client, filename: str) -> int:
     name = f"E2E Test — {Path(filename).name} — {datetime.now().strftime('%H:%M:%S')}"
     resp = client.post(
@@ -137,6 +134,7 @@ def create_project(client: httpx.Client, filename: str) -> int:
 # ---------------------------------------------------------------------------
 # Upload
 # ---------------------------------------------------------------------------
+
 
 def upload_file(client: httpx.Client, project_id: int, file_path: Path) -> int:
     """Upload file.  Uses chunked protocol for files >2 MB, simple POST otherwise.
@@ -159,9 +157,7 @@ def _simple_upload(client: httpx.Client, project_id: int, file_path: Path) -> in
     return data["data"]["id"]
 
 
-def _chunked_upload(
-    client: httpx.Client, project_id: int, file_path: Path, file_size: int
-) -> int:
+def _chunked_upload(client: httpx.Client, project_id: int, file_path: Path, file_size: int) -> int:
     # 1. Init session
     resp = client.post(
         f"/api/projects/{project_id}/documents/upload/init",
@@ -202,6 +198,7 @@ def _chunked_upload(
 # Pipeline trigger & polling
 # ---------------------------------------------------------------------------
 
+
 def trigger_pipeline(
     client: httpx.Client,
     project_id: int,
@@ -237,14 +234,13 @@ def poll_pipeline(client: httpx.Client, project_id: int) -> dict:
         time.sleep(POLL_INTERVAL)
 
     print()
-    raise RuntimeError(
-        f"Pipeline did not complete within {PIPELINE_TIMEOUT}s timeout"
-    )
+    raise RuntimeError(f"Pipeline did not complete within {PIPELINE_TIMEOUT}s timeout")
 
 
 # ---------------------------------------------------------------------------
 # Result collection
 # ---------------------------------------------------------------------------
+
 
 def collect_results(client: httpx.Client, project_id: int) -> dict[str, Any]:
     """Fetch all result endpoints and return a combined dict."""
@@ -261,13 +257,13 @@ def collect_results(client: httpx.Client, project_id: int) -> dict[str, Any]:
             results[key] = None
             results[f"{key}_error"] = str(exc)
 
-    _get("spec_sections",   f"/api/projects/{project_id}/spec-sections")
-    _get("gap_report",      f"/api/projects/{project_id}/gap-report")
-    _get("takeoff_items",   f"/api/projects/{project_id}/takeoff")
+    _get("spec_sections", f"/api/projects/{project_id}/spec-sections")
+    _get("gap_report", f"/api/projects/{project_id}/gap-report")
+    _get("takeoff_items", f"/api/projects/{project_id}/takeoff")
     _get("labor_estimates", f"/api/projects/{project_id}/labor-estimates")
-    _get("estimate",        f"/api/projects/{project_id}/estimate")
-    _get("agent_logs",      f"/api/projects/{project_id}/agent-logs")
-    _get("token_usage",     f"/api/projects/{project_id}/token-usage")
+    _get("estimate", f"/api/projects/{project_id}/estimate")
+    _get("agent_logs", f"/api/projects/{project_id}/agent-logs")
+    _get("token_usage", f"/api/projects/{project_id}/token-usage")
 
     return results
 
@@ -276,9 +272,10 @@ def collect_results(client: httpx.Client, project_id: int) -> dict[str, Any]:
 # Pass/fail evaluation
 # ---------------------------------------------------------------------------
 
+
 def _agent_log(agent_logs: list[dict], number: int) -> dict | None:
     """Return the most-recent log entry for the given agent number."""
-    entries = [l for l in (agent_logs or []) if l.get("agent_number") == number]
+    entries = [entry for entry in (agent_logs or []) if entry.get("agent_number") == number]
     return entries[0] if entries else None
 
 
@@ -304,16 +301,12 @@ def evaluate_agents(
     # ── Agent 1 — Document Ingestion ─────────────────────────────────────
     log1 = _agent_log(agent_logs, 1)
     s1 = status_by_agent.get(1, {})
-    if (s1.get("status") or log1 and log1.get("status")) == "completed" or (
-        log1 and log1.get("status") == "completed"
-    ):
+    if (s1.get("status") or log1 and log1.get("status")) == "completed" or (log1 and log1.get("status") == "completed"):
         # Check output_summary for any extracted content signal
         summary = (log1 or {}).get("output_summary") or s1.get("output_summary") or ""
         detail = summary[:80] if summary else "Ingestion completed"
         evaluations.append(AgentResult(1, PASS, _log_duration(log1), detail))
-    elif (s1.get("status") or "") == "skipped" or (
-        log1 and log1.get("status") == "skipped"
-    ):
+    elif (s1.get("status") or "") == "skipped" or (log1 and log1.get("status") == "skipped"):
         evaluations.append(AgentResult(1, SKIP, 0.0, "Skipped by orchestrator"))
     else:
         err = (log1 or {}).get("error_message") or s1.get("error_message") or "No log found"
@@ -329,11 +322,15 @@ def evaluate_agents(
         sections: list[dict] = results.get("spec_sections") or []
         if status2 == "completed" and len(sections) > 0:
             csi_divs = sorted({s.get("division_number", "") for s in sections if s.get("division_number")})
-            evaluations.append(AgentResult(
-                2, PASS, _log_duration(log2),
-                f"Found {len(sections)} CSI sections  "
-                f"(Div: {', '.join(csi_divs[:5])}{'…' if len(csi_divs) > 5 else ''})"
-            ))
+            evaluations.append(
+                AgentResult(
+                    2,
+                    PASS,
+                    _log_duration(log2),
+                    f"Found {len(sections)} CSI sections  "
+                    f"(Div: {', '.join(csi_divs[:5])}{'…' if len(csi_divs) > 5 else ''})",
+                )
+            )
         elif status2 in ("skipped",):
             evaluations.append(AgentResult(2, SKIP, 0.0, "Skipped by orchestrator"))
         elif status2 == "completed" and len(sections) == 0:
@@ -352,10 +349,9 @@ def evaluate_agents(
         crit = gap_report.get("critical_count", 0)
         mod = gap_report.get("moderate_count", 0)
         watch = gap_report.get("watch_count", 0)
-        evaluations.append(AgentResult(
-            3, PASS, _log_duration(log3),
-            f"{total} gaps ({crit} critical, {mod} moderate, {watch} watch)"
-        ))
+        evaluations.append(
+            AgentResult(3, PASS, _log_duration(log3), f"{total} gaps ({crit} critical, {mod} moderate, {watch} watch)")
+        )
     elif status3 in ("skipped",):
         evaluations.append(AgentResult(3, SKIP, 0.0, "Skipped by orchestrator"))
     elif status3 == "completed" and not gap_report:
@@ -391,7 +387,7 @@ def evaluate_agents(
     status5 = (log5 or {}).get("status") or s5.get("status") or ""
     labor: list[dict] = results.get("labor_estimates") or []
     if status5 == "completed" and len(labor) > 0:
-        zero_rate = [l for l in labor if (l.get("hourly_rate") or 0) == 0]
+        zero_rate = [item for item in labor if (item.get("hourly_rate") or 0) == 0]
         verdict = WARN if zero_rate else PASS
         detail = f"{len(labor)} items matched"
         if zero_rate:
@@ -414,10 +410,7 @@ def evaluate_agents(
         grand_total = estimate["total_bid_amount"]
         has_summary = bool((estimate.get("executive_summary") or "").strip())
         note = "  (has exec summary)" if has_summary else ""
-        evaluations.append(AgentResult(
-            6, PASS, _log_duration(log6),
-            f"Grand total: ${grand_total:,.0f}{note}"
-        ))
+        evaluations.append(AgentResult(6, PASS, _log_duration(log6), f"Grand total: ${grand_total:,.0f}{note}"))
     elif status6 in ("skipped",):
         evaluations.append(AgentResult(6, SKIP, 0.0, "Skipped by orchestrator"))
     elif status6 == "completed" and estimate and (estimate.get("total_bid_amount") or 0) == 0:
@@ -447,6 +440,7 @@ def evaluate_agents(
 # ---------------------------------------------------------------------------
 # Token usage summary
 # ---------------------------------------------------------------------------
+
 
 def summarise_tokens(token_usage: list[dict] | None) -> tuple[float, float]:
     """Return (total_cost, cache_hit_rate_pct)."""
@@ -490,16 +484,14 @@ def print_report(
         print(r.format_line())
     print(DIVIDER)
     print(f"  Token Usage:  ${token_cost:.4f} total | Cache hit: {cache_hit_rate:.0f}%")
-    print(
-        f"  Result: {counts[PASS]}/{len(agent_results)} PASS | "
-        f"{counts[WARN]} WARN | {counts[FAIL]} FAIL"
-    )
+    print(f"  Result: {counts[PASS]}/{len(agent_results)} PASS | {counts[WARN]} WARN | {counts[FAIL]} FAIL")
     print(BORDER)
 
 
 # ---------------------------------------------------------------------------
 # JSON output
 # ---------------------------------------------------------------------------
+
 
 def save_results(
     file_path: Path,
@@ -518,7 +510,7 @@ def save_results(
     out_dir = Path("test_specs/results")
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     out_path = out_dir / f"{ts}_{project_id}.json"
 
     payload = {
@@ -527,7 +519,7 @@ def save_results(
             "mode": mode,
             "project_id": project_id,
             "total_duration_seconds": round(total_duration, 2),
-            "run_at": datetime.now(timezone.utc).isoformat(),
+            "run_at": datetime.now(UTC).isoformat(),
         },
         "summary": {
             a.name: {
@@ -538,10 +530,7 @@ def save_results(
             for a in agent_results
         },
         "pipeline_status": pipeline_status,
-        "raw": {
-            k: v for k, v in raw_results.items()
-            if not k.endswith("_error")
-        },
+        "raw": {k: v for k, v in raw_results.items() if not k.endswith("_error")},
     }
 
     out_path.write_text(json.dumps(payload, indent=2, default=str))
@@ -551,6 +540,7 @@ def save_results(
 # ---------------------------------------------------------------------------
 # Mode detection
 # ---------------------------------------------------------------------------
+
 
 def detect_mode(file_path: Path) -> str:
     ext = file_path.suffix.lower()
@@ -565,6 +555,7 @@ def detect_mode(file_path: Path) -> str:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -608,7 +599,7 @@ def main() -> int:
     mode = args.mode or detect_mode(file_path)
     start_ts = time.monotonic()
 
-    print(f"\n  Starting APEX E2E test")
+    print("\n  Starting APEX E2E test")
     print(f"  File : {file_path}")
     print(f"  Mode : {mode}")
     print(f"  API  : {args.base_url}\n")
@@ -688,8 +679,13 @@ def main() -> int:
 
     # Save JSON
     out_path, ts = save_results(
-        file_path, mode, total_duration, project_id,
-        agent_results, results, pipeline_status,
+        file_path,
+        mode,
+        total_duration,
+        project_id,
+        agent_results,
+        results,
+        pipeline_status,
     )
     print(f"\n  Full results saved to: {out_path}")
 
@@ -700,7 +696,7 @@ def main() -> int:
     scorer_input: dict[str, Any] = {}
     # Agent 1 — documents (use agent_logs as proxy for ingestion data)
     if results.get("agent_logs"):
-        a1_logs = [l for l in results["agent_logs"] if l.get("agent_number") == 1]
+        a1_logs = [lg for lg in results["agent_logs"] if lg.get("agent_number") == 1]
         if a1_logs and a1_logs[0].get("status") == "completed":
             scorer_input["documents"] = [{"source": str(file_path)}]
     # Agent 2

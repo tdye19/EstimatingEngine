@@ -1,7 +1,9 @@
 """Chunk storage for distributed-safe chunked uploads."""
 
-from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, LargeBinary, ForeignKey
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String
+
 from apex.backend.db.database import Base
 
 
@@ -16,4 +18,4 @@ class UploadChunk(Base):
     chunk_number = Column(Integer, primary_key=True)
     chunk_data = Column(LargeBinary, nullable=False)
     chunk_size = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)

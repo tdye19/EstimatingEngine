@@ -57,7 +57,10 @@ def cost_rollup_tool(line_items: list[dict]) -> dict:
 
     return {
         "totals": {k: round(v, 2) for k, v in totals.items()},
-        "by_division": {k: {kk: round(vv, 2) if isinstance(vv, float) else vv for kk, vv in v.items()} for k, v in by_division.items()},
+        "by_division": {
+            k: {kk: round(vv, 2) if isinstance(vv, float) else vv for kk, vv in v.items()}
+            for k, v in by_division.items()
+        },
     }
 
 

@@ -1,7 +1,8 @@
 """User model."""
 
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+
 from apex.backend.db.database import Base
 from apex.backend.models.base import TimestampMixin
 

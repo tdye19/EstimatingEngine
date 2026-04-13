@@ -7,27 +7,26 @@ Does NOT extract quantities — those come from drawings, not specs.
 Uses LLM parsing when a provider is available; falls back to regex.
 """
 
-import json
 import logging
+
 from sqlalchemy.orm import Session
-from apex.backend.utils.async_helper import run_async as _run_async
-from apex.backend.models.document import Document
-from apex.backend.models.spec_section import SpecSection
+
 from apex.backend.agents.pipeline_contracts import validate_agent_output
-from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.spec_tools import (
-    regex_parse_spec_sections,
     division_mapper_tool,
     keyword_tagger_tool,
     llm_parse_spec_sections,
+    regex_parse_spec_sections,
 )
+from apex.backend.models.document import Document
+from apex.backend.models.spec_section import SpecSection
+from apex.backend.services.token_tracker import log_token_usage
+from apex.backend.utils.async_helper import run_async as _run_async
 
 logger = logging.getLogger("apex.agent.spec_parser")
 
 
-def _parse_document(
-    doc_text: str, use_llm: bool, provider
-) -> tuple[list[dict], str, int, int]:
+def _parse_document(doc_text: str, use_llm: bool, provider) -> tuple[list[dict], str, int, int]:
     """Return (extracted_sections, parse_method, input_tokens, output_tokens)."""
     if use_llm and provider is not None:
         try:
@@ -81,6 +80,7 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     llm_available = False
     try:
         from apex.backend.services.llm_provider import get_llm_provider
+
         provider = get_llm_provider(agent_number=2)
         llm_available = _run_async(provider.health_check())
         if llm_available:
@@ -91,20 +91,28 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
         logger.warning(f"Could not initialise LLM provider ({e}), using regex fallback")
 
     # Get all completed spec documents
-    documents = db.query(Document).filter(
-        Document.project_id == project_id,
-        Document.processing_status == "completed",
-        Document.classification == "spec",
-        Document.is_deleted == False,  # noqa: E712
-    ).all()
+    documents = (
+        db.query(Document)
+        .filter(
+            Document.project_id == project_id,
+            Document.processing_status == "completed",
+            Document.classification == "spec",
+            Document.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     # Also include unclassified documents (they might contain specs)
-    general_docs = db.query(Document).filter(
-        Document.project_id == project_id,
-        Document.processing_status == "completed",
-        Document.classification.in_(["general", None]),
-        Document.is_deleted == False,  # noqa: E712
-    ).all()
+    general_docs = (
+        db.query(Document)
+        .filter(
+            Document.project_id == project_id,
+            Document.processing_status == "completed",
+            Document.classification.in_(["general", None]),
+            Document.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     all_docs = documents + general_docs
     total_sections = 0
@@ -116,9 +124,7 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
             continue
 
         try:
-            extracted, parse_method, in_tok, out_tok = _parse_document(
-                doc.raw_text, llm_available, provider
-            )
+            extracted, parse_method, in_tok, out_tok = _parse_document(doc.raw_text, llm_available, provider)
             run_parse_methods.append(parse_method)
             if parse_method == "llm" and provider is not None and (in_tok or out_tok):
                 log_token_usage(
@@ -176,31 +182,38 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
                 doc.classification = "spec"
                 db.commit()
 
-            doc_results.append({
-                "document_id": doc.id,
-                "filename": doc.filename,
-                "sections_found": sections_created,
-                "parse_method": parse_method,
-                "status": "success",
-            })
+            doc_results.append(
+                {
+                    "document_id": doc.id,
+                    "filename": doc.filename,
+                    "sections_found": sections_created,
+                    "parse_method": parse_method,
+                    "status": "success",
+                }
+            )
 
         except Exception as e:
             logger.error(f"Failed to parse document {doc.id}: {e}")
-            doc_results.append({
-                "document_id": doc.id,
-                "filename": doc.filename,
-                "sections_found": 0,
-                "status": "error",
-                "error": str(e),
-            })
+            doc_results.append(
+                {
+                    "document_id": doc.id,
+                    "filename": doc.filename,
+                    "sections_found": 0,
+                    "status": "error",
+                    "error": str(e),
+                }
+            )
 
     # Overall parse method: "llm" if any doc used LLM, else "regex"
     overall_parse_method = "llm" if "llm" in run_parse_methods else "regex"
     logger.info(f"Agent 2 complete: {total_sections} sections parsed via {overall_parse_method}")
 
-    return validate_agent_output(2, {
-        "sections_parsed": total_sections,
-        "documents_processed": len(all_docs),
-        "parse_method": overall_parse_method,
-        "results": doc_results,
-    })
+    return validate_agent_output(
+        2,
+        {
+            "sections_parsed": total_sections,
+            "documents_processed": len(all_docs),
+            "parse_method": overall_parse_method,
+            "results": doc_results,
+        },
+    )

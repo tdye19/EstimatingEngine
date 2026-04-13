@@ -18,7 +18,6 @@ import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Optional
 
 logger = logging.getLogger("apex.email")
 
@@ -46,6 +45,7 @@ def send_email(to: str | list[str], subject: str, body_html: str, body_text: str
     if not body_text:
         # Strip basic tags for plain-text fallback
         import re
+
         body_text = re.sub(r"<[^>]+>", "", body_html)
 
     host = os.getenv("SMTP_HOST", "localhost")
@@ -78,6 +78,7 @@ def send_email(to: str | list[str], subject: str, body_html: str, body_text: str
 
 
 # ── Legacy helpers (keep for backward compatibility) ─────────────────────────
+
 
 def send_pipeline_complete(to: str, project_name: str, project_number: str, success: bool, error_msg: str = None):
     """Send pipeline completion notification."""
@@ -143,12 +144,13 @@ def send_estimate_ready(to: str, project_name: str, project_number: str, total_b
 
 # ── Notification helpers ──────────────────────────────────────────────────────
 
+
 def notify_pipeline_complete(
     to: str | list[str],
     project_name: str,
     project_number: str,
-    total_bid: Optional[float] = None,
-    variance_pct: Optional[float] = None,
+    total_bid: float | None = None,
+    variance_pct: float | None = None,
 ):
     """Send a notification when the agent pipeline finishes."""
     bid_str = f"${total_bid:,.0f}" if total_bid else "N/A"

@@ -1,7 +1,14 @@
 """SQLAlchemy models for Productivity Brain data."""
 
 from sqlalchemy import (
-    Column, Integer, String, Float, DateTime, ForeignKey, Index, func,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    func,
 )
 from sqlalchemy.orm import relationship
 
@@ -37,7 +44,7 @@ class PBLineItem(Base):
     quantity = Column(Float)
     unit = Column(String(50))
     crew_trade = Column(String(200))
-    production_rate = Column(Float)       # Unit/MH
+    production_rate = Column(Float)  # Unit/MH
     labor_hours = Column(Float)
     labor_cost_per_unit = Column(Float)
     material_cost_per_unit = Column(Float)
@@ -49,6 +56,4 @@ class PBLineItem(Base):
 
     project = relationship("PBProject", back_populates="line_items")
 
-    __table_args__ = (
-        Index("ix_pb_li_activity_unit", "activity", "unit"),
-    )
+    __table_args__ = (Index("ix_pb_li_activity_unit", "activity", "unit"),)

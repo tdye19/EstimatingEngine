@@ -1,7 +1,14 @@
 """Subcontractor bid comparison models."""
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, ForeignKey, JSON, Text,
+    JSON,
+    Boolean,
+    Column,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import relationship
 

@@ -9,24 +9,37 @@ Returns a standardized result dict used by Agent 1 to populate APEX's internal f
 """
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger("apex.winest_parser")
 
 # Required column sets for each WinEst Excel export format
 WINEST_FORMAT1_HEADERS = {
-    "Item", "Description", "Quantity", "Unit",
-    "Labor Hours", "Labor Rate", "Material Cost", "Total",
+    "Item",
+    "Description",
+    "Quantity",
+    "Unit",
+    "Labor Hours",
+    "Labor Rate",
+    "Material Cost",
+    "Total",
 }
 WINEST_FORMAT2_HEADERS = {
-    "WBS", "CSI Code", "Description", "Qty",
-    "UOM", "Crew Size", "Productivity Rate", "Hours", "Cost",
+    "WBS",
+    "CSI Code",
+    "Description",
+    "Qty",
+    "UOM",
+    "Crew Size",
+    "Productivity Rate",
+    "Hours",
+    "Cost",
 }
 
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
 
 def parse_winest_file(file_path: str) -> dict:
     """Parse a WinEst .est or .xlsx file into structured line items.
@@ -77,8 +90,15 @@ _OLE_FALLBACK_ERROR = (
 
 # Stream name fragments that typically contain estimate line-item data
 _DATA_STREAM_KEYWORDS = [
-    "estimate", "lineitem", "line_item", "item", "detail",
-    "cost", "labor", "material", "scope",
+    "estimate",
+    "lineitem",
+    "line_item",
+    "item",
+    "detail",
+    "cost",
+    "labor",
+    "material",
+    "scope",
 ]
 
 
@@ -115,8 +135,7 @@ def _parse_est_file(file_path: str) -> dict:
 
         # Prioritise streams whose names suggest estimate data
         candidate_streams = [
-            parts for parts in streams
-            if any(kw in "/".join(parts).lower() for kw in _DATA_STREAM_KEYWORDS)
+            parts for parts in streams if any(kw in "/".join(parts).lower() for kw in _DATA_STREAM_KEYWORDS)
         ]
         if not candidate_streams:
             candidate_streams = streams[:8]
@@ -135,9 +154,7 @@ def _parse_est_file(file_path: str) -> dict:
                     line_items.extend(items)
                     parsed_any = True
             except Exception as exc:
-                warnings.append(
-                    f"Could not parse stream '{'/'.join(stream_parts)}': {exc}"
-                )
+                warnings.append(f"Could not parse stream '{'/'.join(stream_parts)}': {exc}")
 
         ole.close()
 
@@ -186,7 +203,8 @@ def _extract_items_from_stream(data: bytes, stream_name: str) -> list[dict]:
             lines = [ln.strip() for ln in text.splitlines() if len(ln.strip()) > 3]
             # Keep lines that are mostly printable and not null-heavy
             printable = [
-                ln for ln in lines
+                ln
+                for ln in lines
                 if (sum(c.isprintable() for c in ln) / max(len(ln), 1)) > 0.70
                 and not ln.startswith("\x00")
                 and not ln.startswith("\ufffd" * 3)
@@ -195,21 +213,23 @@ def _extract_items_from_stream(data: bytes, stream_name: str) -> list[dict]:
                 for ln in printable[:200]:
                     clean = "".join(c for c in ln if c.isprintable()).strip()
                     if len(clean) > 4:
-                        items.append({
-                            "description":       clean,
-                            "item_code":         None,
-                            "quantity":          None,
-                            "unit":              None,
-                            "labor_hours":       None,
-                            "labor_rate":        None,
-                            "material_cost":     None,
-                            "total":             None,
-                            "csi_code":          None,
-                            "wbs_code":          None,
-                            "crew_size":         None,
-                            "productivity_rate": None,
-                            "source_stream":     stream_name,
-                        })
+                        items.append(
+                            {
+                                "description": clean,
+                                "item_code": None,
+                                "quantity": None,
+                                "unit": None,
+                                "labor_hours": None,
+                                "labor_rate": None,
+                                "material_cost": None,
+                                "total": None,
+                                "csi_code": None,
+                                "wbs_code": None,
+                                "crew_size": None,
+                                "productivity_rate": None,
+                                "source_stream": stream_name,
+                            }
+                        )
                 break  # stop trying encodings once we get usable text
         except Exception:
             continue
@@ -220,6 +240,7 @@ def _extract_items_from_stream(data: bytes, stream_name: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Scenarios B & C — WinEst Excel exports (.xlsx / .xls)
 # ---------------------------------------------------------------------------
+
 
 def _parse_xlsx_file(file_path: str) -> dict:
     """Auto-detect WinEst format from column headers and parse accordingly."""
@@ -287,7 +308,8 @@ def _parse_xlsx_file(file_path: str) -> dict:
 # Column helpers
 # ---------------------------------------------------------------------------
 
-def _col_index(header_row: tuple, name: str) -> Optional[int]:
+
+def _col_index(header_row: tuple, name: str) -> int | None:
     """Return the 0-based index of *name* in *header_row*, or None."""
     for i, h in enumerate(header_row):
         if h is not None and str(h).strip() == name:
@@ -295,7 +317,7 @@ def _col_index(header_row: tuple, name: str) -> Optional[int]:
     return None
 
 
-def _safe_float(value) -> Optional[float]:
+def _safe_float(value) -> float | None:
     """Convert a spreadsheet cell value to float; return None on failure."""
     if value is None:
         return None
@@ -305,7 +327,7 @@ def _safe_float(value) -> Optional[float]:
         return None
 
 
-def _cell(row: tuple, idx: Optional[int]) -> Optional[str]:
+def _cell(row: tuple, idx: int | None) -> str | None:
     """Return cell value as stripped string, or None if missing/empty."""
     if idx is None or row[idx] is None:
         return None
@@ -317,6 +339,7 @@ def _cell(row: tuple, idx: Optional[int]) -> Optional[str]:
 # Format 1 parser
 # ---------------------------------------------------------------------------
 
+
 def _parse_format1(ws, header_row: tuple) -> dict:
     """Parse WinEst Format 1.
 
@@ -324,14 +347,14 @@ def _parse_format1(ws, header_row: tuple) -> dict:
         Item | Description | Quantity | Unit | Labor Hours | Labor Rate | Material Cost | Total
     """
     col = {
-        "item":          _col_index(header_row, "Item"),
-        "description":   _col_index(header_row, "Description"),
-        "quantity":      _col_index(header_row, "Quantity"),
-        "unit":          _col_index(header_row, "Unit"),
-        "labor_hours":   _col_index(header_row, "Labor Hours"),
-        "labor_rate":    _col_index(header_row, "Labor Rate"),
+        "item": _col_index(header_row, "Item"),
+        "description": _col_index(header_row, "Description"),
+        "quantity": _col_index(header_row, "Quantity"),
+        "unit": _col_index(header_row, "Unit"),
+        "labor_hours": _col_index(header_row, "Labor Hours"),
+        "labor_rate": _col_index(header_row, "Labor Rate"),
         "material_cost": _col_index(header_row, "Material Cost"),
-        "total":         _col_index(header_row, "Total"),
+        "total": _col_index(header_row, "Total"),
     }
 
     line_items: list[dict] = []
@@ -341,20 +364,22 @@ def _parse_format1(ws, header_row: tuple) -> dict:
         if not desc:
             continue  # skip blank rows
 
-        line_items.append({
-            "description":       desc,
-            "item_code":         _cell(row, col["item"]),
-            "quantity":          _safe_float(row[col["quantity"]] if col["quantity"] is not None else None),
-            "unit":              _cell(row, col["unit"]),
-            "labor_hours":       _safe_float(row[col["labor_hours"]] if col["labor_hours"] is not None else None),
-            "labor_rate":        _safe_float(row[col["labor_rate"]] if col["labor_rate"] is not None else None),
-            "material_cost":     _safe_float(row[col["material_cost"]] if col["material_cost"] is not None else None),
-            "total":             _safe_float(row[col["total"]] if col["total"] is not None else None),
-            "csi_code":          None,
-            "wbs_code":          None,
-            "crew_size":         None,
-            "productivity_rate": None,
-        })
+        line_items.append(
+            {
+                "description": desc,
+                "item_code": _cell(row, col["item"]),
+                "quantity": _safe_float(row[col["quantity"]] if col["quantity"] is not None else None),
+                "unit": _cell(row, col["unit"]),
+                "labor_hours": _safe_float(row[col["labor_hours"]] if col["labor_hours"] is not None else None),
+                "labor_rate": _safe_float(row[col["labor_rate"]] if col["labor_rate"] is not None else None),
+                "material_cost": _safe_float(row[col["material_cost"]] if col["material_cost"] is not None else None),
+                "total": _safe_float(row[col["total"]] if col["total"] is not None else None),
+                "csi_code": None,
+                "wbs_code": None,
+                "crew_size": None,
+                "productivity_rate": None,
+            }
+        )
 
     return {
         "success": True,
@@ -368,6 +393,7 @@ def _parse_format1(ws, header_row: tuple) -> dict:
 # Format 2 parser
 # ---------------------------------------------------------------------------
 
+
 def _parse_format2(ws, header_row: tuple) -> dict:
     """Parse WinEst Format 2.
 
@@ -375,15 +401,15 @@ def _parse_format2(ws, header_row: tuple) -> dict:
         WBS | CSI Code | Description | Qty | UOM | Crew Size | Productivity Rate | Hours | Cost
     """
     col = {
-        "wbs":               _col_index(header_row, "WBS"),
-        "csi_code":          _col_index(header_row, "CSI Code"),
-        "description":       _col_index(header_row, "Description"),
-        "qty":               _col_index(header_row, "Qty"),
-        "uom":               _col_index(header_row, "UOM"),
-        "crew_size":         _col_index(header_row, "Crew Size"),
+        "wbs": _col_index(header_row, "WBS"),
+        "csi_code": _col_index(header_row, "CSI Code"),
+        "description": _col_index(header_row, "Description"),
+        "qty": _col_index(header_row, "Qty"),
+        "uom": _col_index(header_row, "UOM"),
+        "crew_size": _col_index(header_row, "Crew Size"),
         "productivity_rate": _col_index(header_row, "Productivity Rate"),
-        "hours":             _col_index(header_row, "Hours"),
-        "cost":              _col_index(header_row, "Cost"),
+        "hours": _col_index(header_row, "Hours"),
+        "cost": _col_index(header_row, "Cost"),
     }
 
     line_items: list[dict] = []
@@ -393,20 +419,24 @@ def _parse_format2(ws, header_row: tuple) -> dict:
         if not desc:
             continue
 
-        line_items.append({
-            "description":       desc,
-            "wbs_code":          _cell(row, col["wbs"]),
-            "csi_code":          _cell(row, col["csi_code"]),
-            "quantity":          _safe_float(row[col["qty"]] if col["qty"] is not None else None),
-            "unit":              _cell(row, col["uom"]),
-            "crew_size":         _safe_float(row[col["crew_size"]] if col["crew_size"] is not None else None),
-            "productivity_rate": _safe_float(row[col["productivity_rate"]] if col["productivity_rate"] is not None else None),
-            "labor_hours":       _safe_float(row[col["hours"]] if col["hours"] is not None else None),
-            "total":             _safe_float(row[col["cost"]] if col["cost"] is not None else None),
-            "labor_rate":        None,
-            "material_cost":     None,
-            "item_code":         None,
-        })
+        line_items.append(
+            {
+                "description": desc,
+                "wbs_code": _cell(row, col["wbs"]),
+                "csi_code": _cell(row, col["csi_code"]),
+                "quantity": _safe_float(row[col["qty"]] if col["qty"] is not None else None),
+                "unit": _cell(row, col["uom"]),
+                "crew_size": _safe_float(row[col["crew_size"]] if col["crew_size"] is not None else None),
+                "productivity_rate": _safe_float(
+                    row[col["productivity_rate"]] if col["productivity_rate"] is not None else None
+                ),
+                "labor_hours": _safe_float(row[col["hours"]] if col["hours"] is not None else None),
+                "total": _safe_float(row[col["cost"]] if col["cost"] is not None else None),
+                "labor_rate": None,
+                "material_cost": None,
+                "item_code": None,
+            }
+        )
 
     return {
         "success": True,

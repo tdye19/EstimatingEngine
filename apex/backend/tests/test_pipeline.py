@@ -11,11 +11,10 @@ Usage:
     python apex/backend/tests/test_pipeline.py
 """
 
-import sys
 import json
-import urllib.request
+import sys
 import urllib.error
-
+import urllib.request
 
 BASE_URL = "http://localhost:8000"
 ENDPOINT = f"{BASE_URL}/api/test/run-pipeline"
@@ -31,9 +30,7 @@ def run_smoke_test() -> dict:
         body = exc.read().decode()
         raise RuntimeError(f"HTTP {exc.code}: {body}") from exc
     except urllib.error.URLError as exc:
-        raise RuntimeError(
-            f"Could not reach {ENDPOINT}. Is the backend running with APEX_DEV_MODE=true?"
-        ) from exc
+        raise RuntimeError(f"Could not reach {ENDPOINT}. Is the backend running with APEX_DEV_MODE=true?") from exc
 
 
 def assert_results(result: dict) -> list[str]:

@@ -35,9 +35,11 @@ import logging
 import os
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+
 from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.project import Project
 from apex.backend.models.token_usage import TokenUsage
@@ -59,14 +61,15 @@ def _get_project_lock(project_id: int) -> threading.Lock:
             _project_locks[project_id] = threading.Lock()
         return _project_locks[project_id]
 
+
 AGENT_DEFINITIONS = {
-    1: ("Document Ingestion Agent",   "apex.backend.agents.agent_1_ingestion",   "run_ingestion_agent"),
-    2: ("Spec Parser Agent",          "apex.backend.agents.agent_2_spec_parser", "run_spec_parser_agent"),
-    3: ("Scope Analysis Agent",       "apex.backend.agents.agent_3_gap_analysis","run_gap_analysis_agent"),
-    4: ("Rate Intelligence Agent",    "apex.backend.agents.agent_4_takeoff",     "run_takeoff_agent"),
-    5: ("Field Calibration Agent",    "apex.backend.agents.agent_5_labor",       "run_labor_agent"),
-    6: ("Intelligence Report Agent",  "apex.backend.agents.agent_6_assembly",    "run_assembly_agent"),
-    7: ("IMPROVE Feedback Agent",     "apex.backend.agents.agent_7_improve",     "run_improve_agent"),
+    1: ("Document Ingestion Agent", "apex.backend.agents.agent_1_ingestion", "run_ingestion_agent"),
+    2: ("Spec Parser Agent", "apex.backend.agents.agent_2_spec_parser", "run_spec_parser_agent"),
+    3: ("Scope Analysis Agent", "apex.backend.agents.agent_3_gap_analysis", "run_gap_analysis_agent"),
+    4: ("Rate Intelligence Agent", "apex.backend.agents.agent_4_takeoff", "run_takeoff_agent"),
+    5: ("Field Calibration Agent", "apex.backend.agents.agent_5_labor", "run_labor_agent"),
+    6: ("Intelligence Report Agent", "apex.backend.agents.agent_6_assembly", "run_assembly_agent"),
+    7: ("IMPROVE Feedback Agent", "apex.backend.agents.agent_7_improve", "run_improve_agent"),
 }
 
 # ---------------------------------------------------------------------------
@@ -77,10 +80,12 @@ AGENT_DEFINITIONS = {
 # connection, transaction, or in-memory state.
 # ---------------------------------------------------------------------------
 
+
 async def _parallel_run_agent_3(project_id: int) -> dict:
     """Run Agent 3 (gap analysis) in a thread executor with an isolated DB session."""
     from apex.backend.agents.agent_3_gap_analysis import run_gap_analysis_agent
     from apex.backend.db.database import SessionLocal
+
     db = SessionLocal()
     loop = asyncio.get_running_loop()
     try:
@@ -93,6 +98,7 @@ async def _parallel_run_agent_4(project_id: int) -> dict:
     """Run Agent 4 (quantity takeoff) in a thread executor with an isolated DB session."""
     from apex.backend.agents.agent_4_takeoff import run_takeoff_agent
     from apex.backend.db.database import SessionLocal
+
     db = SessionLocal()
     loop = asyncio.get_running_loop()
     try:
@@ -148,7 +154,9 @@ class AgentOrchestrator:
                 log.tokens_used = total_tokens
                 logger.info(
                     "Agent %d token usage: %d tokens (auto-filled from %d TokenUsage records)",
-                    log.agent_number, total_tokens, count,
+                    log.agent_number,
+                    total_tokens,
+                    count,
                 )
 
         self.db.commit()
@@ -202,8 +210,6 @@ class AgentOrchestrator:
         Returns a dict with keys agent_1 … agent_6 plus pipeline_status and
         pipeline_mode.
         """
-        from apex.backend.agents.pipeline_contracts import ContractViolation
-        from apex.backend.services.ws_manager import ws_manager
 
         project_lock = _get_project_lock(self.project_id)
         if not project_lock.acquire(blocking=False):
@@ -242,12 +248,12 @@ class AgentOrchestrator:
         ws_status: dict[int, dict] = {}
         for num in pipeline_agents:
             ws_status[num] = {
-                "agent_number":   num,
-                "agent_name":     AGENT_DEFINITIONS[num][0],
-                "status":         "pending",
-                "started_at":     None,
-                "duration_ms":    None,
-                "error_message":  None,
+                "agent_number": num,
+                "agent_name": AGENT_DEFINITIONS[num][0],
+                "status": "pending",
+                "started_at": None,
+                "duration_ms": None,
+                "error_message": None,
                 "output_summary": None,
             }
         skipped_agents: list[int] = []
@@ -256,18 +262,21 @@ class AgentOrchestrator:
             return int((datetime.utcnow() - pipeline_start).total_seconds() * 1000)
 
         def _broadcast(overall: str, current_agent: int | None = None) -> None:
-            ws_manager.broadcast_sync(self.project_id, {
-                "type":               "pipeline_update",
-                "project_id":         self.project_id,
-                "pipeline_id":        pipeline_id,
-                "pipeline_mode":      effective_mode,
-                "status":             overall,
-                "current_agent":      current_agent,
-                "current_agent_name": ws_status[current_agent]["agent_name"] if current_agent else None,
-                "agents":             list(ws_status.values()),
-                "skipped_agents":     skipped_agents,
-                "total_elapsed_ms":   _elapsed_ms(),
-            })
+            ws_manager.broadcast_sync(
+                self.project_id,
+                {
+                    "type": "pipeline_update",
+                    "project_id": self.project_id,
+                    "pipeline_id": pipeline_id,
+                    "pipeline_mode": effective_mode,
+                    "status": overall,
+                    "current_agent": current_agent,
+                    "current_agent_name": ws_status[current_agent]["agent_name"] if current_agent else None,
+                    "agents": list(ws_status.values()),
+                    "skipped_agents": skipped_agents,
+                    "total_elapsed_ms": _elapsed_ms(),
+                },
+            )
 
         for agent_num in pipeline_agents:
             agent_name, module_path, fn_name = AGENT_DEFINITIONS[agent_num]
@@ -289,10 +298,7 @@ class AgentOrchestrator:
             # -----------------------------------------------------------------
             if effective_mode == "winest_import":
                 if agent_num == 2:
-                    skip_reason = (
-                        "WinEst import: data already structured — "
-                        "no spec document to parse"
-                    )
+                    skip_reason = "WinEst import: data already structured — no spec document to parse"
                     logger.info(f"Skipping Agent 2 — {skip_reason}")
                     self._log_skipped(agent_name, agent_num, reason=skip_reason)
                     results[key] = {"status": "skipped", "skipped_because": skip_reason}
@@ -303,13 +309,9 @@ class AgentOrchestrator:
 
                 if agent_num == 4:
                     agent1_items = results.get("agent_1", {}).get("winest_line_items") or []
-                    quantities_present = any(
-                        item.get("quantity") is not None for item in agent1_items
-                    )
+                    quantities_present = any(item.get("quantity") is not None for item in agent1_items)
                     if quantities_present:
-                        skip_reason = (
-                            "WinEst import: quantities already present in import data"
-                        )
+                        skip_reason = "WinEst import: quantities already present in import data"
                         logger.info(f"Skipping Agent 4 — {skip_reason}")
                         self._log_skipped(agent_name, agent_num, reason=skip_reason)
                         results[key] = {"status": "skipped", "skipped_because": skip_reason}
@@ -322,10 +324,12 @@ class AgentOrchestrator:
             # Run the agent
             # -----------------------------------------------------------------
             agent_start_time = datetime.utcnow()
-            ws_status[agent_num].update({
-                "status":     "running",
-                "started_at": agent_start_time.isoformat(),
-            })
+            ws_status[agent_num].update(
+                {
+                    "status": "running",
+                    "started_at": agent_start_time.isoformat(),
+                }
+            )
             _broadcast("running", agent_num)
 
             log = self._log_start(agent_name, agent_num)
@@ -335,6 +339,7 @@ class AgentOrchestrator:
             for attempt in range(1 + max_retries):
                 try:
                     import importlib
+
                     module = importlib.import_module(module_path)
                     agent_fn = getattr(module, fn_name)
                     result = agent_fn(self.db, self.project_id)
@@ -342,17 +347,21 @@ class AgentOrchestrator:
                     # After Agent 1: check if it detected a WinEst import
                     if agent_num == 1 and result.get("pipeline_mode") == "winest_import":
                         if effective_mode != "winest_import":
-                            logger.info(
-                                "Agent 1 detected WinEst import — "
-                                "switching to winest_import pipeline mode"
-                            )
+                            logger.info("Agent 1 detected WinEst import — switching to winest_import pipeline mode")
                         effective_mode = "winest_import"
 
                     # Summarise result for the log
                     summary_keys = (
-                        "documents_processed", "sections_parsed", "total_gaps",
-                        "takeoff_items_parsed", "items_compared", "items_created", "estimates_created", "estimate_id",
-                        "report_id", "overall_risk_level",
+                        "documents_processed",
+                        "sections_parsed",
+                        "total_gaps",
+                        "takeoff_items_parsed",
+                        "items_compared",
+                        "items_created",
+                        "estimates_created",
+                        "estimate_id",
+                        "report_id",
+                        "overall_risk_level",
                     )
                     summary = next(
                         (f"{k}={result[k]}" for k in summary_keys if k in result),
@@ -363,13 +372,13 @@ class AgentOrchestrator:
                     self._log_complete(log, summary, output_data=result)
                     results[key] = result
 
-                    duration_ms = int(
-                        (datetime.utcnow() - agent_start_time).total_seconds() * 1000
+                    duration_ms = int((datetime.utcnow() - agent_start_time).total_seconds() * 1000)
+                    ws_status[agent_num].update(
+                        {
+                            "status": "completed",
+                            "duration_ms": duration_ms,
+                        }
                     )
-                    ws_status[agent_num].update({
-                        "status":      "completed",
-                        "duration_ms": duration_ms,
-                    })
                     _broadcast("running")
                     last_error = None
                     break  # success
@@ -379,7 +388,10 @@ class AgentOrchestrator:
                     if attempt < max_retries:
                         logger.warning(
                             "Agent %d contract violation (attempt %d/%d), retrying: %s",
-                            agent_num, attempt + 1, 1 + max_retries, exc.detail,
+                            agent_num,
+                            attempt + 1,
+                            1 + max_retries,
+                            exc.detail,
                         )
                         continue
                     # Final attempt failed
@@ -404,7 +416,10 @@ class AgentOrchestrator:
                     if attempt < max_retries:
                         logger.warning(
                             "Agent %d failed (attempt %d/%d), retrying: %s",
-                            agent_num, attempt + 1, 1 + max_retries, exc,
+                            agent_num,
+                            attempt + 1,
+                            1 + max_retries,
+                            exc,
                         )
                         continue
                     # Final attempt failed
@@ -414,10 +429,12 @@ class AgentOrchestrator:
             if last_error is not None:
                 results[key] = {"error": last_error, "status": "failed"}
                 failed_at = agent_num
-                ws_status[agent_num].update({
-                    "status":        "failed",
-                    "error_message": last_error,
-                })
+                ws_status[agent_num].update(
+                    {
+                        "status": "failed",
+                        "error_message": last_error,
+                    }
+                )
                 _broadcast("running", agent_num)
 
         # Update project status
@@ -429,26 +446,26 @@ class AgentOrchestrator:
                 project.status = "failed"
                 logger.error(
                     "Pipeline failed at Agent %d for project %d",
-                    failed_at, self.project_id,
+                    failed_at,
+                    self.project_id,
                 )
             self.db.commit()
 
-        pipeline_final_status = (
-            "completed" if failed_at is None else f"stopped_at_agent_{failed_at}"
-        )
+        pipeline_final_status = "completed" if failed_at is None else f"stopped_at_agent_{failed_at}"
         results["pipeline_status"] = pipeline_final_status
         results["pipeline_mode"] = effective_mode
 
         # Send email notification
         try:
             from apex.backend.services.email_service import send_pipeline_complete
+
             project = self.db.query(Project).filter(Project.id == self.project_id).first()
             if project and project.owner:
                 success = failed_at is None
                 error_msg = None
                 if not success:
                     # Find first failed agent
-                    for k, v in results.items():
+                    for _k, v in results.items():
                         if isinstance(v, dict) and v.get("status") == "failed":
                             error_msg = v.get("error", "Unknown error")
                             break
@@ -464,33 +481,39 @@ class AgentOrchestrator:
 
         # Final WebSocket event
         if failed_at is None:
-            ws_manager.broadcast_sync(self.project_id, {
-                "type":             "pipeline_complete",
-                "project_id":       self.project_id,
-                "pipeline_id":      pipeline_id,
-                "pipeline_mode":    effective_mode,
-                "status":           "completed",
-                "agents":           list(ws_status.values()),
-                "skipped_agents":   skipped_agents,
-                "total_elapsed_ms": _elapsed_ms(),
-            })
+            ws_manager.broadcast_sync(
+                self.project_id,
+                {
+                    "type": "pipeline_complete",
+                    "project_id": self.project_id,
+                    "pipeline_id": pipeline_id,
+                    "pipeline_mode": effective_mode,
+                    "status": "completed",
+                    "agents": list(ws_status.values()),
+                    "skipped_agents": skipped_agents,
+                    "total_elapsed_ms": _elapsed_ms(),
+                },
+            )
             # Email notification — fire-and-forget (errors logged, never raised)
             try:
                 self._notify_pipeline_complete(results)
             except Exception as _e:
                 logger.warning("Email notification failed: %s", _e)
         else:
-            ws_manager.broadcast_sync(self.project_id, {
-                "type":             "pipeline_error",
-                "project_id":       self.project_id,
-                "pipeline_id":      pipeline_id,
-                "pipeline_mode":    effective_mode,
-                "status":           "failed",
-                "failed_at_agent":  failed_at,
-                "agents":           list(ws_status.values()),
-                "skipped_agents":   skipped_agents,
-                "total_elapsed_ms": _elapsed_ms(),
-            })
+            ws_manager.broadcast_sync(
+                self.project_id,
+                {
+                    "type": "pipeline_error",
+                    "project_id": self.project_id,
+                    "pipeline_id": pipeline_id,
+                    "pipeline_mode": effective_mode,
+                    "status": "failed",
+                    "failed_at_agent": failed_at,
+                    "agents": list(ws_status.values()),
+                    "skipped_agents": skipped_agents,
+                    "total_elapsed_ms": _elapsed_ms(),
+                },
+            )
 
         return results
 
@@ -501,12 +524,13 @@ class AgentOrchestrator:
     def _notify_pipeline_complete(self, results: dict):
         """Send pipeline-complete email to the project owner (if NOTIFICATIONS_ENABLED)."""
         import os
+
         if os.getenv("NOTIFICATIONS_ENABLED", "false").lower() not in ("true", "1", "yes"):
             return
 
-        from apex.backend.services.email_service import notify_pipeline_complete
         from apex.backend.models.estimate import Estimate
         from apex.backend.models.user import User
+        from apex.backend.services.email_service import notify_pipeline_complete
 
         project = self.db.query(Project).filter(Project.id == self.project_id).first()
         if not project:
@@ -560,11 +584,7 @@ class AgentOrchestrator:
             .subquery()
         )
 
-        latest_logs = (
-            self.db.query(AgentRunLog)
-            .join(subq, AgentRunLog.id == subq.c.max_id)
-            .all()
-        )
+        latest_logs = self.db.query(AgentRunLog).join(subq, AgentRunLog.id == subq.c.max_id).all()
 
         log_by_num = {log.agent_number: log for log in latest_logs}
 
@@ -574,27 +594,31 @@ class AgentOrchestrator:
             log = log_by_num.get(agent_num)
 
             if log is None:
-                statuses.append({
-                    "agent_number":   agent_num,
-                    "agent_name":     agent_name,
-                    "status":         "pending",
-                    "started_at":     None,
-                    "completed_at":   None,
-                    "duration_seconds": None,
-                    "error_message":  None,
-                    "output_summary": None,
-                })
+                statuses.append(
+                    {
+                        "agent_number": agent_num,
+                        "agent_name": agent_name,
+                        "status": "pending",
+                        "started_at": None,
+                        "completed_at": None,
+                        "duration_seconds": None,
+                        "error_message": None,
+                        "output_summary": None,
+                    }
+                )
             else:
-                statuses.append({
-                    "agent_number":   agent_num,
-                    "agent_name":     agent_name,
-                    "status":         log.status,
-                    "started_at":     log.started_at.isoformat() if log.started_at else None,
-                    "completed_at":   log.completed_at.isoformat() if log.completed_at else None,
-                    "duration_seconds": log.duration_seconds,
-                    "error_message":  log.error_message,
-                    "output_summary": log.output_summary,
-                })
+                statuses.append(
+                    {
+                        "agent_number": agent_num,
+                        "agent_name": agent_name,
+                        "status": log.status,
+                        "started_at": log.started_at.isoformat() if log.started_at else None,
+                        "completed_at": log.completed_at.isoformat() if log.completed_at else None,
+                        "duration_seconds": log.duration_seconds,
+                        "error_message": log.error_message,
+                        "output_summary": log.output_summary,
+                    }
+                )
 
         return statuses
 
@@ -609,6 +633,7 @@ class AgentOrchestrator:
 
         agent_name, module_path, fn_name = AGENT_DEFINITIONS[agent_number]
         import importlib
+
         module = importlib.import_module(module_path)
         agent_fn = getattr(module, fn_name)
 
@@ -618,9 +643,9 @@ class AgentOrchestrator:
             summary = str(result.get(list(result.keys())[0], "")) if result else "Done"
             self._log_complete(log, summary, output_data=result)
             return {
-                "agent_number":     agent_number,
-                "agent_name":       agent_name,
-                "output":           result,
+                "agent_number": agent_number,
+                "agent_name": agent_name,
+                "output": result,
                 "duration_seconds": log.duration_seconds,
             }
         except Exception as exc:

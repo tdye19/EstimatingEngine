@@ -8,29 +8,54 @@ Supports three formats:
 """
 
 import hashlib
-import pandas as pd
 
+import pandas as pd
 
 # ── Column mappings ported from productivity_brain/scripts/ingest.py ──
 
 FORMAT_26_COLS = {
-    "wbs": 1, "desc": 3, "qty": 4, "unit": 5, "prod": 6, "prod_unit": 7,
-    "crew": 8, "labor_hrs": 10, "labor_up": 11, "mat_up": 12,
-    "equip_up": 17, "subs_up": 18,
-    "labor_total": 19, "mat_total": 20, "equip_total": 21, "subs_total": 22,
+    "wbs": 1,
+    "desc": 3,
+    "qty": 4,
+    "unit": 5,
+    "prod": 6,
+    "prod_unit": 7,
+    "crew": 8,
+    "labor_hrs": 10,
+    "labor_up": 11,
+    "mat_up": 12,
+    "equip_up": 17,
+    "subs_up": 18,
+    "labor_total": 19,
+    "mat_total": 20,
+    "equip_total": 21,
+    "subs_total": 22,
     "grand_total": 25,
 }
 
 FORMAT_21_COLS = {
-    "wbs": 1, "desc": 2, "qty": 3, "unit": 4, "crew": 5, "prod": 6,
-    "prod_unit": 7, "labor_hrs": 8, "labor_up": 9, "mat_up": 10,
-    "equip_up": 12, "subs_up": 13,
-    "labor_total": 14, "mat_total": 15, "equip_total": 16, "subs_total": 17,
+    "wbs": 1,
+    "desc": 2,
+    "qty": 3,
+    "unit": 4,
+    "crew": 5,
+    "prod": 6,
+    "prod_unit": 7,
+    "labor_hrs": 8,
+    "labor_up": 9,
+    "mat_up": 10,
+    "equip_up": 12,
+    "subs_up": 13,
+    "labor_total": 14,
+    "mat_total": 15,
+    "equip_total": 16,
+    "subs_total": 17,
     "grand_total": 20,
 }
 
 
 # ── Helpers ──
+
 
 def _safe_float(val):
     if pd.isna(val):
@@ -57,6 +82,7 @@ def _clean_dash(val):
 
 
 # ── Public API ──
+
 
 def compute_file_hash(filepath: str) -> str:
     """MD5 hash of file contents for dedup."""
@@ -105,20 +131,22 @@ def parse_26col(filepath: str) -> list[dict]:
         if desc is None:
             continue
 
-        items.append({
-            "wbs_area": _safe_str(row[cols["wbs"]]),
-            "activity": desc,
-            "quantity": _safe_float(row[cols["qty"]]),
-            "unit": _safe_str(row[cols["unit"]]),
-            "crew_trade": _safe_str(row[cols["crew"]]),
-            "production_rate": _safe_float(row[cols["prod"]]),
-            "labor_hours": _safe_float(row[cols["labor_hrs"]]),
-            "labor_cost_per_unit": _safe_float(row[cols["labor_up"]]),
-            "material_cost_per_unit": _safe_float(row[cols["mat_up"]]),
-            "equipment_cost": _safe_float(row[cols["equip_up"]]),
-            "sub_cost": _safe_float(row[cols["subs_up"]]),
-            "total_cost": _safe_float(row[cols["grand_total"]]),
-        })
+        items.append(
+            {
+                "wbs_area": _safe_str(row[cols["wbs"]]),
+                "activity": desc,
+                "quantity": _safe_float(row[cols["qty"]]),
+                "unit": _safe_str(row[cols["unit"]]),
+                "crew_trade": _safe_str(row[cols["crew"]]),
+                "production_rate": _safe_float(row[cols["prod"]]),
+                "labor_hours": _safe_float(row[cols["labor_hrs"]]),
+                "labor_cost_per_unit": _safe_float(row[cols["labor_up"]]),
+                "material_cost_per_unit": _safe_float(row[cols["mat_up"]]),
+                "equipment_cost": _safe_float(row[cols["equip_up"]]),
+                "sub_cost": _safe_float(row[cols["subs_up"]]),
+                "total_cost": _safe_float(row[cols["grand_total"]]),
+            }
+        )
 
     return items
 
@@ -135,20 +163,22 @@ def parse_21col(filepath: str) -> list[dict]:
         if desc is None:
             continue
 
-        items.append({
-            "wbs_area": _safe_str(row[cols["wbs"]]),
-            "activity": desc,
-            "quantity": _safe_float(row[cols["qty"]]),
-            "unit": _safe_str(row[cols["unit"]]),
-            "crew_trade": _safe_str(row[cols["crew"]]),
-            "production_rate": _safe_float(row[cols["prod"]]),
-            "labor_hours": _safe_float(row[cols["labor_hrs"]]),
-            "labor_cost_per_unit": _safe_float(row[cols["labor_up"]]),
-            "material_cost_per_unit": _safe_float(row[cols["mat_up"]]),
-            "equipment_cost": _safe_float(row[cols["equip_up"]]),
-            "sub_cost": _safe_float(row[cols["subs_up"]]),
-            "total_cost": _safe_float(row[cols["grand_total"]]),
-        })
+        items.append(
+            {
+                "wbs_area": _safe_str(row[cols["wbs"]]),
+                "activity": desc,
+                "quantity": _safe_float(row[cols["qty"]]),
+                "unit": _safe_str(row[cols["unit"]]),
+                "crew_trade": _safe_str(row[cols["crew"]]),
+                "production_rate": _safe_float(row[cols["prod"]]),
+                "labor_hours": _safe_float(row[cols["labor_hrs"]]),
+                "labor_cost_per_unit": _safe_float(row[cols["labor_up"]]),
+                "material_cost_per_unit": _safe_float(row[cols["mat_up"]]),
+                "equipment_cost": _safe_float(row[cols["equip_up"]]),
+                "sub_cost": _safe_float(row[cols["subs_up"]]),
+                "total_cost": _safe_float(row[cols["grand_total"]]),
+            }
+        )
 
     return items
 

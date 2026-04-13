@@ -5,9 +5,18 @@ Every section annotation (§N.N) maps to that document.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import relationship
 
@@ -19,13 +28,15 @@ def _uuid() -> str:
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ─── Comparable projects (historical memory) ────────────────────────────────
 
+
 class ComparableProject(Base):
     """Historical project used for context-aware benchmarking. §9.8"""
+
     __tablename__ = "comparable_projects"
 
     id = Column(String(36), primary_key=True, default=_uuid)
@@ -33,8 +44,8 @@ class ComparableProject(Base):
     client = Column(String(255), nullable=True)
     location = Column(String(500), nullable=True)
     # Date range — both required for recency weighting
-    start_date = Column(Date, nullable=True)       # §9.8
-    end_date = Column(Date, nullable=True)         # §9.8
+    start_date = Column(Date, nullable=True)  # §9.8
+    end_date = Column(Date, nullable=True)  # §9.8
     completed_date = Column(DateTime, nullable=True)
     final_contract_value = Column(Float, nullable=True)
     # Context fields — mandatory for context-aware filtering (§10)
@@ -44,7 +55,7 @@ class ComparableProject(Base):
     delivery_method = Column(String(50), nullable=True)
     contract_type = Column(String(50), nullable=True)
     size_sf = Column(Float, nullable=True)
-    scope_types = Column(Text, nullable=True)       # JSON array
+    scope_types = Column(Text, nullable=True)  # JSON array
     complexity_level = Column(String(20), nullable=True)
     schedule_pressure = Column(String(20), nullable=True)
     data_quality_score = Column(Float, default=0.5)
@@ -64,25 +75,22 @@ class ComparableProject(Base):
 
 class HistoricalRateObservation(Base):
     """Activity-level rate observation from a comparable project. §9.9"""
+
     __tablename__ = "historical_rate_observations"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    comparable_project_id = Column(
-        String(36), ForeignKey("comparable_projects.id"), nullable=False
-    )
-    canonical_activity_id = Column(
-        String(36), ForeignKey("canonical_activities.id"), nullable=True
-    )
+    comparable_project_id = Column(String(36), ForeignKey("comparable_projects.id"), nullable=False)
+    canonical_activity_id = Column(String(36), ForeignKey("canonical_activities.id"), nullable=True)
     raw_activity_name = Column(String(500), nullable=False)
     division_code = Column(String(20), nullable=True)
     quantity = Column(Float, nullable=True)
     unit = Column(String(20), nullable=True)
     # Rates per unit — separate from totals so benchmarking can compare apples-to-apples
-    unit_cost = Column(Float, nullable=True)        # total unit cost
-    labor_rate = Column(Float, nullable=True)       # §9.9 labor per unit
-    material_rate = Column(Float, nullable=True)    # §9.9 material per unit
-    equipment_rate = Column(Float, nullable=True)   # §9.9 equipment per unit
-    subcontract_rate = Column(Float, nullable=True) # §9.9 sub per unit
+    unit_cost = Column(Float, nullable=True)  # total unit cost
+    labor_rate = Column(Float, nullable=True)  # §9.9 labor per unit
+    material_rate = Column(Float, nullable=True)  # §9.9 material per unit
+    equipment_rate = Column(Float, nullable=True)  # §9.9 equipment per unit
+    subcontract_rate = Column(Float, nullable=True)  # §9.9 sub per unit
     # Totals (kept for import compatibility)
     total_cost = Column(Float, nullable=True)
     labor_cost = Column(Float, nullable=True)
@@ -93,22 +101,22 @@ class HistoricalRateObservation(Base):
     production_rate_unit = Column(String(50), nullable=True)
     # Quality and recency signals
     observation_date = Column(Date, nullable=True)  # §9.9 — for recency decay
-    recency_weight = Column(Float, default=1.0)     # §9.9 — computed from observation_date
+    recency_weight = Column(Float, default=1.0)  # §9.9 — computed from observation_date
     data_quality_score = Column(Float, default=0.5)
-    quality_weight = Column(Float, default=1.0)     # §9.9 — separate from data_quality_score
+    quality_weight = Column(Float, default=1.0)  # §9.9 — separate from data_quality_score
     source_system = Column(String(100), nullable=True)  # §9.9 — winest | pb | manual
     source_row = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=_now)
 
-    comparable_project = relationship(
-        "ComparableProject", back_populates="rate_observations"
-    )
+    comparable_project = relationship("ComparableProject", back_populates="rate_observations")
 
 
 # ─── Canonical ontology ──────────────────────────────────────────────────────
 
+
 class CanonicalActivity(Base):
     """Controlled vocabulary entry for estimating work items. §11"""
+
     __tablename__ = "canonical_activities"
 
     id = Column(String(36), primary_key=True, default=_uuid)
@@ -131,14 +139,13 @@ class CanonicalActivity(Base):
 
 class ActivityAlias(Base):
     """Known alternative names/spellings for a canonical activity. §11"""
+
     __tablename__ = "activity_aliases"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    canonical_activity_id = Column(
-        String(36), ForeignKey("canonical_activities.id"), nullable=False
-    )
+    canonical_activity_id = Column(String(36), ForeignKey("canonical_activities.id"), nullable=False)
     alias = Column(String(500), nullable=False)
-    source = Column(String(50), nullable=True)   # winest | pb | manual | llm
+    source = Column(String(50), nullable=True)  # winest | pb | manual | llm
     confidence = Column(Float, default=1.0)
 
     canonical_activity = relationship("CanonicalActivity", back_populates="aliases")
@@ -146,8 +153,10 @@ class ActivityAlias(Base):
 
 # ─── Versioned estimate runs ─────────────────────────────────────────────────
 
+
 class EstimateRun(Base):
     """One full analysis pass for a project. §9.2"""
+
     __tablename__ = "estimate_runs"
 
     id = Column(String(36), primary_key=True, default=_uuid)
@@ -170,39 +179,25 @@ class EstimateRun(Base):
     total_fee = Column(Float, nullable=True)
     final_bid_value = Column(Float, nullable=True)
 
-    scope_items = relationship(
-        "ScopeItem", back_populates="estimate_run", cascade="all, delete-orphan"
-    )
-    quantity_items = relationship(
-        "QuantityItem", back_populates="estimate_run", cascade="all, delete-orphan"
-    )
-    benchmark_results = relationship(
-        "BenchmarkResult", back_populates="estimate_run", cascade="all, delete-orphan"
-    )
-    estimate_lines = relationship(
-        "EstimateLine", back_populates="estimate_run", cascade="all, delete-orphan"
-    )
-    risk_items = relationship(
-        "RiskItem", back_populates="estimate_run", cascade="all, delete-orphan"
-    )
-    escalation_inputs = relationship(
-        "EscalationInput", back_populates="estimate_run", cascade="all, delete-orphan"
-    )
+    scope_items = relationship("ScopeItem", back_populates="estimate_run", cascade="all, delete-orphan")
+    quantity_items = relationship("QuantityItem", back_populates="estimate_run", cascade="all, delete-orphan")
+    benchmark_results = relationship("BenchmarkResult", back_populates="estimate_run", cascade="all, delete-orphan")
+    estimate_lines = relationship("EstimateLine", back_populates="estimate_run", cascade="all, delete-orphan")
+    risk_items = relationship("RiskItem", back_populates="estimate_run", cascade="all, delete-orphan")
+    escalation_inputs = relationship("EscalationInput", back_populates="estimate_run", cascade="all, delete-orphan")
     cost_breakdown_buckets = relationship(
         "CostBreakdownBucket", back_populates="estimate_run", cascade="all, delete-orphan"
     )
-    schedule_scenarios = relationship(
-        "ScheduleScenario", back_populates="estimate_run", cascade="all, delete-orphan"
-    )
-    overrides = relationship(
-        "EstimatorOverride", back_populates="estimate_run", cascade="all, delete-orphan"
-    )
+    schedule_scenarios = relationship("ScheduleScenario", back_populates="estimate_run", cascade="all, delete-orphan")
+    overrides = relationship("EstimatorOverride", back_populates="estimate_run", cascade="all, delete-orphan")
 
 
 # ─── Source traceability ─────────────────────────────────────────────────────
 
+
 class SourceReference(Base):
     """Page/section-level pointer back to a source document. §9.4 / §3.3"""
+
     __tablename__ = "source_references"
 
     id = Column(String(36), primary_key=True, default=_uuid)
@@ -217,20 +212,24 @@ class SourceReference(Base):
 
 # ─── Scope items ─────────────────────────────────────────────────────────────
 
+
 class ScopeItem(Base):
     """Canonical work item extracted from project scope. §9.5"""
+
     __tablename__ = "scope_items"
 
     SCOPE_STATUSES = (
-        "included_explicit", "included_implied", "likely_missing",
-        "excluded", "review_required", "not_applicable",
+        "included_explicit",
+        "included_implied",
+        "likely_missing",
+        "excluded",
+        "review_required",
+        "not_applicable",
     )
 
     id = Column(String(36), primary_key=True, default=_uuid)
     estimate_run_id = Column(String(36), ForeignKey("estimate_runs.id"), nullable=False)
-    canonical_activity_id = Column(
-        String(36), ForeignKey("canonical_activities.id"), nullable=True
-    )
+    canonical_activity_id = Column(String(36), ForeignKey("canonical_activities.id"), nullable=True)
     canonical_name = Column(String(255), nullable=False)
     division_code = Column(String(20), nullable=True)
     work_package = Column(String(100), nullable=True)
@@ -242,23 +241,18 @@ class ScopeItem(Base):
     created_at = Column(DateTime, default=_now)
 
     estimate_run = relationship("EstimateRun", back_populates="scope_items")
-    evidence = relationship(
-        "ScopeItemEvidence", back_populates="scope_item", cascade="all, delete-orphan"
-    )
-    quantity_items = relationship(
-        "QuantityItem", back_populates="scope_item", cascade="all, delete-orphan"
-    )
+    evidence = relationship("ScopeItemEvidence", back_populates="scope_item", cascade="all, delete-orphan")
+    quantity_items = relationship("QuantityItem", back_populates="scope_item", cascade="all, delete-orphan")
 
 
 class ScopeItemEvidence(Base):
     """Links a ScopeItem to its source references. §9.6"""
+
     __tablename__ = "scope_item_evidence"
 
     id = Column(String(36), primary_key=True, default=_uuid)
     scope_item_id = Column(String(36), ForeignKey("scope_items.id"), nullable=False)
-    source_reference_id = Column(
-        String(36), ForeignKey("source_references.id"), nullable=True
-    )
+    source_reference_id = Column(String(36), ForeignKey("source_references.id"), nullable=True)
     evidence_type = Column(String(30), nullable=True)
     # explicit | implied | dependency_rule | checklist
     confidence = Column(Float, default=1.0)
@@ -269,8 +263,10 @@ class ScopeItemEvidence(Base):
 
 # ─── Quantities ──────────────────────────────────────────────────────────────
 
+
 class QuantityItem(Base):
     """Estimator-provided or takeoff-parsed quantity for a scope item. §9.7"""
+
     __tablename__ = "quantity_items"
 
     id = Column(String(36), primary_key=True, default=_uuid)
@@ -280,9 +276,7 @@ class QuantityItem(Base):
     unit = Column(String(20), nullable=True)
     source = Column(String(50), nullable=True)
     # takeoff_import | manual | parsed_drawing | estimated
-    source_reference_id = Column(
-        String(36), ForeignKey("source_references.id"), nullable=True
-    )
+    source_reference_id = Column(String(36), ForeignKey("source_references.id"), nullable=True)
     quantity_confidence = Column(Float, default=0.5)
     missing_flag = Column(Boolean, default=False)
     created_at = Column(DateTime, default=_now)
@@ -293,20 +287,20 @@ class QuantityItem(Base):
 
 # ─── Benchmarking ────────────────────────────────────────────────────────────
 
+
 class BenchmarkResult(Base):
     """Computed percentile distribution for one scope item. §9.10 / §12.4"""
+
     __tablename__ = "benchmark_results"
 
     id = Column(String(36), primary_key=True, default=_uuid)
     estimate_run_id = Column(String(36), ForeignKey("estimate_runs.id"), nullable=False)
     scope_item_id = Column(String(36), ForeignKey("scope_items.id"), nullable=True)
-    canonical_activity_id = Column(
-        String(36), ForeignKey("canonical_activities.id"), nullable=True
-    )
+    canonical_activity_id = Column(String(36), ForeignKey("canonical_activities.id"), nullable=True)
     # Snapshot of context filters used — required for audit (§3.3)
     comparable_filter_json = Column(Text, nullable=True)
     sample_size = Column(Integer, default=0)
-    p10 = Column(Float, nullable=True)   # §12.4 — required
+    p10 = Column(Float, nullable=True)  # §12.4 — required
     p25 = Column(Float, nullable=True)
     p50 = Column(Float, nullable=True)
     p75 = Column(Float, nullable=True)
@@ -323,17 +317,17 @@ class BenchmarkResult(Base):
 
 # ─── Estimate lines ──────────────────────────────────────────────────────────
 
+
 class EstimateLine(Base):
     """Reviewable estimate line item. §9.11"""
+
     __tablename__ = "decision_estimate_lines"
 
     id = Column(String(36), primary_key=True, default=_uuid)
     # Versioned run — not raw project FK (§9.11)
     estimate_run_id = Column(String(36), ForeignKey("estimate_runs.id"), nullable=False)
     scope_item_id = Column(String(36), ForeignKey("scope_items.id"), nullable=True)
-    benchmark_result_id = Column(
-        String(36), ForeignKey("benchmark_results.id"), nullable=True
-    )
+    benchmark_result_id = Column(String(36), ForeignKey("benchmark_results.id"), nullable=True)
     description = Column(String(500), nullable=False)
     division_code = Column(String(20), nullable=True)
     quantity = Column(Float, nullable=False)
@@ -376,20 +370,31 @@ class EstimateLine(Base):
 
 # ─── Commercial structure ────────────────────────────────────────────────────
 
+
 class CostBreakdownBucket(Base):
     """Commercial rollup bucket — keyed to an estimate run. §9.12"""
+
     __tablename__ = "cost_breakdown_buckets"
 
     BUCKET_TYPES = (
-        "direct_labor", "direct_material", "direct_equipment", "subcontract",
-        "general_conditions", "temporary_facilities", "supervision", "logistics",
-        "permits", "testing", "contingency", "escalation", "overhead", "fee",
+        "direct_labor",
+        "direct_material",
+        "direct_equipment",
+        "subcontract",
+        "general_conditions",
+        "temporary_facilities",
+        "supervision",
+        "logistics",
+        "permits",
+        "testing",
+        "contingency",
+        "escalation",
+        "overhead",
+        "fee",
     )
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    estimate_run_id = Column(
-        String(36), ForeignKey("estimate_runs.id"), nullable=False
-    )
+    estimate_run_id = Column(String(36), ForeignKey("estimate_runs.id"), nullable=False)
     bucket_type = Column(String(50), nullable=False)
     amount = Column(Float, default=0.0)
     method = Column(String(50), nullable=True)
@@ -401,21 +406,27 @@ class CostBreakdownBucket(Base):
 
 # ─── Risk ────────────────────────────────────────────────────────────────────
 
+
 class RiskItem(Base):
     """Explicit estimate risk item. §9.13 / §17"""
+
     __tablename__ = "decision_risk_items"
 
     CATEGORIES = (
-        "scope_ambiguity", "design_incompleteness", "procurement_risk",
-        "schedule_compression", "market_volatility", "labor_availability",
-        "site_logistics", "subsurface_uncertainty", "owner_decision_risk",
+        "scope_ambiguity",
+        "design_incompleteness",
+        "procurement_risk",
+        "schedule_compression",
+        "market_volatility",
+        "labor_availability",
+        "site_logistics",
+        "subsurface_uncertainty",
+        "owner_decision_risk",
         "permit_utility_coordination",
     )
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    estimate_run_id = Column(
-        String(36), ForeignKey("estimate_runs.id"), nullable=False
-    )
+    estimate_run_id = Column(String(36), ForeignKey("estimate_runs.id"), nullable=False)
     name = Column(String(255), nullable=False)
     category = Column(String(50), nullable=True)
     probability = Column(Float, default=0.5)
@@ -425,52 +436,54 @@ class RiskItem(Base):
     mitigation = Column(Text, nullable=True)
     source = Column(String(50), nullable=True)  # scope_gap | checklist | estimator | system
     # Traceability
-    linked_scope_item_id = Column(
-        String(36), ForeignKey("scope_items.id"), nullable=True
-    )
-    source_reference_id = Column(
-        String(36), ForeignKey("source_references.id"), nullable=True
-    )
+    linked_scope_item_id = Column(String(36), ForeignKey("scope_items.id"), nullable=True)
+    source_reference_id = Column(String(36), ForeignKey("source_references.id"), nullable=True)
 
     estimate_run = relationship("EstimateRun", back_populates="risk_items")
 
 
 # ─── Escalation ──────────────────────────────────────────────────────────────
 
+
 class EscalationInput(Base):
     """Category-specific escalation assumption. §9.15 / §18"""
+
     __tablename__ = "escalation_inputs"
 
     CATEGORIES = (
-        "concrete", "steel", "rebar", "asphalt", "fuel",
-        "electrical_commodities", "specialty_systems", "subcontractor_market",
+        "concrete",
+        "steel",
+        "rebar",
+        "asphalt",
+        "fuel",
+        "electrical_commodities",
+        "specialty_systems",
+        "subcontractor_market",
     )
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    estimate_run_id = Column(
-        String(36), ForeignKey("estimate_runs.id"), nullable=False
-    )
+    estimate_run_id = Column(String(36), ForeignKey("estimate_runs.id"), nullable=False)
     category = Column(String(50), nullable=True)
-    base_index = Column(Float, nullable=True)           # starting cost index value
-    escalation_rate = Column(Float, default=0.03)       # annual rate, e.g. 0.04 = 4%
-    start_date = Column(Date, nullable=True)            # when cost exposure begins
-    procurement_date = Column(Date, nullable=True)      # when material is locked in
-    install_date = Column(Date, nullable=True)          # when material is installed
-    escalation_amount = Column(Float, nullable=True)    # computed: base × rate × duration
+    base_index = Column(Float, nullable=True)  # starting cost index value
+    escalation_rate = Column(Float, default=0.03)  # annual rate, e.g. 0.04 = 4%
+    start_date = Column(Date, nullable=True)  # when cost exposure begins
+    procurement_date = Column(Date, nullable=True)  # when material is locked in
+    install_date = Column(Date, nullable=True)  # when material is installed
+    escalation_amount = Column(Float, nullable=True)  # computed: base × rate × duration
 
     estimate_run = relationship("EstimateRun", back_populates="escalation_inputs")
 
 
 # ─── Schedule scenarios ──────────────────────────────────────────────────────
 
+
 class ScheduleScenario(Base):
     """Schedule assumptions and their cost impact. §9.14 / §12.7 / §19"""
+
     __tablename__ = "schedule_scenarios"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    estimate_run_id = Column(
-        String(36), ForeignKey("estimate_runs.id"), nullable=False
-    )
+    estimate_run_id = Column(String(36), ForeignKey("estimate_runs.id"), nullable=False)
     planned_duration_days = Column(Integer, nullable=True)
     aggressive_duration_days = Column(Integer, nullable=True)
     conservative_duration_days = Column(Integer, nullable=True)
@@ -485,17 +498,15 @@ class ScheduleScenario(Base):
 
 # ─── Estimator overrides (learning loop) ─────────────────────────────────────
 
+
 class EstimatorOverride(Base):
     """Captured estimator change. §9.16 / §21"""
+
     __tablename__ = "estimator_overrides"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    estimate_run_id = Column(
-        String(36), ForeignKey("estimate_runs.id"), nullable=False
-    )
-    estimate_line_id = Column(
-        String(36), ForeignKey("decision_estimate_lines.id"), nullable=False
-    )
+    estimate_run_id = Column(String(36), ForeignKey("estimate_runs.id"), nullable=False)
+    estimate_line_id = Column(String(36), ForeignKey("decision_estimate_lines.id"), nullable=False)
     original_value = Column(Float, nullable=False)
     overridden_value = Column(Float, nullable=False)
     override_type = Column(String(30), nullable=False)
@@ -512,15 +523,15 @@ class EstimatorOverride(Base):
 
 # ─── Bid outcomes ────────────────────────────────────────────────────────────
 
+
 class BidOutcome(Base):
     """Post-bid result — closes the learning loop. §9.17 / §21"""
+
     __tablename__ = "bid_outcomes"
 
     id = Column(String(36), primary_key=True, default=_uuid)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    estimate_run_id = Column(
-        String(36), ForeignKey("estimate_runs.id"), nullable=True
-    )
+    estimate_run_id = Column(String(36), ForeignKey("estimate_runs.id"), nullable=True)
     outcome = Column(String(20), nullable=True)  # won | lost | no_bid | pending
     final_bid_submitted = Column(Float, nullable=True)
     winning_bid_value = Column(Float, nullable=True)
@@ -531,14 +542,14 @@ class BidOutcome(Base):
 
 # ─── Field actuals ───────────────────────────────────────────────────────────
 
+
 class FieldActual(Base):
     """Project actuals after execution — feeds back into comparable data. §9.18"""
+
     __tablename__ = "field_actuals"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    comparable_project_id = Column(
-        String(36), ForeignKey("comparable_projects.id"), nullable=False
-    )
+    comparable_project_id = Column(String(36), ForeignKey("comparable_projects.id"), nullable=False)
     canonical_activity_name = Column(String(255), nullable=True)
     quantity = Column(Float, nullable=True)
     unit = Column(String(20), nullable=True)
@@ -550,6 +561,4 @@ class FieldActual(Base):
     source_system = Column(String(100), nullable=True)  # §9.18
     data_quality_score = Column(Float, default=0.5)
 
-    comparable_project = relationship(
-        "ComparableProject", back_populates="field_actuals"
-    )
+    comparable_project = relationship("ComparableProject", back_populates="field_actuals")

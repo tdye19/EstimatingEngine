@@ -4,7 +4,6 @@ identify pricing patterns and institutional knowledge."""
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import Optional
 
 from apex.backend.db.database import get_db
 from apex.backend.models.estimate import Estimate
@@ -21,7 +20,7 @@ router = APIRouter(
 
 @router.get("/projects", response_model=APIResponse)
 def benchmark_projects(
-    project_type: Optional[str] = Query(None),
+    project_type: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
@@ -52,8 +51,7 @@ def benchmark_projects(
         db.query(Estimate)
         .join(
             latest_version,
-            (Estimate.project_id == latest_version.c.project_id)
-            & (Estimate.version == latest_version.c.max_version),
+            (Estimate.project_id == latest_version.c.project_id) & (Estimate.version == latest_version.c.max_version),
         )
         .filter(Estimate.is_deleted == False)  # noqa: E712
         .all()
@@ -112,7 +110,7 @@ def benchmark_projects(
 
 @router.get("/division-trends", response_model=APIResponse)
 def division_cost_trends(
-    project_type: Optional[str] = Query(None),
+    project_type: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """Return average % of total cost per CSI division across all projects — useful for
@@ -140,8 +138,7 @@ def division_cost_trends(
         db.query(Estimate)
         .join(
             latest_version,
-            (Estimate.project_id == latest_version.c.project_id)
-            & (Estimate.version == latest_version.c.max_version),
+            (Estimate.project_id == latest_version.c.project_id) & (Estimate.version == latest_version.c.max_version),
         )
         .filter(Estimate.is_deleted == False)  # noqa: E712
         .all()

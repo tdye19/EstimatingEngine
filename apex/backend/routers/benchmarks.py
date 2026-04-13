@@ -2,14 +2,13 @@
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from typing import Optional
 
 from apex.backend.db.database import get_db
 from apex.backend.models.productivity_benchmark import ProductivityBenchmark
 from apex.backend.models.user import User
+from apex.backend.services.benchmark_engine import compute_benchmarks, get_benchmark_summary
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
-from apex.backend.services.benchmark_engine import compute_benchmarks, get_benchmark_summary
 
 router = APIRouter(
     prefix="/api/benchmarks",
@@ -54,9 +53,9 @@ def benchmark_summary(
 
 @router.get("/", response_model=APIResponse)
 def list_benchmarks(
-    csi_division: Optional[str] = Query(None, description="Two-digit CSI division, e.g. '03'"),
-    project_type: Optional[str] = Query(None),
-    region: Optional[str] = Query(None),
+    csi_division: str | None = Query(None, description="Two-digit CSI division, e.g. '03'"),
+    project_type: str | None = Query(None),
+    region: str | None = Query(None),
     current_user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ):

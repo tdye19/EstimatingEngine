@@ -1,6 +1,7 @@
 """DocumentGroup and DocumentAssociation models."""
 
 from datetime import datetime
+
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -30,9 +31,20 @@ class DocumentAssociation(Base):
     __tablename__ = "document_associations"
 
     VALID_ROLES = {
-        "spec", "winest_bid", "rfi", "addendum", "schedule", "submittal",
-        "manual", "plans", "blueprints", "as_built", "change_order",
-        "bid_tab", "subcontractor_quote", "other",
+        "spec",
+        "winest_bid",
+        "rfi",
+        "addendum",
+        "schedule",
+        "submittal",
+        "manual",
+        "plans",
+        "blueprints",
+        "as_built",
+        "change_order",
+        "bid_tab",
+        "subcontractor_quote",
+        "other",
     }
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
@@ -43,7 +55,7 @@ class DocumentAssociation(Base):
 
     document_role = Column(String(50), nullable=False)
     document_order = Column(Integer, nullable=True)
-    spec_sections_affected = Column(Text, nullable=True)   # JSON array of section numbers
+    spec_sections_affected = Column(Text, nullable=True)  # JSON array of section numbers
     related_csi_divisions = Column(String(200), nullable=True)  # comma-separated
     notes = Column(Text, nullable=True)
 

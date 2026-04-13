@@ -65,12 +65,10 @@ class BidIntelligenceService:
         bids_decided = awarded + closed
         hit_rate = round((awarded / bids_decided) * 100, 1) if bids_decided > 0 else 0.0
 
-        avg_bid = self.db.query(func.avg(BIEstimate.bid_amount)).filter(
-            BIEstimate.bid_amount.isnot(None)
-        ).scalar()
-        avg_contract = self.db.query(func.avg(BIEstimate.contract_amount)).filter(
-            BIEstimate.contract_amount.isnot(None)
-        ).scalar()
+        avg_bid = self.db.query(func.avg(BIEstimate.bid_amount)).filter(BIEstimate.bid_amount.isnot(None)).scalar()
+        avg_contract = (
+            self.db.query(func.avg(BIEstimate.contract_amount)).filter(BIEstimate.contract_amount.isnot(None)).scalar()
+        )
 
         return {
             "total_estimates": total,
@@ -197,13 +195,15 @@ class BidIntelligenceService:
             deltas = [r.bid_delta_pct for r in est_rows if r.bid_delta_pct is not None]
             avg_delta = round(sum(deltas) / len(deltas), 1) if deltas else None
 
-            results.append({
-                "estimator": est_name,
-                "total_bids": total,
-                "awarded": awarded,
-                "hit_rate": hit_rate,
-                "avg_bid_delta_pct": avg_delta,
-            })
+            results.append(
+                {
+                    "estimator": est_name,
+                    "total_bids": total,
+                    "awarded": awarded,
+                    "hit_rate": hit_rate,
+                    "avg_bid_delta_pct": avg_delta,
+                }
+            )
 
         return results
 
@@ -225,9 +225,7 @@ class BidIntelligenceService:
                 col.label("group_value"),
                 func.count(BIEstimate.id).label("total"),
                 func.sum(case((BIEstimate.status == "Awarded", 1), else_=0)).label("awarded"),
-                func.sum(
-                    case((BIEstimate.status.in_(["Awarded", "Closed"]), 1), else_=0)
-                ).label("decided"),
+                func.sum(case((BIEstimate.status.in_(["Awarded", "Closed"]), 1), else_=0)).label("decided"),
             )
             .filter(col.isnot(None))
             .group_by(col)

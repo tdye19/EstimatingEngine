@@ -35,11 +35,11 @@ def with_llm_retry(max_retries: int = 3, base_delay: float = 1.0):
                             try:
                                 delay = float(retry_after)
                             except (ValueError, TypeError):
-                                delay = base_delay * (2 ** attempt)
+                                delay = base_delay * (2**attempt)
                         else:
-                            delay = base_delay * (2 ** attempt)
+                            delay = base_delay * (2**attempt)
                     elif 500 <= status < 600:
-                        delay = base_delay * (2 ** attempt)
+                        delay = base_delay * (2**attempt)
                     else:
                         # 4xx (not 429) — don't retry
                         raise
@@ -47,7 +47,10 @@ def with_llm_retry(max_retries: int = 3, base_delay: float = 1.0):
                     if attempt < max_retries:
                         logger.warning(
                             "LLM call failed (HTTP %d), retry %d/%d in %.1fs",
-                            status, attempt + 1, max_retries, delay,
+                            status,
+                            attempt + 1,
+                            max_retries,
+                            delay,
                         )
                         await asyncio.sleep(delay)
                     else:
@@ -55,12 +58,15 @@ def with_llm_retry(max_retries: int = 3, base_delay: float = 1.0):
 
                 except (httpx.TransportError, httpx.TimeoutException) as exc:
                     last_exc = exc
-                    delay = base_delay * (2 ** attempt)
+                    delay = base_delay * (2**attempt)
 
                     if attempt < max_retries:
                         logger.warning(
                             "LLM call failed (%s), retry %d/%d in %.1fs",
-                            type(exc).__name__, attempt + 1, max_retries, delay,
+                            type(exc).__name__,
+                            attempt + 1,
+                            max_retries,
+                            delay,
                         )
                         await asyncio.sleep(delay)
                     else:
@@ -69,4 +75,5 @@ def with_llm_retry(max_retries: int = 3, base_delay: float = 1.0):
             raise last_exc  # pragma: no cover
 
         return wrapper
+
     return decorator

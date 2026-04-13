@@ -5,11 +5,10 @@ All math is deterministic Python — no LLM involved.
 
 import logging
 import statistics
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from apex.backend.models.sub_bid import SubBidPackage, SubBid, SubBidLineItem
+from apex.backend.models.sub_bid import SubBid, SubBidLineItem, SubBidPackage
 
 logger = logging.getLogger("apex.sub_bid")
 
@@ -37,8 +36,8 @@ class SubBidService:
         self,
         project_id: int,
         trade: str,
-        csi_division: Optional[str] = None,
-        base_scope_items: Optional[list] = None,
+        csi_division: str | None = None,
+        base_scope_items: list | None = None,
     ) -> SubBidPackage:
         pkg = SubBidPackage(
             project_id=project_id,
@@ -55,8 +54,8 @@ class SubBidService:
         self,
         package_id: int,
         subcontractor_name: str,
-        total_bid_amount: Optional[float] = None,
-        line_items: Optional[list[dict]] = None,
+        total_bid_amount: float | None = None,
+        line_items: list[dict] | None = None,
     ) -> SubBid:
         bid = SubBid(
             package_id=package_id,
@@ -126,7 +125,7 @@ class SubBidService:
             return {"error": "Need at least 2 bids to compare"}
 
         # Build price matrix: {description: {sub_name: total_cost}}
-        price_matrix: dict[str, dict[str, Optional[float]]] = {}
+        price_matrix: dict[str, dict[str, float | None]] = {}
         all_descriptions: set[str] = set()
 
         for bid in bids:
@@ -173,11 +172,7 @@ class SubBidService:
                 continue
             median_val = statistics.median(values)
             for bid in bids:
-                items = (
-                    self.db.query(SubBidLineItem)
-                    .filter(SubBidLineItem.bid_id == bid.id)
-                    .all()
-                )
+                items = self.db.query(SubBidLineItem).filter(SubBidLineItem.bid_id == bid.id).all()
                 for item in items:
                     item_desc = item.matched_scope_item or item.description
                     if item_desc == desc and item.total_cost is not None:

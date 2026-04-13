@@ -1,10 +1,8 @@
 """Bid Intelligence router — estimation history upload, analytics, and benchmarks."""
 
 import os
-from typing import Optional
 
 import aiofiles
-
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.orm import Session
 
@@ -58,9 +56,9 @@ def get_stats(db: Session = Depends(get_db)):
 
 @router.get("/benchmarks", response_model=APIResponse)
 def get_benchmarks(
-    market_sector: Optional[str] = Query(None),
-    region: Optional[str] = Query(None),
-    estimator: Optional[str] = Query(None),
+    market_sector: str | None = Query(None),
+    region: str | None = Query(None),
+    estimator: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """Cost benchmarks ($/CY, $/SF) with optional filters."""
@@ -77,9 +75,9 @@ def get_benchmarks(
 
 @router.get("/comparable", response_model=APIResponse)
 def get_comparable(
-    conc_vol_cy: Optional[float] = Query(None),
-    building_sf: Optional[float] = Query(None),
-    market_sector: Optional[str] = Query(None),
+    conc_vol_cy: float | None = Query(None),
+    building_sf: float | None = Query(None),
+    market_sector: str | None = Query(None),
     limit: int = Query(5, ge=1, le=20),
     db: Session = Depends(get_db),
 ):
@@ -98,7 +96,7 @@ def get_comparable(
 
 @router.get("/estimator-performance", response_model=APIResponse)
 def get_estimator_performance(
-    estimator: Optional[str] = Query(None),
+    estimator: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """Per-estimator performance stats."""
@@ -118,9 +116,9 @@ def get_hit_rate(
 
 @router.get("/estimates", response_model=APIResponse)
 def list_estimates(
-    status: Optional[str] = Query(None),
-    region: Optional[str] = Query(None),
-    market_sector: Optional[str] = Query(None),
+    status: str | None = Query(None),
+    region: str | None = Query(None),
+    market_sector: str | None = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -136,12 +134,7 @@ def list_estimates(
         q = q.filter(BIEstimate.market_sector == market_sector)
 
     total = q.count()
-    rows = (
-        q.order_by(BIEstimate.bid_date.desc().nullslast())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-        .all()
-    )
+    rows = q.order_by(BIEstimate.bid_date.desc().nullslast()).offset((page - 1) * per_page).limit(per_page).all()
 
     return APIResponse(
         success=True,

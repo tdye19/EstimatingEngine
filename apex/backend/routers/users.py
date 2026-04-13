@@ -1,13 +1,12 @@
 """Users management router — admin-only CRUD for user accounts and roles."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional
+from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.models.user import User
-from apex.backend.utils.auth import require_auth, require_role, hash_password
+from apex.backend.utils.auth import require_auth, require_role
 from apex.backend.utils.schemas import APIResponse, UserOut
 
 router = APIRouter(prefix="/api/users", tags=["users"], dependencies=[Depends(require_auth)])
@@ -24,7 +23,7 @@ class UserCreateAdmin(BaseModel):
     password: str
     full_name: str
     role: str = "estimator"
-    organization_id: Optional[int] = None
+    organization_id: int | None = None
 
 
 @router.get("", response_model=APIResponse, dependencies=[Depends(require_role("admin"))])

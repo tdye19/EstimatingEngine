@@ -1,7 +1,7 @@
 """Bid comparison models — upload competitor bids or historical actuals
 and overlay them against the current estimate."""
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, JSON, Text
+from sqlalchemy import JSON, Column, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from apex.backend.db.database import Base
@@ -16,7 +16,7 @@ class BidComparison(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
 
-    name = Column(String(255), nullable=False)           # e.g. "Competitor A", "2023 Awarded Bid"
+    name = Column(String(255), nullable=False)  # e.g. "Competitor A", "2023 Awarded Bid"
     source_type = Column(String(50), default="competitor")  # competitor | historical | internal
     bid_date = Column(String(50), nullable=True)
     total_bid_amount = Column(Float, nullable=True)

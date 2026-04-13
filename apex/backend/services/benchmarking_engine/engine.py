@@ -13,18 +13,16 @@ Architecture §16: Confidence formula
 """
 
 import json
-import math
 import statistics
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
-from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from apex.backend.services.benchmarking_engine.context import (
-    ProjectContext, context_similarity_score,
+    ProjectContext,
+    context_similarity_score,
 )
-
 
 # ── Confidence ───────────────────────────────────────────────────────────────
 
@@ -42,7 +40,7 @@ def _confidence_label(score: float) -> str:
     return "very_low"
 
 
-def _recency_score(obs_date: Optional[date], today: Optional[date] = None) -> float:
+def _recency_score(obs_date: date | None, today: date | None = None) -> float:
     """Decay observations linearly over 5 years. Missing date → 0.5."""
     if obs_date is None:
         return 0.5
@@ -54,7 +52,7 @@ def _recency_score(obs_date: Optional[date], today: Optional[date] = None) -> fl
 
 def compute_confidence(
     sample_size: int,
-    unit_costs: List[float],
+    unit_costs: list[float],
     context_sim: float,
     recency: float,
     data_quality: float,
@@ -68,27 +66,24 @@ def compute_confidence(
         norm_variance = min(cv, 1.0)
     else:
         norm_variance = 1.0
-    score = (w1 * norm_n +
-             w2 * (1 - norm_variance) +
-             w3 * context_sim +
-             w4 * recency +
-             w5 * data_quality)
+    score = w1 * norm_n + w2 * (1 - norm_variance) + w3 * context_sim + w4 * recency + w5 * data_quality
     return round(min(score, 1.0), 4)
 
 
 # ── Result object ─────────────────────────────────────────────────────────────
 
+
 @dataclass
 class BenchmarkOutput:
     canonical_activity_name: str
     sample_size: int
-    p10: Optional[float]
-    p25: Optional[float]
-    p50: Optional[float]
-    p75: Optional[float]
-    p90: Optional[float]
-    mean: Optional[float]
-    std_dev: Optional[float]
+    p10: float | None
+    p25: float | None
+    p50: float | None
+    p75: float | None
+    p90: float | None
+    mean: float | None
+    std_dev: float | None
     context_similarity_score: float
     benchmark_confidence: float
     confidence_label: str
@@ -113,6 +108,7 @@ class BenchmarkOutput:
 
 
 # ── Engine ────────────────────────────────────────────────────────────────────
+
 
 class BenchmarkingEngine:
     """Context-aware benchmark retrieval and percentile computation.
@@ -145,7 +141,8 @@ class BenchmarkingEngine:
           6. Score confidence per §16
         """
         from apex.backend.models.decision_models import (
-            ComparableProject, HistoricalRateObservation,
+            ComparableProject,
+            HistoricalRateObservation,
         )
 
         # 1. Load all comparable projects
@@ -161,13 +158,15 @@ class BenchmarkingEngine:
         comparable_ids = [cp.id for cp, _ in scored]
         sim_by_id = {cp.id: sim for cp, sim in scored}
 
-        filter_snapshot = json.dumps({
-            "project_type": ctx.project_type,
-            "region": ctx.region,
-            "market_sector": ctx.market_sector,
-            "min_context_sim": min_context_sim,
-            "comparable_count": len(comparable_ids),
-        })
+        filter_snapshot = json.dumps(
+            {
+                "project_type": ctx.project_type,
+                "region": ctx.region,
+                "market_sector": ctx.market_sector,
+                "min_context_sim": min_context_sim,
+                "comparable_count": len(comparable_ids),
+            }
+        )
 
         if not comparable_ids:
             return self._empty_result(canonical_activity_name, filter_snapshot)
@@ -176,25 +175,17 @@ class BenchmarkingEngine:
         #    Match by canonical_activity_id (preferred) or raw_activity_name (fuzzy fallback)
         from apex.backend.models.decision_models import CanonicalActivity
 
-        canonical = (
-            self.db.query(CanonicalActivity)
-            .filter(CanonicalActivity.name == canonical_activity_name)
-            .first()
-        )
+        canonical = self.db.query(CanonicalActivity).filter(CanonicalActivity.name == canonical_activity_name).first()
 
         obs_query = self.db.query(HistoricalRateObservation).filter(
             HistoricalRateObservation.comparable_project_id.in_(comparable_ids)
         )
         if canonical:
-            obs_query = obs_query.filter(
-                HistoricalRateObservation.canonical_activity_id == canonical.id
-            )
+            obs_query = obs_query.filter(HistoricalRateObservation.canonical_activity_id == canonical.id)
         else:
             # Fuzzy match on raw_activity_name (case-insensitive contains)
             obs_query = obs_query.filter(
-                HistoricalRateObservation.raw_activity_name.ilike(
-                    f"%{canonical_activity_name}%"
-                )
+                HistoricalRateObservation.raw_activity_name.ilike(f"%{canonical_activity_name}%")
             )
 
         observations = obs_query.all()
@@ -204,8 +195,8 @@ class BenchmarkingEngine:
 
         # 4. Build weighted unit_cost list
         #    weight = context_sim × recency_weight × quality_weight
-        weighted_costs: List[float] = []
-        raw_costs: List[float] = []
+        weighted_costs: list[float] = []
+        raw_costs: list[float] = []
         mean_sim = 0.0
         mean_recency = 0.0
         mean_quality = 0.0
@@ -237,7 +228,7 @@ class BenchmarkingEngine:
         weighted_costs.sort()
 
         # 5. Percentiles
-        def _pct(data: List[float], p: float) -> float:
+        def _pct(data: list[float], p: float) -> float:
             if not data:
                 return 0.0
             idx = (len(data) - 1) * p / 100
@@ -282,8 +273,13 @@ class BenchmarkingEngine:
         return BenchmarkOutput(
             canonical_activity_name=activity,
             sample_size=0,
-            p10=None, p25=None, p50=None, p75=None, p90=None,
-            mean=None, std_dev=None,
+            p10=None,
+            p25=None,
+            p50=None,
+            p75=None,
+            p90=None,
+            mean=None,
+            std_dev=None,
             context_similarity_score=0.0,
             benchmark_confidence=0.0,
             confidence_label="very_low",

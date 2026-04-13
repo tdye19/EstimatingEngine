@@ -1,13 +1,15 @@
 """JWT authentication utilities."""
 
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Callable, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+
 from apex.backend.db.database import get_db
 from apex.backend.models.user import User
 
@@ -24,8 +26,7 @@ if not _jwt_secret:
         )
 elif not _dev_mode and len(_jwt_secret) < 32:
     raise RuntimeError(
-        "JWT_SECRET_KEY must be at least 32 characters in production. "
-        "Current length: %d" % len(_jwt_secret)
+        "JWT_SECRET_KEY must be at least 32 characters in production. Current length: %d" % len(_jwt_secret)
     )
 SECRET_KEY = _jwt_secret
 ALGORITHM = "HS256"
@@ -43,17 +44,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: Session = Depends(get_db),
-) -> Optional[User]:
+) -> User | None:
     if credentials is None:
         return None
     token = credentials.credentials
@@ -82,8 +83,8 @@ def require_auth(
         if sub is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
         user_id: int = int(sub)
-    except (JWTError, ValueError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    except (JWTError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
     user = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()  # noqa: E712
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
@@ -118,10 +119,14 @@ def get_authorized_project(project_id: int, user: User, db: Session):
     """
     from apex.backend.models.project import Project
 
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.is_deleted == False,  # noqa: E712
-    ).first()
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     # Admin users can access any project within their organization

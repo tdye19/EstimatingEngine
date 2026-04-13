@@ -1,7 +1,14 @@
 """SQLAlchemy model for Estimation History (bid intelligence) data."""
 
 from sqlalchemy import (
-    Column, Date, DateTime, Float, Integer, String, Text, func,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    func,
 )
 
 from apex.backend.db.database import Base
@@ -13,7 +20,7 @@ class BIEstimate(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
 
     # Classification
-    status = Column(String(30), index=True)            # Awarded / Closed / Open
+    status = Column(String(30), index=True)  # Awarded / Closed / Open
     region = Column(String(100), index=True)
     market_sector = Column(String(100), index=True)
     month = Column(Integer)

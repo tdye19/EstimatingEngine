@@ -20,9 +20,7 @@ class DecisionPricingEngine:
         quantities = [{description, quantity, unit, division_code}]
         Returns list of EstimateLine objects (added to session, not yet committed).
         """
-        benchmark_results = self._benchmark_engine.benchmark_all_quantities(
-            project, quantities
-        )
+        benchmark_results = self._benchmark_engine.benchmark_all_quantities(project, quantities)
 
         lines = []
         for bm in benchmark_results:
@@ -88,18 +86,10 @@ class DecisionPricingEngine:
 
     def recalculate_totals(self, project_id: int) -> dict:
         """Sum EstimateLine costs for a project."""
-        lines = (
-            self.db.query(EstimateLine)
-            .filter(EstimateLine.project_id == project_id)
-            .all()
-        )
-        direct_cost = round(
-            sum(ln.recommended_total_cost or 0.0 for ln in lines), 2
-        )
+        lines = self.db.query(EstimateLine).filter(EstimateLine.project_id == project_id).all()
+        direct_cost = round(sum(ln.recommended_total_cost or 0.0 for ln in lines), 2)
         needs_review_count = sum(1 for ln in lines if ln.needs_review)
-        low_confidence_count = sum(
-            1 for ln in lines if ln.confidence_level in ("low", "very_low")
-        )
+        low_confidence_count = sum(1 for ln in lines if ln.confidence_level in ("low", "very_low"))
         return {
             "direct_cost": direct_cost,
             "line_count": len(lines),

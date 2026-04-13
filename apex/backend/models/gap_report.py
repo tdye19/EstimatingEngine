@@ -1,7 +1,8 @@
 """Gap Report model for scope gap analysis."""
 
-from sqlalchemy import Column, Integer, String, Text, Float, ForeignKey, JSON
+from sqlalchemy import JSON, Column, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from apex.backend.db.database import Base
 from apex.backend.models.base import TimestampMixin
 

@@ -25,16 +25,16 @@ Flow:
 import json
 import logging
 import re
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
+from apex.backend.agents.pipeline_contracts import validate_agent_output
 from apex.backend.models.document import Document
 from apex.backend.models.takeoff_v2 import TakeoffItemV2
-from apex.backend.agents.pipeline_contracts import validate_agent_output
-from apex.backend.services.takeoff_parser.parser import parse_takeoff
 from apex.backend.services.rate_engine.matcher import RateMatchingEngine
+from apex.backend.services.takeoff_parser.parser import parse_takeoff
 
 logger = logging.getLogger("apex.agent.takeoff")
 
@@ -42,6 +42,7 @@ logger = logging.getLogger("apex.agent.takeoff")
 # ---------------------------------------------------------------------------
 # Main agent entry point (v2)
 # ---------------------------------------------------------------------------
+
 
 def run_takeoff_agent(db: Session, project_id: int) -> dict:
     """Match estimator takeoff against Productivity Brain historical rates.
@@ -60,15 +61,18 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
             "Agent 4: no takeoff file found for project %d — returning empty output",
             project_id,
         )
-        return validate_agent_output(4, {
-            "takeoff_items_parsed": 0,
-            "items_matched": 0,
-            "items_unmatched": 0,
-            "recommendations": [],
-            "flags_summary": {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0},
-            "parse_format": None,
-            "overall_optimism_score": None,
-        })
+        return validate_agent_output(
+            4,
+            {
+                "takeoff_items_parsed": 0,
+                "items_matched": 0,
+                "items_unmatched": 0,
+                "recommendations": [],
+                "flags_summary": {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0},
+                "parse_format": None,
+                "overall_optimism_score": None,
+            },
+        )
 
     # ── Step 2: Parse takeoff file ───────────────────────────────────────
     logger.info("Agent 4: parsing takeoff file %s (doc_id=%d)", doc.filename, doc.id)
@@ -77,15 +81,18 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
 
     if not items:
         logger.warning("Agent 4: parser returned 0 items from %s", doc.filename)
-        return validate_agent_output(4, {
-            "takeoff_items_parsed": 0,
-            "items_matched": 0,
-            "items_unmatched": 0,
-            "recommendations": [],
-            "flags_summary": {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0},
-            "parse_format": fmt,
-            "overall_optimism_score": None,
-        })
+        return validate_agent_output(
+            4,
+            {
+                "takeoff_items_parsed": 0,
+                "items_matched": 0,
+                "items_unmatched": 0,
+                "recommendations": [],
+                "flags_summary": {"OK": 0, "REVIEW": 0, "UPDATE": 0, "NO_DATA": 0},
+                "parse_format": fmt,
+                "overall_optimism_score": None,
+            },
+        )
 
     # ── Step 3: Match against PB historical data ─────────────────────────
     engine = RateMatchingEngine(db)
@@ -135,18 +142,21 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
     logger.info("Agent 4: saved %d TakeoffItemV2 rows for project %d", len(recommendations), project_id)
 
     # ── Step 5: Return validated output ──────────────────────────────────
-    return validate_agent_output(4, {
-        "takeoff_items_parsed": len(items),
-        "items_matched": items_matched,
-        "items_unmatched": items_unmatched,
-        "recommendations": [r.model_dump() for r in recommendations],
-        "flags_summary": flags,
-        "parse_format": fmt,
-        "overall_optimism_score": optimism,
-    })
+    return validate_agent_output(
+        4,
+        {
+            "takeoff_items_parsed": len(items),
+            "items_matched": items_matched,
+            "items_unmatched": items_unmatched,
+            "recommendations": [r.model_dump() for r in recommendations],
+            "flags_summary": flags,
+            "parse_format": fmt,
+            "overall_optimism_score": optimism,
+        },
+    )
 
 
-def _find_takeoff_document(db: Session, project_id: int) -> Optional[Document]:
+def _find_takeoff_document(db: Session, project_id: int) -> Document | None:
     """Find the most recent takeoff document for a project.
 
     Looks for documents classified as 'takeoff', 'winest', or 'xlsx',
@@ -187,18 +197,19 @@ def _find_takeoff_document(db: Session, project_id: int) -> Optional[Document]:
 # DEPRECATED — v1 quantity generation (kept for backward compatibility)
 # ===========================================================================
 
+
 # Pydantic contract for individual takeoff items returned by the LLM (v1)
 class LLMTakeoffItem(BaseModel):
     """Validated takeoff item parsed from LLM JSON response."""
 
     description: str
     quantity: float
-    unit: str                                    # SF, LF, CY, EA, LS, ...
+    unit: str  # SF, LF, CY, EA, LS, ...
     csi_code: str
     source: Literal["specified", "estimated"]
     confidence: Literal["high", "medium", "low"]
-    unreasonable_flag: Optional[bool] = False
-    notes: Optional[str] = None
+    unreasonable_flag: bool | None = False
+    notes: str | None = None
 
     @field_validator("unit", mode="before")
     @classmethod
@@ -256,7 +267,7 @@ TAKEOFF_SYSTEM_PROMPT = (
     'Set "unreasonable_flag": true when a quantity seems implausible for the building '
     "size or scope (e.g., 10 SF of concrete slab for a commercial building, or "
     "1,000,000 LF of piping). Apply engineering judgment based on the apparent building type.\n\n"
-    "## Vague Quantities (\"as required\", \"as needed\", \"per plans\", \"where shown\"):\n"
+    '## Vague Quantities ("as required", "as needed", "per plans", "where shown"):\n'
     "Estimate a reasonable quantity based on building type and typical industry ratios "
     "(e.g., 1 duplex outlet per 150 SF for office, 1 sprinkler head per 130 SF). "
     'Set "source": "estimated" and "confidence": "low" for all such items.\n\n'
@@ -292,6 +303,7 @@ TAKEOFF_SYSTEM_PROMPT = (
 def _build_user_prompt(sections: list, gap_items: list) -> str:
     """Construct the user-facing prompt containing spec sections + gap items."""
     import json as _json
+
     spec_data = []
     for s in sections:
         text = ""
@@ -301,12 +313,14 @@ def _build_user_prompt(sections: list, gap_items: list) -> str:
             text += s.execution_requirements + "\n"
         if s.raw_text and not text.strip():
             text = s.raw_text
-        spec_data.append({
-            "section_number": s.section_number,
-            "title": s.title,
-            "division": s.division_number,
-            "content": text.strip()[:3000],
-        })
+        spec_data.append(
+            {
+                "section_number": s.section_number,
+                "title": s.title,
+                "division": s.division_number,
+                "content": text.strip()[:3000],
+            }
+        )
 
     gap_data = [
         {
@@ -384,20 +398,24 @@ def run_takeoff_agent_v1(db: Session, project_id: int) -> dict:
     DEPRECATED — v1 only. Kept for backward compatibility.
     Use run_takeoff_agent() (v2) which matches uploaded takeoffs against PB data.
     """
+    from apex.backend.agents.tools.takeoff_tools import (
+        drawing_reference_linker_tool,
+        quantity_calculator_tool,
+    )
+    from apex.backend.models.gap_report import GapReport
     from apex.backend.models.spec_section import SpecSection
     from apex.backend.models.takeoff_item import TakeoffItem
-    from apex.backend.models.gap_report import GapReport
-    from apex.backend.utils.async_helper import run_async as _run_async
     from apex.backend.services.token_tracker import log_token_usage
-    from apex.backend.agents.tools.takeoff_tools import (
-        quantity_calculator_tool,
-        drawing_reference_linker_tool,
-    )
+    from apex.backend.utils.async_helper import run_async as _run_async
 
-    sections = db.query(SpecSection).filter(
-        SpecSection.project_id == project_id,
-        SpecSection.is_deleted == False,  # noqa: E712
-    ).all()
+    sections = (
+        db.query(SpecSection)
+        .filter(
+            SpecSection.project_id == project_id,
+            SpecSection.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     gap_report = (
         db.query(GapReport)
@@ -422,6 +440,7 @@ def run_takeoff_agent_v1(db: Session, project_id: int) -> dict:
 
     try:
         from apex.backend.services.llm_provider import get_llm_provider
+
         provider = get_llm_provider(agent_number=4)
         llm_available = _run_async(provider.health_check())
         if llm_available:
@@ -430,16 +449,12 @@ def run_takeoff_agent_v1(db: Session, project_id: int) -> dict:
                 "is available — attempting LLM quantity takeoff"
             )
         else:
-            logger.info(
-                f"Agent 4 v1: LLM provider '{provider.provider_name}' is unreachable — "
-                "using regex fallback"
-            )
+            logger.info(f"Agent 4 v1: LLM provider '{provider.provider_name}' is unreachable — using regex fallback")
     except Exception as exc:
-        logger.warning(
-            f"Agent 4 v1: could not initialise LLM provider ({exc}) — using regex fallback"
-        )
+        logger.warning(f"Agent 4 v1: could not initialise LLM provider ({exc}) — using regex fallback")
 
     if llm_available and provider is not None and sections:
+
         async def _llm_takeoff(sections, gap_items, provider):
             user_prompt = _build_user_prompt(sections, gap_items)
             try:
@@ -451,8 +466,11 @@ def run_takeoff_agent_v1(db: Session, project_id: int) -> dict:
                 )
                 items = _parse_llm_takeoff_response(response.content)
                 return (
-                    items, response.input_tokens, response.output_tokens,
-                    response.cache_creation_input_tokens, response.cache_read_input_tokens,
+                    items,
+                    response.input_tokens,
+                    response.output_tokens,
+                    response.cache_creation_input_tokens,
+                    response.cache_read_input_tokens,
                 )
             except Exception as exc:
                 logger.error(f"Agent 4 v1 LLM: call failed — {exc}")
@@ -503,21 +521,21 @@ def run_takeoff_agent_v1(db: Session, project_id: int) -> dict:
                 db.add(takeoff)
                 items_created += 1
 
-                section_results.append({
-                    "section_id": section_id,
-                    "section_number": item.csi_code,
-                    "quantity": item.quantity,
-                    "unit": item.unit,
-                    "confidence": confidence_float,
-                    "drawings": [],
-                    "source": item.source,
-                })
+                section_results.append(
+                    {
+                        "section_id": section_id,
+                        "section_number": item.csi_code,
+                        "quantity": item.quantity,
+                        "unit": item.unit,
+                        "confidence": confidence_float,
+                        "drawings": [],
+                        "source": item.source,
+                    }
+                )
 
             db.commit()
         else:
-            logger.warning(
-                "Agent 4 v1: LLM returned no valid takeoff items — falling back to regex extraction"
-            )
+            logger.warning("Agent 4 v1: LLM returned no valid takeoff items — falling back to regex extraction")
 
     if takeoff_method == "regex":
         for section in sections:
@@ -549,28 +567,31 @@ def run_takeoff_agent_v1(db: Session, project_id: int) -> dict:
                 db.add(takeoff)
                 items_created += 1
 
-                section_results.append({
-                    "section_id": section.id,
-                    "section_number": section.section_number,
-                    "quantity": qty_result["quantity"],
-                    "unit": qty_result["unit"],
-                    "confidence": qty_result["confidence"],
-                    "drawings": drawing_refs,
-                })
+                section_results.append(
+                    {
+                        "section_id": section.id,
+                        "section_number": section.section_number,
+                        "quantity": qty_result["quantity"],
+                        "unit": qty_result["unit"],
+                        "confidence": qty_result["confidence"],
+                        "drawings": drawing_refs,
+                    }
+                )
 
             except Exception as e:
                 logger.error(f"Failed takeoff for section {section.id}: {e}")
-                section_results.append({
-                    "section_id": section.id,
-                    "section_number": section.section_number,
-                    "error": str(e),
-                })
+                section_results.append(
+                    {
+                        "section_id": section.id,
+                        "section_number": section.section_number,
+                        "error": str(e),
+                    }
+                )
 
         db.commit()
 
     logger.info(
-        f"Agent 4 v1 complete: {items_created} items created, "
-        f"method={takeoff_method}, tokens_used={tokens_used}"
+        f"Agent 4 v1 complete: {items_created} items created, method={takeoff_method}, tokens_used={tokens_used}"
     )
 
     # Note: v1 output validates against the OLD contract shape which no longer

@@ -1,15 +1,20 @@
 """Authentication router."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from apex.backend.db.database import get_db
+from sqlalchemy.orm import Session
+
 from apex.backend.config import AUTH_LOGIN_RATE_LIMIT, AUTH_REGISTER_RATE_LIMIT
+from apex.backend.db.database import get_db
 from apex.backend.models.user import User
-from apex.backend.utils.auth import hash_password, verify_password, create_access_token, require_auth
+from apex.backend.utils.auth import create_access_token, hash_password, require_auth, verify_password
 from apex.backend.utils.schemas import (
-    UserCreate, UserOut, LoginRequest, TokenResponse, APIResponse,
+    APIResponse,
+    LoginRequest,
+    TokenResponse,
+    UserCreate,
+    UserOut,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -44,10 +49,14 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit(AUTH_LOGIN_RATE_LIMIT)
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(
-        User.email == data.email,
-        User.is_deleted == False,  # noqa: E712
-    ).first()
+    user = (
+        db.query(User)
+        .filter(
+            User.email == data.email,
+            User.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
 
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(

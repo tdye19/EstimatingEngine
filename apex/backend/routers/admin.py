@@ -1,15 +1,14 @@
 """Admin router — user and organization management (admin-only)."""
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.models.organization import Organization
 from apex.backend.models.user import User
-from apex.backend.utils.auth import require_auth, require_role
+from apex.backend.utils.auth import require_role
 from apex.backend.utils.schemas import (
     APIResponse,
     OrganizationCreate,
@@ -31,7 +30,7 @@ _admin = require_role("admin")
 def list_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    org_id: Optional[int] = Query(None),
+    org_id: int | None = Query(None),
     _user: User = Depends(_admin),
     db: Session = Depends(get_db),
 ):
@@ -60,7 +59,7 @@ def update_user(
         else:
             setattr(user, field, value)
 
-    user.updated_at = datetime.now(timezone.utc)
+    user.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(user)
     return APIResponse(data=UserOut.model_validate(user).model_dump())
@@ -105,7 +104,7 @@ def update_organization(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(org, field, value)
 
-    org.updated_at = datetime.now(timezone.utc)
+    org.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(org)
     return APIResponse(data=OrganizationOut.model_validate(org).model_dump())
@@ -122,6 +121,6 @@ def delete_organization(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     org.is_deleted = True
-    org.updated_at = datetime.now(timezone.utc)
+    org.updated_at = datetime.now(UTC)
     db.commit()
     return Response(status_code=204)

@@ -25,8 +25,7 @@ Routes:
 """
 
 import json
-from typing import Optional, List
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -41,10 +40,11 @@ router = APIRouter(prefix="/api/decision", tags=["decision-system"])
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
+
 class EstimateRunCreate(BaseModel):
     project_id: int
-    created_by: Optional[str] = None
-    context_snapshot: Optional[dict] = None
+    created_by: str | None = None
+    context_snapshot: dict | None = None
 
 
 class EstimateRunOut(BaseModel):
@@ -53,13 +53,13 @@ class EstimateRunOut(BaseModel):
     version_number: int
     run_status: str
     started_at: datetime
-    completed_at: Optional[datetime]
-    total_direct_cost: Optional[float]
-    total_indirect_cost: Optional[float]
-    total_risk: Optional[float]
-    total_escalation: Optional[float]
-    total_fee: Optional[float]
-    final_bid_value: Optional[float]
+    completed_at: datetime | None
+    total_direct_cost: float | None
+    total_indirect_cost: float | None
+    total_risk: float | None
+    total_escalation: float | None
+    total_fee: float | None
+    final_bid_value: float | None
 
     class Config:
         from_attributes = True
@@ -67,114 +67,117 @@ class EstimateRunOut(BaseModel):
 
 class ScopeItemCreate(BaseModel):
     canonical_name: str
-    division_code: Optional[str] = None
-    work_package: Optional[str] = None
-    activity_family: Optional[str] = None
+    division_code: str | None = None
+    work_package: str | None = None
+    activity_family: str | None = None
     scope_status: str = "review_required"
     inclusion_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
-    description: Optional[str] = None
-    notes: Optional[str] = None
+    description: str | None = None
+    notes: str | None = None
 
 
 class ScopeItemPatch(BaseModel):
-    scope_status: Optional[str] = None
-    inclusion_confidence: Optional[float] = None
-    notes: Optional[str] = None
+    scope_status: str | None = None
+    inclusion_confidence: float | None = None
+    notes: str | None = None
 
 
 class ScopeItemOut(BaseModel):
     id: str
     estimate_run_id: str
     canonical_name: str
-    division_code: Optional[str]
+    division_code: str | None
     scope_status: str
     inclusion_confidence: float
-    description: Optional[str]
-    notes: Optional[str]
+    description: str | None
+    notes: str | None
 
     class Config:
         from_attributes = True
 
 
 class QuantityPatch(BaseModel):
-    quantity_value: Optional[float] = None
-    unit: Optional[str] = None
-    source: Optional[str] = None
+    quantity_value: float | None = None
+    unit: str | None = None
+    source: str | None = None
 
 
 class EstimateLinePatch(BaseModel):
-    line_status: Optional[str] = None   # accepted | overridden | excluded
-    estimator_unit_cost: Optional[float] = None
-    estimator_total_cost: Optional[float] = None
+    line_status: str | None = None  # accepted | overridden | excluded
+    estimator_unit_cost: float | None = None
+    estimator_total_cost: float | None = None
 
 
 class OverrideCreate(BaseModel):
     original_value: float
     overridden_value: float
     override_type: str  # unit_cost | quantity | scope_status | line_excluded
-    reason_code: Optional[str] = None
-    reason_text: Optional[str] = None
-    created_by: Optional[str] = None
+    reason_code: str | None = None
+    reason_text: str | None = None
+    created_by: str | None = None
 
 
 class RiskItemCreate(BaseModel):
     name: str
-    category: Optional[str] = None
+    category: str | None = None
     probability: float = Field(default=0.5, ge=0.0, le=1.0)
     impact_cost: float = Field(default=0.0, ge=0.0)
-    impact_time_days: Optional[int] = None
+    impact_time_days: int | None = None
     severity: str = "medium"
-    mitigation: Optional[str] = None
-    source: Optional[str] = None
-    linked_scope_item_id: Optional[str] = None
+    mitigation: str | None = None
+    source: str | None = None
+    linked_scope_item_id: str | None = None
 
 
 class RiskItemOut(BaseModel):
     id: str
     estimate_run_id: str
     name: str
-    category: Optional[str]
+    category: str | None
     probability: float
     impact_cost: float
     severity: str
-    expected_value: float   # computed: probability × impact_cost
+    expected_value: float  # computed: probability × impact_cost
 
     class Config:
         from_attributes = True
 
 
 class BidOutcomeCreate(BaseModel):
-    outcome: str   # won | lost | no_bid | pending
-    final_bid_submitted: Optional[float] = None
-    winning_bid_value: Optional[float] = None
-    delta_to_winner: Optional[float] = None
-    notes: Optional[str] = None
+    outcome: str  # won | lost | no_bid | pending
+    final_bid_submitted: float | None = None
+    winning_bid_value: float | None = None
+    delta_to_winner: float | None = None
+    notes: str | None = None
 
 
 class ComparableProjectCreate(BaseModel):
     name: str
     project_type: str
     region: str
-    market_sector: Optional[str] = None
-    size_sf: Optional[float] = None
-    contract_type: Optional[str] = None
-    delivery_method: Optional[str] = None
-    scope_types: Optional[List[str]] = None
-    complexity_level: Optional[str] = None
-    schedule_pressure: Optional[str] = None
+    market_sector: str | None = None
+    size_sf: float | None = None
+    contract_type: str | None = None
+    delivery_method: str | None = None
+    scope_types: list[str] | None = None
+    complexity_level: str | None = None
+    schedule_pressure: str | None = None
     data_quality_score: float = Field(default=0.5, ge=0.0, le=1.0)
-    source_system: Optional[str] = None
+    source_system: str | None = None
 
 
 class PriceRunRequest(BaseModel):
     """Trigger the pricing engine for scope items in this run that have quantities."""
+
     min_quantity_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _get_run_or_404(run_id: str, db: Session):
     from apex.backend.models.decision_models import EstimateRun
+
     run = db.query(EstimateRun).filter(EstimateRun.id == run_id).first()
     if not run:
         raise HTTPException(status_code=404, detail=f"EstimateRun {run_id} not found")
@@ -182,6 +185,7 @@ def _get_run_or_404(run_id: str, db: Session):
 
 
 # ── Estimate runs ─────────────────────────────────────────────────────────────
+
 
 @router.post("/estimate-runs", status_code=status.HTTP_201_CREATED)
 def create_estimate_run(
@@ -199,9 +203,10 @@ def create_estimate_run(
 
     # Auto-increment version
     from sqlalchemy import func
-    max_ver = db.query(func.max(EstimateRun.version_number)).filter(
-        EstimateRun.project_id == body.project_id
-    ).scalar() or 0
+
+    max_ver = (
+        db.query(func.max(EstimateRun.version_number)).filter(EstimateRun.project_id == body.project_id).scalar() or 0
+    )
 
     ctx_snapshot = body.context_snapshot
     if ctx_snapshot is None:
@@ -255,6 +260,7 @@ def get_estimate_run(
 
 # ── Scope items ───────────────────────────────────────────────────────────────
 
+
 @router.get("/estimate-runs/{run_id}/scope-items")
 def list_scope_items(
     run_id: str,
@@ -266,6 +272,7 @@ def list_scope_items(
     """List scope items for a run (paginated). §13.4"""
     _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import ScopeItem
+
     query = db.query(ScopeItem).filter(ScopeItem.estimate_run_id == run_id)
     page = paginate_query(query, offset=offset, limit=limit)
     page["items"] = [
@@ -293,6 +300,7 @@ def add_manual_scope_item(
     """Manually add a scope item to a run. §13.4"""
     _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import ScopeItem
+
     item = ScopeItem(
         estimate_run_id=run_id,
         canonical_name=body.canonical_name,
@@ -319,6 +327,7 @@ def patch_scope_item(
 ):
     """Update scope item status. §13.4"""
     from apex.backend.models.decision_models import ScopeItem
+
     item = db.query(ScopeItem).filter(ScopeItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="ScopeItem not found")
@@ -334,6 +343,7 @@ def patch_scope_item(
 
 # ── Quantities ────────────────────────────────────────────────────────────────
 
+
 @router.get("/estimate-runs/{run_id}/quantities")
 def list_quantities(
     run_id: str,
@@ -345,6 +355,7 @@ def list_quantities(
     """List quantity items for a run (paginated). §13.5"""
     _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import QuantityItem
+
     query = db.query(QuantityItem).filter(QuantityItem.estimate_run_id == run_id)
     page = paginate_query(query, offset=offset, limit=limit)
     page["items"] = [
@@ -371,6 +382,7 @@ def patch_quantity(
 ):
     """Estimator updates a quantity. §13.5"""
     from apex.backend.models.decision_models import QuantityItem
+
     item = db.query(QuantityItem).filter(QuantityItem.id == qty_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="QuantityItem not found")
@@ -387,6 +399,7 @@ def patch_quantity(
 
 # ── Estimate lines ────────────────────────────────────────────────────────────
 
+
 @router.get("/estimate-runs/{run_id}/estimate-lines")
 def list_estimate_lines(
     run_id: str,
@@ -398,28 +411,29 @@ def list_estimate_lines(
     """List estimate lines for a run (paginated). §13.7"""
     _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import EstimateLine
+
     query = db.query(EstimateLine).filter(EstimateLine.estimate_run_id == run_id)
     page = paginate_query(query, offset=offset, limit=limit)
     page["items"] = [
         {
-            "id": l.id,
-            "description": l.description,
-            "division_code": l.division_code,
-            "quantity": l.quantity,
-            "unit": l.unit,
-            "recommended_unit_cost": l.recommended_unit_cost,
-            "recommended_total_cost": l.recommended_total_cost,
-            "estimator_unit_cost": l.estimator_unit_cost,
-            "estimator_total_cost": l.estimator_total_cost,
-            "pricing_basis": l.pricing_basis,
-            "benchmark_p50": l.benchmark_p50,
-            "benchmark_sample_size": l.benchmark_sample_size,
-            "confidence_level": l.confidence_level,
-            "line_status": l.line_status,
-            "missing_quantity": l.missing_quantity,
-            "explanation": l.explanation,
+            "id": item.id,
+            "description": item.description,
+            "division_code": item.division_code,
+            "quantity": item.quantity,
+            "unit": item.unit,
+            "recommended_unit_cost": item.recommended_unit_cost,
+            "recommended_total_cost": item.recommended_total_cost,
+            "estimator_unit_cost": item.estimator_unit_cost,
+            "estimator_total_cost": item.estimator_total_cost,
+            "pricing_basis": item.pricing_basis,
+            "benchmark_p50": item.benchmark_p50,
+            "benchmark_sample_size": item.benchmark_sample_size,
+            "confidence_level": item.confidence_level,
+            "line_status": item.line_status,
+            "missing_quantity": item.missing_quantity,
+            "explanation": item.explanation,
         }
-        for l in page["items"]
+        for item in page["items"]
     ]
     return page
 
@@ -433,6 +447,7 @@ def patch_estimate_line(
 ):
     """Accept or override an estimate line. §13.7"""
     from apex.backend.models.decision_models import EstimateLine
+
     line = db.query(EstimateLine).filter(EstimateLine.id == line_id).first()
     if not line:
         raise HTTPException(status_code=404, detail="EstimateLine not found")
@@ -457,6 +472,7 @@ def create_override(
 ):
     """Capture an estimator override. §13.7 / §9.16"""
     from apex.backend.models.decision_models import EstimateLine, EstimatorOverride
+
     line = db.query(EstimateLine).filter(EstimateLine.id == line_id).first()
     if not line:
         raise HTTPException(status_code=404, detail="EstimateLine not found")
@@ -478,6 +494,7 @@ def create_override(
 
 # ── Risk items ────────────────────────────────────────────────────────────────
 
+
 @router.get("/estimate-runs/{run_id}/risk-items")
 def list_risk_items(
     run_id: str,
@@ -487,6 +504,7 @@ def list_risk_items(
     """List risk items with expected values. §13.8"""
     _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import RiskItem
+
     items = db.query(RiskItem).filter(RiskItem.estimate_run_id == run_id).all()
     total_ev = sum(r.probability * r.impact_cost for r in items)
     return {
@@ -517,6 +535,7 @@ def add_risk_item(
     """Register a risk item for a run. §13.8"""
     _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import RiskItem
+
     risk = RiskItem(
         estimate_run_id=run_id,
         name=body.name,
@@ -540,6 +559,7 @@ def add_risk_item(
 
 # ── Commercial rollup ─────────────────────────────────────────────────────────
 
+
 @router.get("/estimate-runs/{run_id}/cost-breakdown")
 def get_cost_breakdown(
     run_id: str,
@@ -549,15 +569,15 @@ def get_cost_breakdown(
     """Get commercial rollup for a run. §13.9"""
     _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import CostBreakdownBucket
-    buckets = db.query(CostBreakdownBucket).filter(
-        CostBreakdownBucket.estimate_run_id == run_id
-    ).all()
+
+    buckets = db.query(CostBreakdownBucket).filter(CostBreakdownBucket.estimate_run_id == run_id).all()
     breakdown = {b.bucket_type: b.amount for b in buckets}
     total = sum(breakdown.values())
     return {"buckets": breakdown, "total": round(total, 2)}
 
 
 # ── Bid outcomes ──────────────────────────────────────────────────────────────
+
 
 @router.post("/estimate-runs/{run_id}/bid-outcome", status_code=201)
 def record_bid_outcome(
@@ -569,6 +589,7 @@ def record_bid_outcome(
     """Record post-bid result. §13.10"""
     run = _get_run_or_404(run_id, db)
     from apex.backend.models.decision_models import BidOutcome
+
     outcome = BidOutcome(
         project_id=run.project_id,
         estimate_run_id=run_id,
@@ -586,14 +607,16 @@ def record_bid_outcome(
 
 # ── Comparable projects ───────────────────────────────────────────────────────
 
+
 @router.get("/comparable-projects")
 def list_comparable_projects(
-    project_type: Optional[str] = None,
-    region: Optional[str] = None,
+    project_type: str | None = None,
+    region: str | None = None,
     db: Session = Depends(get_db),
     _user=Depends(require_auth),
 ):
     from apex.backend.models.decision_models import ComparableProject
+
     q = db.query(ComparableProject)
     if project_type:
         q = q.filter(ComparableProject.project_type == project_type)
@@ -621,6 +644,7 @@ def create_comparable_project(
     _user=Depends(require_auth),
 ):
     from apex.backend.models.decision_models import ComparableProject
+
     cp = ComparableProject(
         name=body.name,
         project_type=body.project_type,
@@ -643,13 +667,15 @@ def create_comparable_project(
 
 # ── Ontology ──────────────────────────────────────────────────────────────────
 
+
 @router.get("/ontology/activities")
 def list_canonical_activities(
-    scope_family: Optional[str] = None,
+    scope_family: str | None = None,
     db: Session = Depends(get_db),
     _user=Depends(require_auth),
 ):
     from apex.backend.models.decision_models import CanonicalActivity
+
     q = db.query(CanonicalActivity).filter(CanonicalActivity.is_active == True)
     if scope_family:
         q = q.filter(CanonicalActivity.scope_family == scope_family)
@@ -670,6 +696,7 @@ def list_canonical_activities(
 
 # ── Pricing engine trigger ────────────────────────────────────────────────────
 
+
 @router.post("/estimate-runs/{run_id}/price")
 def run_pricing_engine(
     run_id: str,
@@ -682,10 +709,10 @@ def run_pricing_engine(
     Deterministic — no LLM. §12.5
     """
     run = _get_run_or_404(run_id, db)
-    from apex.backend.models.decision_models import ScopeItem, QuantityItem, EstimateLine
+    from apex.backend.models.decision_models import EstimateLine, QuantityItem, ScopeItem
     from apex.backend.models.project import Project
-    from apex.backend.services.pricing_engine import PricingEngine
     from apex.backend.services.benchmarking_engine.context import ProjectContext
+    from apex.backend.services.pricing_engine import PricingEngine
 
     project = db.query(Project).filter(Project.id == run.project_id).first()
     ctx = ProjectContext.from_project(project)

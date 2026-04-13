@@ -15,7 +15,6 @@ import tempfile
 import uuid
 import zipfile
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -53,47 +52,92 @@ class BatchImportResult(BaseModel):
 # Keyword → two-digit CSI division string (keys match CSI_DIVISION_NAMES)
 _CSI_KEYWORD_MAP: dict[str, str] = {
     # Division 03 — Concrete
-    "concrete": "03", "rebar": "03", "formwork": "03", "reinforc": "03",
+    "concrete": "03",
+    "rebar": "03",
+    "formwork": "03",
+    "reinforc": "03",
     # Division 04 — Masonry
-    "masonry": "04", "brick": "04", "block": "04", "mortar": "04",
+    "masonry": "04",
+    "brick": "04",
+    "block": "04",
+    "mortar": "04",
     # Division 05 — Metals
-    "steel": "05", "metal": "05", "structural": "05", "joist": "05",
+    "steel": "05",
+    "metal": "05",
+    "structural": "05",
+    "joist": "05",
     # Division 06 — Wood
-    "lumber": "06", "framing": "06", "plywood": "06", "carpent": "06",
+    "lumber": "06",
+    "framing": "06",
+    "plywood": "06",
+    "carpent": "06",
     # Division 07 — Thermal & Moisture
-    "roofing": "07", "waterproof": "07", "insulation": "07",
-    "flashing": "07", "sealant": "07", "firestop": "07",
+    "roofing": "07",
+    "waterproof": "07",
+    "insulation": "07",
+    "flashing": "07",
+    "sealant": "07",
+    "firestop": "07",
     # Division 08 — Openings
-    "door": "08", "window": "08", "glazing": "08", "storefront": "08",
+    "door": "08",
+    "window": "08",
+    "glazing": "08",
+    "storefront": "08",
     "hardware": "08",
     # Division 09 — Finishes
-    "drywall": "09", "gypsum": "09", "paint": "09", "floor": "09",
-    "carpet": "09", "tile": "09", "ceiling": "09",
+    "drywall": "09",
+    "gypsum": "09",
+    "paint": "09",
+    "floor": "09",
+    "carpet": "09",
+    "tile": "09",
+    "ceiling": "09",
     # Division 10 — Specialties
-    "signage": "10", "toilet": "10", "partition": "10",
+    "signage": "10",
+    "toilet": "10",
+    "partition": "10",
     # Division 21 — Fire Suppression
-    "sprinkler": "21", "fire suppression": "21",
+    "sprinkler": "21",
+    "fire suppression": "21",
     # Division 22 — Plumbing
-    "plumbing": "22", "pipe": "22", "drain": "22", "fixture": "22",
+    "plumbing": "22",
+    "pipe": "22",
+    "drain": "22",
+    "fixture": "22",
     # Division 23 — HVAC
-    "hvac": "23", "mechanical": "23", "duct": "23", "ventilat": "23",
+    "hvac": "23",
+    "mechanical": "23",
+    "duct": "23",
+    "ventilat": "23",
     # Division 26 — Electrical
-    "electrical": "26", "wiring": "26", "conduit": "26", "panel": "26",
+    "electrical": "26",
+    "wiring": "26",
+    "conduit": "26",
+    "panel": "26",
     "lighting": "26",
     # Division 27 — Communications
-    "data": "27", "telecom": "27", "communicat": "27",
+    "data": "27",
+    "telecom": "27",
+    "communicat": "27",
     # Division 31 — Earthwork
-    "earthwork": "31", "grading": "31", "excavat": "31", "backfill": "31",
+    "earthwork": "31",
+    "grading": "31",
+    "excavat": "31",
+    "backfill": "31",
     # Division 32 — Exterior Improvements
-    "paving": "32", "landscap": "32", "sidewalk": "32",
+    "paving": "32",
+    "landscap": "32",
+    "sidewalk": "32",
     # Division 33 — Utilities
-    "utilities": "33", "sewer": "33", "water main": "33",
+    "utilities": "33",
+    "sewer": "33",
+    "water main": "33",
 }
 
 
 def _auto_map_csi(
     description: str,
-) -> tuple[Optional[str], Optional[int], Optional[str]]:
+) -> tuple[str | None, int | None, str | None]:
     """Best-effort CSI mapping based on description keywords.
 
     Returns (csi_code, division_int, division_name) or (None, None, None).
@@ -112,13 +156,13 @@ def _auto_map_csi(
 
 # Maps extension → (metric_type, document_role)
 _EXT_MAP: dict[str, tuple[str, str]] = {
-    "est":  ("winest",      "winest_bid"),
-    "pdf":  ("spec",        "spec"),
-    "docx": ("spec",        "spec"),
-    "doc":  ("spec",        "manual"),
-    "csv":  ("bid_tab",     "bid_tab"),
-    "txt":  ("other",       "other"),
-    "rtf":  ("other",       "other"),
+    "est": ("winest", "winest_bid"),
+    "pdf": ("spec", "spec"),
+    "docx": ("spec", "spec"),
+    "doc": ("spec", "manual"),
+    "csv": ("bid_tab", "bid_tab"),
+    "txt": ("other", "other"),
+    "rtf": ("other", "other"),
 }
 
 
@@ -250,23 +294,15 @@ class BatchImportService:
         Returns the list of created :class:`HistoricalLineItem` instances.
         Raises ValueError on lookup failures or parse errors.
         """
-        assoc = (
-            db.query(DocumentAssociation)
-            .filter(DocumentAssociation.id == doc_association_id)
-            .first()
-        )
+        assoc = db.query(DocumentAssociation).filter(DocumentAssociation.id == doc_association_id).first()
         if not assoc:
-            raise ValueError(
-                f"DocumentAssociation {doc_association_id} not found"
-            )
+            raise ValueError(f"DocumentAssociation {doc_association_id} not found")
 
         doc = assoc.document
         if not doc:
-            raise ValueError(
-                f"Document not found for association {doc_association_id}"
-            )
+            raise ValueError(f"Document not found for association {doc_association_id}")
 
-        library_entry: Optional[EstimateLibraryEntry] = assoc.library_entry
+        library_entry: EstimateLibraryEntry | None = assoc.library_entry
 
         # Parse -------------------------------------------------------------------
         parse_result = parse_winest_file(doc.file_path)
@@ -274,9 +310,7 @@ class BatchImportService:
             err_msg = parse_result.get("error") or "Parse failed"
             assoc.parse_errors = err_msg
             db.commit()
-            raise ValueError(
-                f"WinEst parse failed for '{doc.filename}': {err_msg}"
-            )
+            raise ValueError(f"WinEst parse failed for '{doc.filename}': {err_msg}")
 
         # Normalize raw items via LineItemNormalizer --------------------------------
         normalizer = LineItemNormalizer()
@@ -298,7 +332,7 @@ class BatchImportService:
             created_items.append(item)
 
         # Mark parsed -------------------------------------------------------------
-        assoc.parsed    = True
+        assoc.parsed = True
         assoc.parsed_at = datetime.utcnow()
         db.commit()
 
@@ -320,11 +354,7 @@ class BatchImportService:
         """
         from apex.backend.agents.agent_1_ingestion import run_ingestion_agent
 
-        group = (
-            db.query(DocumentGroup)
-            .filter(DocumentGroup.id == group_id)
-            .first()
-        )
+        group = db.query(DocumentGroup).filter(DocumentGroup.id == group_id).first()
         if not group:
             raise ValueError(f"DocumentGroup {group_id} not found")
 
@@ -350,14 +380,14 @@ class BatchImportService:
             if not doc:
                 continue
 
-            ext  = doc.filename.rsplit(".", 1)[-1].lower() if "." in doc.filename else ""
+            ext = doc.filename.rsplit(".", 1)[-1].lower() if "." in doc.filename else ""
             role = assoc.document_role
 
             try:
                 if role == "winest_bid" or ext == "est":
                     items = self.process_winest_file(assoc.id, db)
                     summary["winest_files_processed"] += 1
-                    summary["line_items_created"]     += len(items)
+                    summary["line_items_created"] += len(items)
 
                 elif role == "spec" and ext == "pdf":
                     # Agent 1 handles all pending docs for the project
@@ -370,9 +400,7 @@ class BatchImportService:
             except Exception as exc:
                 logger.warning("Error on assoc %d (%s): %s", assoc.id, doc.filename, exc)
                 assoc.parse_errors = str(exc)
-                summary["errors"].append(
-                    f"assoc {assoc.id} ({doc.filename}): {exc}"
-                )
+                summary["errors"].append(f"assoc {assoc.id} ({doc.filename}): {exc}")
                 db.commit()
 
         return summary
@@ -396,7 +424,7 @@ class BatchImportService:
         project = Project(
             name=group_name,
             project_number=f"BATCH-{uuid.uuid4().hex[:8].upper()}",
-            project_type="commercial",   # placeholder; user can update later
+            project_type="commercial",  # placeholder; user can update later
             status="draft",
             owner_id=user_id,
         )
@@ -430,7 +458,7 @@ class BatchImportService:
 
         for src_path in file_paths:
             fname = os.path.basename(src_path)
-            ext   = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+            ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
             try:
                 # Detect type before the file is moved
                 metric_type, document_role = _detect_file_type(src_path)
@@ -487,11 +515,7 @@ class BatchImportService:
         db: Session,
     ) -> None:
         """Best-effort update of EstimateLibraryEntry from spec document metadata."""
-        entry = (
-            db.query(EstimateLibraryEntry)
-            .filter(EstimateLibraryEntry.id == library_entry_id)
-            .first()
-        )
+        entry = db.query(EstimateLibraryEntry).filter(EstimateLibraryEntry.id == library_entry_id).first()
         if not entry or not doc.metadata_json:
             return
 

@@ -1,8 +1,9 @@
 """Takeoff Item model for quantity takeoff."""
 # DEPRECATED — v1 only. See takeoff_v2.py for the Agent 4 v2 model.
 
-from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey
+from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from apex.backend.db.database import Base
 from apex.backend.models.base import TimestampMixin
 

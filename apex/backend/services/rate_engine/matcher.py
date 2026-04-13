@@ -23,12 +23,11 @@ Confidence levels (based on sample count):
 
 import math
 from difflib import SequenceMatcher
-from typing import Optional
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from apex.backend.agents.pipeline_contracts import TakeoffLineItem, RateRecommendation
+from apex.backend.agents.pipeline_contracts import RateRecommendation, TakeoffLineItem
 from apex.backend.services.productivity_brain.models import PBLineItem
 
 
@@ -47,24 +46,30 @@ class RateMatchingEngine:
         Computes AVG, MIN, MAX, manual STDDEV (spread), COUNT, and collects
         DISTINCT source_project names per activity+unit group.
         """
-        rows = self.db.query(
-            PBLineItem.activity,
-            PBLineItem.unit,
-            PBLineItem.crew_trade,
-            PBLineItem.csi_code,
-            func.avg(PBLineItem.production_rate).label("avg_rate"),
-            func.min(PBLineItem.production_rate).label("min_rate"),
-            func.max(PBLineItem.production_rate).label("max_rate"),
-            func.count(PBLineItem.id).label("sample_count"),
-            # For manual stddev: sqrt(avg(x^2) - avg(x)^2)
-            func.avg(PBLineItem.production_rate * PBLineItem.production_rate).label("avg_sq"),
-            func.avg(PBLineItem.labor_cost_per_unit).label("avg_labor_cost"),
-            func.avg(PBLineItem.material_cost_per_unit).label("avg_mat_cost"),
-        ).filter(
-            PBLineItem.production_rate.isnot(None),
-        ).group_by(
-            PBLineItem.activity, PBLineItem.unit,
-        ).all()
+        rows = (
+            self.db.query(
+                PBLineItem.activity,
+                PBLineItem.unit,
+                PBLineItem.crew_trade,
+                PBLineItem.csi_code,
+                func.avg(PBLineItem.production_rate).label("avg_rate"),
+                func.min(PBLineItem.production_rate).label("min_rate"),
+                func.max(PBLineItem.production_rate).label("max_rate"),
+                func.count(PBLineItem.id).label("sample_count"),
+                # For manual stddev: sqrt(avg(x^2) - avg(x)^2)
+                func.avg(PBLineItem.production_rate * PBLineItem.production_rate).label("avg_sq"),
+                func.avg(PBLineItem.labor_cost_per_unit).label("avg_labor_cost"),
+                func.avg(PBLineItem.material_cost_per_unit).label("avg_mat_cost"),
+            )
+            .filter(
+                PBLineItem.production_rate.isnot(None),
+            )
+            .group_by(
+                PBLineItem.activity,
+                PBLineItem.unit,
+            )
+            .all()
+        )
 
         summaries = []
         for r in rows:
@@ -86,20 +91,22 @@ class RateMatchingEngine:
             )
             project_names = [p[0] for p in projects_q if p[0] and p[0] != "_averaged"]
 
-            summaries.append({
-                "activity": r.activity,
-                "unit": r.unit,
-                "crew_trade": r.crew_trade,
-                "csi_code": r.csi_code,
-                "avg_rate": round(avg, 4),
-                "min_rate": round(r.min_rate, 4) if r.min_rate is not None else None,
-                "max_rate": round(r.max_rate, 4) if r.max_rate is not None else None,
-                "spread": round(spread, 4),
-                "sample_count": r.sample_count,
-                "projects": project_names,
-                "avg_labor_cost": round(r.avg_labor_cost, 2) if r.avg_labor_cost else None,
-                "avg_mat_cost": round(r.avg_mat_cost, 2) if r.avg_mat_cost else None,
-            })
+            summaries.append(
+                {
+                    "activity": r.activity,
+                    "unit": r.unit,
+                    "crew_trade": r.crew_trade,
+                    "csi_code": r.csi_code,
+                    "avg_rate": round(avg, 4),
+                    "min_rate": round(r.min_rate, 4) if r.min_rate is not None else None,
+                    "max_rate": round(r.max_rate, 4) if r.max_rate is not None else None,
+                    "spread": round(spread, 4),
+                    "sample_count": r.sample_count,
+                    "projects": project_names,
+                    "avg_labor_cost": round(r.avg_labor_cost, 2) if r.avg_labor_cost else None,
+                    "avg_mat_cost": round(r.avg_mat_cost, 2) if r.avg_mat_cost else None,
+                }
+            )
 
         return summaries
 
@@ -119,7 +126,7 @@ class RateMatchingEngine:
 
     # ── Matching logic ───────────────────────────────────────────────────
 
-    def _find_best_match(self, item: TakeoffLineItem) -> Optional[dict]:
+    def _find_best_match(self, item: TakeoffLineItem) -> dict | None:
         """Find the best PB summary match for a takeoff line item.
 
         Priority:
@@ -129,10 +136,7 @@ class RateMatchingEngine:
         """
         # Strategy 1: CSI exact match
         if item.csi_code:
-            csi_matches = [
-                s for s in self._pb_summary
-                if s["csi_code"] and s["csi_code"] == item.csi_code
-            ]
+            csi_matches = [s for s in self._pb_summary if s["csi_code"] and s["csi_code"] == item.csi_code]
             if len(csi_matches) == 1:
                 return csi_matches[0]
             if len(csi_matches) > 1:
@@ -202,42 +206,46 @@ class RateMatchingEngine:
                     delta_pct = None
                     flag = "NO_DATA"
 
-                recommendations.append(RateRecommendation(
-                    line_item_row=item.row_number,
-                    activity=item.activity,
-                    unit=item.unit,
-                    crew=item.crew,
-                    estimator_rate=item.production_rate,
-                    historical_avg_rate=match["avg_rate"],
-                    historical_min_rate=match["min_rate"],
-                    historical_max_rate=match["max_rate"],
-                    historical_spread=match["spread"],
-                    sample_count=sample_count,
-                    confidence=confidence,
-                    delta_pct=delta_pct,
-                    flag=flag,
-                    matching_projects=match["projects"],
-                    labor_cost_per_unit=match["avg_labor_cost"],
-                    material_cost_per_unit=match["avg_mat_cost"],
-                    wbs_area=item.wbs_area,
-                ))
+                recommendations.append(
+                    RateRecommendation(
+                        line_item_row=item.row_number,
+                        activity=item.activity,
+                        unit=item.unit,
+                        crew=item.crew,
+                        estimator_rate=item.production_rate,
+                        historical_avg_rate=match["avg_rate"],
+                        historical_min_rate=match["min_rate"],
+                        historical_max_rate=match["max_rate"],
+                        historical_spread=match["spread"],
+                        sample_count=sample_count,
+                        confidence=confidence,
+                        delta_pct=delta_pct,
+                        flag=flag,
+                        matching_projects=match["projects"],
+                        labor_cost_per_unit=match["avg_labor_cost"],
+                        material_cost_per_unit=match["avg_mat_cost"],
+                        wbs_area=item.wbs_area,
+                    )
+                )
             else:
                 # No match found
-                recommendations.append(RateRecommendation(
-                    line_item_row=item.row_number,
-                    activity=item.activity,
-                    unit=item.unit,
-                    crew=item.crew,
-                    estimator_rate=item.production_rate,
-                    sample_count=0,
-                    confidence="none",
-                    flag="NO_DATA",
-                    wbs_area=item.wbs_area,
-                ))
+                recommendations.append(
+                    RateRecommendation(
+                        line_item_row=item.row_number,
+                        activity=item.activity,
+                        unit=item.unit,
+                        crew=item.crew,
+                        estimator_rate=item.production_rate,
+                        sample_count=0,
+                        confidence="none",
+                        flag="NO_DATA",
+                        wbs_area=item.wbs_area,
+                    )
+                )
 
         return recommendations
 
-    def compute_optimism_score(self, recommendations: list[RateRecommendation]) -> Optional[float]:
+    def compute_optimism_score(self, recommendations: list[RateRecommendation]) -> float | None:
         """Average delta_pct across matched items.
 
         Positive = estimator is more optimistic than history.

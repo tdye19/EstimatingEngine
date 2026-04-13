@@ -1,7 +1,9 @@
 """Chunked upload session model."""
 
-from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+
 from apex.backend.db.database import Base
 
 
@@ -16,5 +18,5 @@ class UploadSession(Base):
     total_chunks = Column(Integer, nullable=False)
     next_chunk = Column(Integer, nullable=False, default=0)
     temp_dir = Column(String(1000), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     expires_at = Column(DateTime, nullable=False, index=True)

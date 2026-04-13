@@ -6,7 +6,6 @@ detection and regex-based CSI code mapping.
 
 import logging
 import re
-from typing import Optional
 
 import pdfplumber
 from sqlalchemy.orm import Session
@@ -78,9 +77,23 @@ CSI_KEYWORD_MAP: list[tuple[re.Pattern, str]] = [
 
 # Table header keywords that indicate a bid-tab / line-item table
 _BID_TAB_HEADERS = {
-    "item", "description", "quantity", "qty", "unit", "unit cost",
-    "unit price", "total", "amount", "extended", "cost", "price",
-    "csi", "division", "trade", "spec", "section",
+    "item",
+    "description",
+    "quantity",
+    "qty",
+    "unit",
+    "unit cost",
+    "unit price",
+    "total",
+    "amount",
+    "extended",
+    "cost",
+    "price",
+    "csi",
+    "division",
+    "trade",
+    "spec",
+    "section",
 }
 
 # Column role detection keywords
@@ -98,12 +111,10 @@ class CSICodeMapper:
     """Parse explicit CSI codes and infer from description keywords."""
 
     # Matches patterns like "03 30 00", "03-30-00", "033000", "03 3000"
-    _CSI_REGEX = re.compile(
-        r"\b(\d{2})\s*[-.]?\s*(\d{2})\s*[-.]?\s*(\d{2})\b"
-    )
+    _CSI_REGEX = re.compile(r"\b(\d{2})\s*[-.]?\s*(\d{2})\s*[-.]?\s*(\d{2})\b")
 
     @staticmethod
-    def extract_csi_code(text: str) -> Optional[str]:
+    def extract_csi_code(text: str) -> str | None:
         """Extract explicit CSI code from text. Returns formatted 'XX XX XX' or None."""
         m = CSICodeMapper._CSI_REGEX.search(text)
         if m:
@@ -111,7 +122,7 @@ class CSICodeMapper:
         return None
 
     @staticmethod
-    def extract_division(text: str) -> Optional[str]:
+    def extract_division(text: str) -> str | None:
         """Extract 2-digit division code from text."""
         code = CSICodeMapper.extract_csi_code(text)
         if code:
@@ -119,7 +130,7 @@ class CSICodeMapper:
         return None
 
     @staticmethod
-    def infer_division(description: str) -> Optional[str]:
+    def infer_division(description: str) -> str | None:
         """Infer CSI division from description keywords."""
         for pattern, division in CSI_KEYWORD_MAP:
             if pattern.search(description):
@@ -127,7 +138,7 @@ class CSICodeMapper:
         return None
 
     @staticmethod
-    def map_code(text: str, description: str = "") -> tuple[Optional[str], Optional[str]]:
+    def map_code(text: str, description: str = "") -> tuple[str | None, str | None]:
         """Return (csi_code, division_number) from explicit code or keyword inference."""
         code = CSICodeMapper.extract_csi_code(text)
         if code:
@@ -261,12 +272,8 @@ class PDFParserService:
                     division_number=div,
                     section_number=f"{div} 00 00",
                     title=f"Division {div} — {div_name} (extracted)",
-                    raw_text="\n".join(
-                        it.get("description", "") for it in div_items
-                    ),
-                    materials_referenced=[
-                        it.get("description") for it in div_items if it.get("description")
-                    ],
+                    raw_text="\n".join(it.get("description", "") for it in div_items),
+                    materials_referenced=[it.get("description") for it in div_items if it.get("description")],
                     in_scope=True,
                 )
                 self.db.add(section)

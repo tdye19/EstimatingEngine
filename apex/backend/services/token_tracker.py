@@ -6,8 +6,10 @@ a TokenUsage record with the provider, model, token counts, and estimated cost.
 
 import logging
 import os
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+
 from apex.backend.models.token_usage import TokenUsage, calculate_cost
 
 logger = logging.getLogger("apex.token_tracker")
@@ -33,10 +35,14 @@ class TokenBudgetExceeded(Exception):
 
 def check_token_budget(db: Session, project_id: int) -> None:
     """Check cumulative token usage for a project and raise if over budget."""
-    row = db.query(
-        func.coalesce(func.sum(TokenUsage.input_tokens + TokenUsage.output_tokens), 0).label("total_tokens"),
-        func.coalesce(func.sum(TokenUsage.estimated_cost), 0.0).label("total_cost"),
-    ).filter(TokenUsage.project_id == project_id).first()
+    row = (
+        db.query(
+            func.coalesce(func.sum(TokenUsage.input_tokens + TokenUsage.output_tokens), 0).label("total_tokens"),
+            func.coalesce(func.sum(TokenUsage.estimated_cost), 0.0).label("total_cost"),
+        )
+        .filter(TokenUsage.project_id == project_id)
+        .first()
+    )
 
     total_tokens = int(row.total_tokens)
     total_cost = float(row.total_cost)
@@ -93,7 +99,14 @@ def log_token_usage(
     logger.debug(
         "Token usage logged: project=%d agent=%d provider=%s model=%s "
         "in=%d out=%d cache_create=%d cache_read=%d cost=$%.6f",
-        project_id, agent_number, provider, model,
-        input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cost,
+        project_id,
+        agent_number,
+        provider,
+        model,
+        input_tokens,
+        output_tokens,
+        cache_creation_tokens,
+        cache_read_tokens,
+        cost,
     )
     return record
