@@ -496,10 +496,59 @@ def _compute_risk_level(rate_intel: dict, field_cal: dict, scope_risk: dict, pb_
 
 
 # ---------------------------------------------------------------------------
+# Spec retrieval helpers for Agent 6 narrative
+# ---------------------------------------------------------------------------
+
+_NARRATIVE_RETRIEVAL_QUERIES = [
+    "project scope summary key requirements",
+    "quality control testing inspection standards",
+    "material specifications performance requirements",
+    "special conditions risk factors allowances",
+]
+
+
+def _retrieve_spec_context_for_narrative(project_id: int) -> str:
+    """Retrieve key spec language to ground the Agent 6 narrative in actual project specs.
+
+    Returns a formatted REFERENCE MATERIAL block, or "" if retrieval unavailable.
+    """
+    try:
+        from apex.backend.retrieval.embedder import is_available
+        if not is_available():
+            return ""
+
+        from apex.backend.retrieval.store import collection_exists
+        from apex.backend.retrieval.retriever import search_multi, format_for_agent
+
+        if not collection_exists(project_id):
+            return ""
+
+        chunks = search_multi(
+            project_id,
+            queries=_NARRATIVE_RETRIEVAL_QUERIES,
+            top_k_each=2,
+            min_score=0.3,
+        )
+
+        if not chunks:
+            return ""
+
+        logger.info(
+            f"Agent 6: retrieved {len(chunks)} spec chunks for narrative context "
+            f"(project {project_id})"
+        )
+        return format_for_agent(chunks, label="PROJECT SPEC REFERENCE")
+
+    except Exception as exc:
+        logger.warning(f"Agent 6: spec retrieval failed (non-fatal): {exc}")
+        return ""
+
+
+# ---------------------------------------------------------------------------
 # v2 Narrative — LLM with template fallback
 # ---------------------------------------------------------------------------
 
-def _build_narrative_prompt(report_data: dict) -> str:
+def _build_narrative_prompt(report_data: dict, spec_context: str = "") -> str:
     """Build the user prompt with all intelligence data for the LLM."""
     ri = report_data.get("rate_intelligence", {})
     fc = report_data.get("field_calibration", {})
@@ -577,18 +626,23 @@ def _build_narrative_prompt(report_data: dict) -> str:
     else:
         lines.append("No comparable projects found in bid intelligence database.")
 
+    if spec_context:
+        lines += ["", spec_context]
+
     return "\n".join(lines)
 
 
-async def _llm_generate_narrative(report_data: dict, provider) -> tuple:
+async def _llm_generate_narrative(report_data: dict, provider, spec_context: str = "") -> tuple:
     """Call LLM to generate the executive narrative.
 
     Returns (text, input_tokens, output_tokens, cache_create, cache_read).
     """
     user_prompt = (
         "Generate an intelligence briefing for the following bid estimate data. "
-        "Do NOT invent data or modify any numbers — summarize the signals only.\n\n"
-        + _build_narrative_prompt(report_data)
+        "Do NOT invent data or modify any numbers — summarize the signals only. "
+        "Where REFERENCE MATERIAL from project specs is provided, cite specific "
+        "section numbers in your narrative (e.g., 'per Section 03 30 00').\n\n"
+        + _build_narrative_prompt(report_data, spec_context=spec_context)
     )
     try:
         response = await provider.complete(
@@ -727,6 +781,11 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
     _in_tok = 0
     _out_tok = 0
 
+    # Retrieve spec context to ground the narrative in actual project spec language
+    spec_context = _retrieve_spec_context_for_narrative(project_id)
+    if spec_context:
+        logger.info("Agent 6 v2: injecting spec retrieval context into narrative prompt")
+
     if not use_llm:
         logger.info("Agent 6 v2: use_llm=False — using template narrative")
     else:
@@ -741,7 +800,7 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
                     "available — generating narrative"
                 )
                 llm_text, _in_tok, _out_tok, _cache_create, _cache_read = _run_async(
-                    _llm_generate_narrative(report_data, provider)
+                    _llm_generate_narrative(report_data, provider, spec_context=spec_context)
                 )
                 narrative_tokens = _in_tok + _out_tok
                 if llm_text:
