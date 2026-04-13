@@ -126,6 +126,7 @@ def test_project(db_session, test_user):
         project_number="TP-001",
         owner_id=test_user.id,
         status="draft",
+        project_type="commercial",
     )
     db_session.add(project)
     db_session.commit()
