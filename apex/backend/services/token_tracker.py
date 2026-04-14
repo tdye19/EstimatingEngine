@@ -14,22 +14,42 @@ from apex.backend.models.token_usage import TokenUsage, calculate_cost
 
 logger = logging.getLogger("apex.token_tracker")
 
-# Budget constants — configurable via env vars
-PROJECT_TOKEN_BUDGET = int(os.getenv("PROJECT_TOKEN_BUDGET", str(2_000_000)))
-PROJECT_COST_BUDGET = float(os.getenv("PROJECT_COST_BUDGET", "50.0"))
+# Budget constants — configurable via env vars.
+# New names (PROJECT_TOKEN_LIMIT / PROJECT_COST_LIMIT) take priority;
+# old names (PROJECT_TOKEN_BUDGET / PROJECT_COST_BUDGET) are kept for back-compat.
+PROJECT_TOKEN_BUDGET = int(
+    os.getenv("PROJECT_TOKEN_LIMIT") or os.getenv("PROJECT_TOKEN_BUDGET") or str(20_000_000)
+)
+PROJECT_COST_BUDGET = float(
+    os.getenv("PROJECT_COST_LIMIT") or os.getenv("PROJECT_COST_BUDGET") or "100.0"
+)
+
+_BUDGET_WARN_THRESHOLD = 0.80  # emit WARNING when usage reaches 80% of either limit
 
 
 class TokenBudgetExceeded(Exception):
     """Raised when a project exceeds its token or cost budget."""
 
-    def __init__(self, project_id: int, tokens_used: int, cost_used: float):
+    def __init__(
+        self,
+        project_id: int,
+        tokens_used: int,
+        cost_used: float,
+        document_name: str | None = None,
+        docs_remaining: int = 0,
+    ):
         self.project_id = project_id
         self.tokens_used = tokens_used
         self.cost_used = cost_used
+        self.document_name = document_name
+        self.docs_remaining = docs_remaining
+        doc_info = f" (triggered by: {document_name})" if document_name else ""
+        remaining_info = f", {docs_remaining} document(s) unprocessed" if docs_remaining else ""
         super().__init__(
             f"Project {project_id} budget exceeded: "
             f"{tokens_used:,} tokens (limit {PROJECT_TOKEN_BUDGET:,}), "
             f"${cost_used:.2f} cost (limit ${PROJECT_COST_BUDGET:.2f})"
+            f"{doc_info}{remaining_info}"
         )
 
 
@@ -46,6 +66,20 @@ def check_token_budget(db: Session, project_id: int) -> None:
 
     total_tokens = int(row.total_tokens)
     total_cost = float(row.total_cost)
+
+    token_pct = total_tokens / PROJECT_TOKEN_BUDGET
+    cost_pct = total_cost / PROJECT_COST_BUDGET
+    if token_pct >= _BUDGET_WARN_THRESHOLD or cost_pct >= _BUDGET_WARN_THRESHOLD:
+        logger.warning(
+            "Project %d budget at %.0f%% tokens (%s/%s), %.0f%% cost ($%.2f/$%.2f)",
+            project_id,
+            token_pct * 100,
+            f"{total_tokens:,}",
+            f"{PROJECT_TOKEN_BUDGET:,}",
+            cost_pct * 100,
+            total_cost,
+            PROJECT_COST_BUDGET,
+        )
 
     if total_tokens >= PROJECT_TOKEN_BUDGET or total_cost >= PROJECT_COST_BUDGET:
         raise TokenBudgetExceeded(project_id, total_tokens, total_cost)

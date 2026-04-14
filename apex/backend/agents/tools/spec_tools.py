@@ -113,46 +113,50 @@ async def llm_parse_spec_sections(document_text: str, provider) -> tuple[list[di
     total_input_tokens = 0
     total_output_tokens = 0
 
-    async def _parse_chunk(text: str) -> list[dict]:
+    async def _parse_chunk(text: str, chunk_num: int, total_chunks: int) -> list[dict]:
         """Send one chunk to the LLM and return validated sections."""
         user_prompt = SPEC_PARSER_USER_PROMPT.format(document_text=text)
         response = await provider.complete(
             system_prompt=SPEC_PARSER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             temperature=0.0,
-            max_tokens=16384,
+            max_tokens=32768,
         )
         nonlocal total_input_tokens, total_output_tokens
         total_input_tokens += response.input_tokens
         total_output_tokens += response.output_tokens
         finish = response.finish_reason or "unknown"
         logger.info(
-            "Agent 2 chunk response: %d chars, %d input_tokens, %d output_tokens, "
-            "finish_reason=%s, first 200 chars: %s",
+            "Agent 2 chunk %d/%d response: %d chars, %d in / %d out tokens, finish_reason=%s",
+            chunk_num,
+            total_chunks,
             len(response.content),
             response.input_tokens,
             response.output_tokens,
             finish,
-            response.content[:200],
         )
         logger.debug(
-            "Agent 2 chunk response last 200 chars: %s",
+            "Agent 2 chunk %d/%d first 200 chars: %s | last 200 chars: %s",
+            chunk_num,
+            total_chunks,
+            response.content[:200],
             response.content[-200:],
         )
-        if finish == "MAX_TOKENS":
+        if finish in ("MAX_TOKENS", "max_tokens", "length"):
             logger.warning(
-                "Agent 2: LLM hit MAX_TOKENS — response likely truncated (%d output tokens, provider=%s)",
-                response.output_tokens,
-                provider.provider_name,
+                "Chunk %d/%d hit max_tokens limit — output may be truncated. "
+                "Consider smaller chunk size.",
+                chunk_num,
+                total_chunks,
             )
         return parse_and_validate_llm_sections(response.content)
 
     for i, chunk in enumerate(chunks):
         try:
-            sections = await _parse_chunk(chunk)
+            sections = await _parse_chunk(chunk, i + 1, len(chunks))
         except json.JSONDecodeError:
             # One level of re-splitting — split the chunk in half and retry each half
-            logger.warning("Chunk %d JSON parse failed, re-splitting into 2 sub-chunks", i)
+            logger.warning("Chunk %d JSON parse failed, re-splitting into 2 sub-chunks", i + 1)
             mid = len(chunk) // 2
             # Snap the split point to the nearest paragraph boundary
             boundary = chunk.rfind("\n\n", 0, mid)
@@ -164,9 +168,9 @@ async def llm_parse_spec_sections(document_text: str, provider) -> tuple[list[di
                 if not sub:
                     continue
                 try:
-                    sections.extend(await _parse_chunk(sub))
+                    sections.extend(await _parse_chunk(sub, i + 1, len(chunks)))
                 except json.JSONDecodeError:
-                    logger.warning("Chunk %d sub-chunk %d also failed JSON parse — skipping", i, j)
+                    logger.warning("Chunk %d sub-chunk %d also failed JSON parse — skipping", i + 1, j + 1)
 
         for s in sections:
             key = s["section_number"]

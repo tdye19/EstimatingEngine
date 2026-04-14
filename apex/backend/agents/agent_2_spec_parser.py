@@ -20,7 +20,7 @@ from apex.backend.agents.tools.spec_tools import (
 )
 from apex.backend.models.document import Document
 from apex.backend.models.spec_section import SpecSection
-from apex.backend.services.token_tracker import log_token_usage
+from apex.backend.services.token_tracker import TokenBudgetExceeded, log_token_usage
 from apex.backend.utils.async_helper import run_async as _run_async
 
 logger = logging.getLogger("apex.agent.spec_parser")
@@ -115,11 +115,12 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     )
 
     all_docs = documents + general_docs
+    total_docs = len(all_docs)
     total_sections = 0
     doc_results = []
     run_parse_methods: list[str] = []
 
-    for doc in all_docs:
+    for doc_idx, doc in enumerate(all_docs):
         if not doc.raw_text:
             continue
 
@@ -191,6 +192,24 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
                     "status": "success",
                 }
             )
+
+        except TokenBudgetExceeded as exc:
+            docs_remaining = total_docs - doc_idx - 1
+            logger.error(
+                "Budget exceeded on document %r (doc %d/%d); %d document(s) remain unprocessed: %s",
+                doc.filename,
+                doc_idx + 1,
+                total_docs,
+                docs_remaining,
+                exc,
+            )
+            raise TokenBudgetExceeded(
+                exc.project_id,
+                exc.tokens_used,
+                exc.cost_used,
+                document_name=doc.filename,
+                docs_remaining=docs_remaining,
+            ) from exc
 
         except Exception as e:
             logger.error(f"Failed to parse document {doc.id}: {e}")
