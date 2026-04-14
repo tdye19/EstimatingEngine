@@ -63,6 +63,10 @@ def check_token_budget(db: Session, project_id: int) -> None:
     total_tokens = int(row.total_tokens)
     total_cost = float(row.total_cost)
 
+    # Guard against zero limits (ZeroDivisionError) — treat as immediately exceeded.
+    if PROJECT_TOKEN_BUDGET <= 0 or PROJECT_COST_BUDGET <= 0:
+        raise TokenBudgetExceeded(project_id, total_tokens, total_cost)
+
     token_pct = total_tokens / PROJECT_TOKEN_BUDGET
     cost_pct = total_cost / PROJECT_COST_BUDGET
     if token_pct >= _BUDGET_WARN_THRESHOLD or cost_pct >= _BUDGET_WARN_THRESHOLD:
