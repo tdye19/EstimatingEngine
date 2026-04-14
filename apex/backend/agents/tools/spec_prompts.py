@@ -276,7 +276,9 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
             skipped_numbers += 1
             logger.warning(
                 "Skipping section with invalid number %r (digits=%r, len=%d)",
-                raw_num, digits, n,
+                raw_num,
+                digits,
+                n,
             )
             continue
 
