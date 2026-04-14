@@ -5,7 +5,7 @@ import { uploadDocument, initChunkedUpload, uploadChunk, completeChunkedUpload }
 const CHUNK_SIZE = 2 * 1024 * 1024;      // 2 MB — must match backend CHUNK_SIZE
 const SMALL_FILE_THRESHOLD = 1 * 1024 * 1024; // files <= 1 MB use single-shot upload
 const MAX_RETRIES = 3;
-const CHUNK_UPLOAD_CONCURRENCY = 4;
+const CHUNK_UPLOAD_CONCURRENCY = 1; // backend enforces sequential chunk ordering
 
 /**
  * ChunkedUploader
