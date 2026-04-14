@@ -1,9 +1,8 @@
 """Material Pricing CRUD router."""
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
@@ -30,8 +29,8 @@ _admin = require_role("admin")
 def list_material_prices(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    search: Optional[str] = Query(None),
-    region: Optional[str] = Query(None),
+    search: str | None = Query(None),
+    region: str | None = Query(None),
     _user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
@@ -39,10 +38,7 @@ def list_material_prices(
 
     if search:
         pattern = f"%{search}%"
-        query = query.filter(
-            (MaterialPrice.csi_code.ilike(pattern))
-            | (MaterialPrice.description.ilike(pattern))
-        )
+        query = query.filter((MaterialPrice.csi_code.ilike(pattern)) | (MaterialPrice.description.ilike(pattern)))
 
     if region:
         query = query.filter(MaterialPrice.region == region)
@@ -60,10 +56,14 @@ def get_material_price(
     _user: User = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
-    item = db.query(MaterialPrice).filter(
-        MaterialPrice.id == price_id,
-        MaterialPrice.is_deleted == False,  # noqa: E712
-    ).first()
+    item = (
+        db.query(MaterialPrice)
+        .filter(
+            MaterialPrice.id == price_id,
+            MaterialPrice.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Material price not found")
     return APIResponse(data=MaterialPriceOut.model_validate(item).model_dump())
@@ -95,17 +95,21 @@ def update_material_price(
     _user: User = Depends(_admin_or_estimator),
     db: Session = Depends(get_db),
 ):
-    item = db.query(MaterialPrice).filter(
-        MaterialPrice.id == price_id,
-        MaterialPrice.is_deleted == False,  # noqa: E712
-    ).first()
+    item = (
+        db.query(MaterialPrice)
+        .filter(
+            MaterialPrice.id == price_id,
+            MaterialPrice.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Material price not found")
 
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
 
-    item.updated_at = datetime.now(timezone.utc)
+    item.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(item)
     return APIResponse(data=MaterialPriceOut.model_validate(item).model_dump())
@@ -120,14 +124,18 @@ def delete_material_price(
     _user: User = Depends(_admin),
     db: Session = Depends(get_db),
 ):
-    item = db.query(MaterialPrice).filter(
-        MaterialPrice.id == price_id,
-        MaterialPrice.is_deleted == False,  # noqa: E712
-    ).first()
+    item = (
+        db.query(MaterialPrice)
+        .filter(
+            MaterialPrice.id == price_id,
+            MaterialPrice.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Material price not found")
 
     item.is_deleted = True
-    item.updated_at = datetime.now(timezone.utc)
+    item.updated_at = datetime.now(UTC)
     db.commit()
     return Response(status_code=204)

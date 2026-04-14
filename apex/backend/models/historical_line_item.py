@@ -1,6 +1,7 @@
 """HistoricalLineItem model — normalized line-item storage across all historical bids."""
 
-from datetime import date, datetime
+from datetime import datetime
+
 from sqlalchemy import (
     Boolean,
     Column,
@@ -82,6 +83,4 @@ class HistoricalLineItem(Base):
     library_entry = relationship("EstimateLibraryEntry", back_populates="line_items")
     project = relationship("Project", foreign_keys=[project_id])
 
-    __table_args__ = (
-        Index("ix_hli_csi_project_state", "csi_code", "project_type", "location_state"),
-    )
+    __table_args__ = (Index("ix_hli_csi_project_state", "csi_code", "project_type", "location_state"),)

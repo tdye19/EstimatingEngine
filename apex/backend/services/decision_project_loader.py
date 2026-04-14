@@ -8,7 +8,6 @@ Supports three WinEst export formats:
 
 import logging
 import os
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -51,7 +50,7 @@ def _wbs_to_division(wbs: str) -> str:
     return "03 30 00"
 
 
-def _safe_float(val) -> Optional[float]:
+def _safe_float(val) -> float | None:
     if val is None:
         return None
     try:
@@ -65,10 +64,6 @@ def _safe_float(val) -> Optional[float]:
 
 def _detect_format(df) -> int:
     """Auto-detect WinEst export format by scanning first 10 rows."""
-    try:
-        import pandas as pd
-    except ImportError:
-        return 0
 
     # Flatten first 10 rows into one string for scanning
     sample = df.head(10).to_string().lower()
@@ -96,7 +91,7 @@ def _detect_format(df) -> int:
     return 2  # default
 
 
-def _col_index(header_row, *names) -> Optional[int]:
+def _col_index(header_row, *names) -> int | None:
     """Find column index by matching header names (case-insensitive)."""
     if header_row is None:
         return None
@@ -129,7 +124,7 @@ def _parse_format1(df, proj_id: str, dq: float = 0.7) -> list:
         header_row_idx = 0
 
     header = list(df.iloc[header_row_idx])
-    data = df.iloc[header_row_idx + 1:].reset_index(drop=True)
+    data = df.iloc[header_row_idx + 1 :].reset_index(drop=True)
 
     col_wbs = _col_index(header, "wbs")
     col_desc = _col_index(header, "description")
@@ -175,21 +170,23 @@ def _parse_format1(df, proj_id: str, dq: float = 0.7) -> list:
         if qty and mh and mh > 0:
             prod_rate = round(qty / mh, 4)
 
-        observations.append(HistoricalRateObservation(
-            comparable_project_id=proj_id,
-            raw_activity_name=desc,
-            division_code=_wbs_to_division(wbs),
-            quantity=qty,
-            unit=unit_val,
-            unit_cost=unit_cost,
-            total_cost=total,
-            labor_cost=labor,
-            material_cost=mat,
-            equipment_cost=equip,
-            production_rate=prod_rate,
-            data_quality_score=dq,
-            source_row=int(row_idx),
-        ))
+        observations.append(
+            HistoricalRateObservation(
+                comparable_project_id=proj_id,
+                raw_activity_name=desc,
+                division_code=_wbs_to_division(wbs),
+                quantity=qty,
+                unit=unit_val,
+                unit_cost=unit_cost,
+                total_cost=total,
+                labor_cost=labor,
+                material_cost=mat,
+                equipment_cost=equip,
+                production_rate=prod_rate,
+                data_quality_score=dq,
+                source_row=int(row_idx),
+            )
+        )
 
     return observations
 
@@ -215,7 +212,7 @@ def _parse_format2(df, proj_id: str, dq: float = 0.5) -> list:
         header_row_idx = 0
 
     header = list(df.iloc[header_row_idx])
-    data = df.iloc[header_row_idx + 1:].reset_index(drop=True)
+    data = df.iloc[header_row_idx + 1 :].reset_index(drop=True)
 
     col_desc = _col_index(header, "description")
     col_qty = _col_index(header, "takeoff qty", "qty", "quantity")
@@ -247,17 +244,19 @@ def _parse_format2(df, proj_id: str, dq: float = 0.5) -> list:
         if total and qty and qty > 0:
             unit_cost = round(total / qty, 4)
 
-        observations.append(HistoricalRateObservation(
-            comparable_project_id=proj_id,
-            raw_activity_name=desc,
-            division_code="03 30 00",
-            quantity=qty,
-            unit=unit_val,
-            unit_cost=unit_cost,
-            total_cost=total,
-            data_quality_score=dq,
-            source_row=int(row_idx),
-        ))
+        observations.append(
+            HistoricalRateObservation(
+                comparable_project_id=proj_id,
+                raw_activity_name=desc,
+                division_code="03 30 00",
+                quantity=qty,
+                unit=unit_val,
+                unit_cost=unit_cost,
+                total_cost=total,
+                data_quality_score=dq,
+                source_row=int(row_idx),
+            )
+        )
 
     return observations
 
@@ -283,7 +282,7 @@ def _parse_format3(df, proj_id: str, dq: float = 0.65) -> list:
         header_row_idx = 0
 
     header = list(df.iloc[header_row_idx])
-    data = df.iloc[header_row_idx + 1:].reset_index(drop=True)
+    data = df.iloc[header_row_idx + 1 :].reset_index(drop=True)
 
     col_activity = _col_index(header, "activity", "description")
     col_unit = _col_index(header, "unit")
@@ -310,16 +309,18 @@ def _parse_format3(df, proj_id: str, dq: float = 0.65) -> list:
         if prod_rate and prod_rate > 0:
             unit_cost = round(85.0 / prod_rate, 4)
 
-        observations.append(HistoricalRateObservation(
-            comparable_project_id=proj_id,
-            raw_activity_name=activity,
-            division_code=_wbs_to_division(wbs),
-            unit=unit_val,
-            production_rate=prod_rate,
-            unit_cost=unit_cost,
-            data_quality_score=dq,
-            source_row=int(row_idx),
-        ))
+        observations.append(
+            HistoricalRateObservation(
+                comparable_project_id=proj_id,
+                raw_activity_name=activity,
+                division_code=_wbs_to_division(wbs),
+                unit=unit_val,
+                production_rate=prod_rate,
+                unit_cost=unit_cost,
+                data_quality_score=dq,
+                source_row=int(row_idx),
+            )
+        )
 
     return observations
 
@@ -335,7 +336,7 @@ def load_winest_project(db: Session, file_path: str, metadata: dict) -> dict:
     try:
         import pandas as pd
     except ImportError:
-        raise RuntimeError("pandas is required for WinEst loading")
+        raise RuntimeError("pandas is required for WinEst loading") from None
 
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -343,7 +344,7 @@ def load_winest_project(db: Session, file_path: str, metadata: dict) -> dict:
     try:
         df = pd.read_excel(file_path, header=None)
     except Exception as e:
-        raise ValueError(f"Cannot read Excel file {file_path}: {e}")
+        raise ValueError(f"Cannot read Excel file {file_path}: {e}") from e
 
     if df.empty:
         raise ValueError(f"Empty file: {file_path}")

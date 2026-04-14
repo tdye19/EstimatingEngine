@@ -1,49 +1,50 @@
 """APEX Platform — FastAPI Application Entry Point."""
 
 import asyncio
-import os
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 # Load .env before anything else so env vars are available during import
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from apex.backend.config import APEX_DEV_MODE, CORS_ORIGINS, GLOBAL_RATE_LIMIT, LOG_LEVEL
 from apex.backend.db.database import init_db
-from apex.backend.routers import auth, projects, reports, productivity
 from apex.backend.routers import admin as admin_router
-from apex.backend.routers import materials as materials_router
-from apex.backend.routers import exports
-from apex.backend.routers import token_usage as token_usage_router
-from apex.backend.routers import test_pipeline as test_pipeline_router
-from apex.backend.routers import websocket as ws_router
-from apex.backend.routers import bid_comparison as bid_comparison_router
-from apex.backend.routers import change_orders as change_orders_router
-from apex.backend.routers import material_prices as material_prices_router
-from apex.backend.routers import benchmarking as benchmarking_router
-from apex.backend.routers import users as users_router
-from apex.backend.routers import notifications as notifications_router
-from apex.backend.routers import estimate_library as estimate_library_router
+from apex.backend.routers import auth, exports, productivity, projects, reports
 from apex.backend.routers import batch_import as batch_import_router
+from apex.backend.routers import benchmarking as benchmarking_router
 from apex.backend.routers import benchmarks as benchmarks_router
-from apex.backend.routers import productivity_brain as productivity_brain_router
+from apex.backend.routers import bid_comparison as bid_comparison_router
 from apex.backend.routers import bid_intelligence as bid_intelligence_router
-from apex.backend.routers import field_actuals as field_actuals_router
+from apex.backend.routers import change_orders as change_orders_router
+from apex.backend.routers import dashboard as dashboard_router
 from apex.backend.routers import decision as decision_router
 from apex.backend.routers import decision_system as decision_system_router
+from apex.backend.routers import estimate_library as estimate_library_router
+from apex.backend.routers import field_actuals as field_actuals_router
+from apex.backend.routers import material_prices as material_prices_router
+from apex.backend.routers import materials as materials_router
+from apex.backend.routers import notifications as notifications_router
 from apex.backend.routers import pdf_parser as pdf_parser_router
+from apex.backend.routers import productivity_brain as productivity_brain_router
+from apex.backend.routers import retrieval as retrieval_router
 from apex.backend.routers import sub_bids as sub_bids_router
-from apex.backend.routers import dashboard as dashboard_router
+from apex.backend.routers import test_pipeline as test_pipeline_router
+from apex.backend.routers import token_usage as token_usage_router
+from apex.backend.routers import users as users_router
+from apex.backend.routers import websocket as ws_router
 from apex.backend.services.ws_manager import ws_manager
 
 # Logging — honour LOG_LEVEL env var
@@ -67,11 +68,14 @@ async def lifespan(app: FastAPI):
     _run_seed = APEX_DEV_MODE or os.getenv("RUN_SEED", "").lower() in ("true", "1", "yes")
     if _run_seed:
         import sys
+
         from apex.backend.db.seed import seed_if_empty
+
         seed_if_empty(force="--force-seed" in sys.argv)
 
         try:
             from apex.backend.db.seed_decision_data import run_decision_seed
+
             run_decision_seed()
         except Exception as _ds_err:
             logger.warning("Decision seed skipped: %s", _ds_err)
@@ -83,14 +87,16 @@ async def lifespan(app: FastAPI):
 
     # Clean up any stale chunked-upload temp directories from previous runs
     from apex.backend.routers.projects import cleanup_stale_upload_sessions
+
     cleanup_stale_upload_sessions()
 
     # Initialise shared HTTP client pool
     from apex.backend.services.llm_provider import (
-        init_http_clients,
         close_http_clients,
         get_llm_provider,
+        init_http_clients,
     )
+
     await init_http_clients()
 
     # Log active LLM provider
@@ -168,6 +174,7 @@ app.include_router(decision_system_router.router)
 app.include_router(pdf_parser_router.router)
 app.include_router(sub_bids_router.router)
 app.include_router(dashboard_router.router)
+app.include_router(retrieval_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
 if _is_dev:
@@ -196,7 +203,9 @@ def health_check():
     db_ok = True
     try:
         from sqlalchemy import text
+
         from apex.backend.db.database import SessionLocal
+
         db = SessionLocal()
         db.execute(text("SELECT 1"))
         db.close()
@@ -222,8 +231,8 @@ async def llm_health_check():
         providers: Live availability check for each distinct provider in use.
     """
     from apex.backend.services.llm_provider import (
-        get_llm_provider,
         get_agent_provider_config,
+        get_llm_provider,
     )
 
     # --- Per-agent configuration (no network calls) ---
@@ -258,12 +267,15 @@ async def llm_health_check():
     for pname in sorted(used_providers):
         try:
             from apex.backend.services.llm_provider import _build_provider, _default_model_for
+
             inst = _build_provider(pname, _default_model_for(pname))
             provider_health[pname] = {
                 "available": await inst.health_check(),
                 "api_key_configured": bool(
-                    os.getenv("ANTHROPIC_API_KEY") if pname == "anthropic"
-                    else os.getenv("GEMINI_API_KEY") if pname == "gemini"
+                    os.getenv("ANTHROPIC_API_KEY")
+                    if pname == "anthropic"
+                    else os.getenv("GEMINI_API_KEY")
+                    if pname == "gemini"
                     else True
                 ),
             }

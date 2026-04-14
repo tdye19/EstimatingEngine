@@ -134,13 +134,13 @@ def _clean_llm_json_response(raw_response: str) -> str:
     """
     cleaned = raw_response.strip()
     # Prefer extracting from a fenced code block (handles Gemini's style)
-    code_block = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?```', cleaned)
+    code_block = re.search(r"```(?:json)?\s*\n?([\s\S]*?)\n?```", cleaned)
     if code_block:
         return code_block.group(1).strip()
     # Fallback: strip leading/trailing fences if present
     if cleaned.startswith("```"):
-        cleaned = re.sub(r'^```(?:json)?\n?', '', cleaned)
-        cleaned = re.sub(r'\n?```$', '', cleaned)
+        cleaned = re.sub(r"^```(?:json)?\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned)
     return cleaned
 
 
@@ -187,7 +187,7 @@ def _try_repair_json(raw: str) -> str:
             escape_next = False
             continue
         if in_string:
-            if c == '\\':
+            if c == "\\":
                 escape_next = True
             elif c == '"':
                 in_string = False
@@ -195,9 +195,9 @@ def _try_repair_json(raw: str) -> str:
         # Outside a string
         if c == '"':
             in_string = True
-        elif c == '{':
+        elif c == "{":
             depth += 1
-        elif c == '}':
+        elif c == "}":
             depth -= 1
             if depth == 0:
                 last_complete_obj_end = i
@@ -245,7 +245,7 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
             sections = json.loads(repaired)
         except (ValueError, json.JSONDecodeError) as repair_exc:
             logger.warning("JSON repair also failed: %s", repair_exc)
-            raise original_exc
+            raise original_exc from repair_exc
 
     if not isinstance(sections, list):
         raise ValueError(f"Expected JSON array, got {type(sections).__name__}")
@@ -264,7 +264,7 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
 
         # Normalize section number to "XX XX XX" format
         raw_num = str(s["section_number"]).strip()
-        digits = re.sub(r'\D', '', raw_num)
+        digits = re.sub(r"\D", "", raw_num)
         if 3 <= len(digits) <= 5:
             digits = digits.zfill(6)
         if len(digits) != 6:
@@ -275,21 +275,26 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
 
         division = str(s.get("division", digits[:2])).strip().zfill(2)
 
-        validated.append({
-            "section_number": num,
-            "section_title": str(title).strip(),
-            "division": division,
-            "in_scope": s.get("in_scope", True),
-            "material_specs": s.get("material_specs") or {},
-            "quality_requirements": s.get("quality_requirements") or [],
-            "submittals_required": s.get("submittals_required") or [],
-            "referenced_standards": s.get("referenced_standards") or [],
-        })
+        validated.append(
+            {
+                "section_number": num,
+                "section_title": str(title).strip(),
+                "division": division,
+                "in_scope": s.get("in_scope", True),
+                "material_specs": s.get("material_specs") or {},
+                "quality_requirements": s.get("quality_requirements") or [],
+                "submittals_required": s.get("submittals_required") or [],
+                "referenced_standards": s.get("referenced_standards") or [],
+            }
+        )
 
     if skipped_fields or skipped_numbers:
         logger.warning(
             "Section validation: %d accepted, %d skipped (missing fields), %d skipped (bad number) out of %d total",
-            len(validated), skipped_fields, skipped_numbers, len(sections),
+            len(validated),
+            skipped_fields,
+            skipped_numbers,
+            len(sections),
         )
 
     return validated

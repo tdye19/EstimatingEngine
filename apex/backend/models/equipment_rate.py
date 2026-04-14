@@ -1,6 +1,7 @@
 """Equipment Rate model."""
 
-from sqlalchemy import Column, Integer, String, Float, Text
+from sqlalchemy import Column, Float, Integer, String, Text
+
 from apex.backend.db.database import Base
 from apex.backend.models.base import TimestampMixin
 

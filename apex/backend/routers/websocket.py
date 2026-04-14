@@ -24,19 +24,19 @@ Lifecycle
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from jose import JWTError, jwt
 
 from apex.backend.services.ws_manager import ws_manager
-from apex.backend.utils.auth import SECRET_KEY, ALGORITHM
+from apex.backend.utils.auth import ALGORITHM, SECRET_KEY
 
 router = APIRouter()
 logger = logging.getLogger("apex.ws")
 
-HEARTBEAT_INTERVAL = 30    # seconds: how often to ping a silent client
-IDLE_TIMEOUT_S = 300       # 5 minutes: close truly idle connections
+HEARTBEAT_INTERVAL = 30  # seconds: how often to ping a silent client
+IDLE_TIMEOUT_S = 300  # 5 minutes: close truly idle connections
 
 
 @router.websocket("/ws/pipeline/{project_id}")
@@ -59,18 +59,16 @@ async def pipeline_websocket(project_id: int, websocket: WebSocket, token: str =
         # before the first orchestrator broadcast arrives.
         await _send_initial_status(project_id, websocket)
 
-        last_message_at = datetime.now(timezone.utc)
+        last_message_at = datetime.now(UTC)
 
         while True:
             try:
-                raw = await asyncio.wait_for(
-                    websocket.receive_text(), timeout=HEARTBEAT_INTERVAL
-                )
-                last_message_at = datetime.now(timezone.utc)
+                raw = await asyncio.wait_for(websocket.receive_text(), timeout=HEARTBEAT_INTERVAL)
+                last_message_at = datetime.now(UTC)
                 if raw == "ping":
                     await websocket.send_text("pong")
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Client has been silent; send a keepalive ping
                 try:
                     await websocket.send_json({"type": "ping"})
@@ -78,11 +76,9 @@ async def pipeline_websocket(project_id: int, websocket: WebSocket, token: str =
                     break  # connection dropped
 
                 # Close after extended idle (client pings every 30 s normally)
-                idle_s = (datetime.now(timezone.utc) - last_message_at).total_seconds()
+                idle_s = (datetime.now(UTC) - last_message_at).total_seconds()
                 if idle_s >= IDLE_TIMEOUT_S:
-                    logger.info(
-                        "Closing idle WS for project %s (idle %.0fs)", project_id, idle_s
-                    )
+                    logger.info("Closing idle WS for project %s (idle %.0fs)", project_id, idle_s)
                     await websocket.close(code=1000)
                     break
 
@@ -110,28 +106,24 @@ async def batch_import_websocket(group_id: int, websocket: WebSocket, token: str
 
     await ws_manager.connect_batch(group_id, websocket)
     try:
-        last_message_at = datetime.now(timezone.utc)
+        last_message_at = datetime.now(UTC)
 
         while True:
             try:
-                raw = await asyncio.wait_for(
-                    websocket.receive_text(), timeout=HEARTBEAT_INTERVAL
-                )
-                last_message_at = datetime.now(timezone.utc)
+                raw = await asyncio.wait_for(websocket.receive_text(), timeout=HEARTBEAT_INTERVAL)
+                last_message_at = datetime.now(UTC)
                 if raw == "ping":
                     await websocket.send_text("pong")
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 try:
                     await websocket.send_json({"type": "ping"})
                 except Exception:
                     break
 
-                idle_s = (datetime.now(timezone.utc) - last_message_at).total_seconds()
+                idle_s = (datetime.now(UTC) - last_message_at).total_seconds()
                 if idle_s >= IDLE_TIMEOUT_S:
-                    logger.info(
-                        "Closing idle WS for batch group %s (idle %.0fs)", group_id, idle_s
-                    )
+                    logger.info("Closing idle WS for batch group %s (idle %.0fs)", group_id, idle_s)
                     await websocket.close(code=1000)
                     break
 
@@ -146,6 +138,7 @@ async def batch_import_websocket(group_id: int, websocket: WebSocket, token: str
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 async def _send_initial_status(project_id: int, websocket: WebSocket) -> None:
     """Push the current DB-backed pipeline state to a freshly connected client."""
@@ -169,15 +162,15 @@ async def _send_initial_status(project_id: int, websocket: WebSocket) -> None:
         else:
             overall = "pending"
 
-        await websocket.send_json({
-            "type": "pipeline_update",
-            "project_id": project_id,
-            "overall": overall,
-            "agents": statuses,
-        })
-    except Exception as exc:
-        logger.warning(
-            "Could not send initial WS status for project %s: %s", project_id, exc
+        await websocket.send_json(
+            {
+                "type": "pipeline_update",
+                "project_id": project_id,
+                "overall": overall,
+                "agents": statuses,
+            }
         )
+    except Exception as exc:
+        logger.warning("Could not send initial WS status for project %s: %s", project_id, exc)
     finally:
         db.close()

@@ -9,19 +9,20 @@ Provides POST /api/test/run-pipeline which:
 Mount this router in main.py only when APEX_DEV_MODE is set.
 """
 
-import os
 import logging
+import os
 from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.models.document import Document
+from apex.backend.models.gap_report import GapReport
+from apex.backend.models.intelligence_report import IntelligenceReportModel
 from apex.backend.models.project import Project
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.takeoff_v2 import TakeoffItemV2
-from apex.backend.models.gap_report import GapReport
-from apex.backend.models.intelligence_report import IntelligenceReportModel
 from apex.backend.services.agent_orchestrator import AgentOrchestrator
 
 logger = logging.getLogger("apex.test_pipeline")
@@ -86,60 +87,74 @@ def run_test_pipeline(db: Session = Depends(get_db)):
     assertions = []
 
     r1 = pipeline_results.get("agent_1", {})
-    assertions.append({
-        "check": "Agent 1 extracted text",
-        "passed": r1.get("documents_processed", 0) >= 1 and not r1.get("error"),
-        "detail": f"documents_processed={r1.get('documents_processed', 0)}",
-    })
+    assertions.append(
+        {
+            "check": "Agent 1 extracted text",
+            "passed": r1.get("documents_processed", 0) >= 1 and not r1.get("error"),
+            "detail": f"documents_processed={r1.get('documents_processed', 0)}",
+        }
+    )
 
     r2 = pipeline_results.get("agent_2", {})
     sections = r2.get("sections_parsed", 0)
-    assertions.append({
-        "check": "Agent 2 found >= 3 spec sections",
-        "passed": sections >= 3,
-        "detail": f"sections_parsed={sections}",
-    })
+    assertions.append(
+        {
+            "check": "Agent 2 found >= 3 spec sections",
+            "passed": sections >= 3,
+            "detail": f"sections_parsed={sections}",
+        }
+    )
 
     r3 = pipeline_results.get("agent_3", {})
     gaps = r3.get("total_gaps", 0)
-    assertions.append({
-        "check": "Agent 3 flagged >= 1 gap",
-        "passed": gaps >= 1 and not r3.get("error"),
-        "detail": f"total_gaps={gaps}",
-    })
+    assertions.append(
+        {
+            "check": "Agent 3 flagged >= 1 gap",
+            "passed": gaps >= 1 and not r3.get("error"),
+            "detail": f"total_gaps={gaps}",
+        }
+    )
 
     r4 = pipeline_results.get("agent_4", {})
     parsed = r4.get("takeoff_items_parsed", 0)
-    assertions.append({
-        "check": "Agent 4 parsed takeoff and produced recommendations",
-        "passed": parsed >= 0 and not r4.get("error"),
-        "detail": f"takeoff_items_parsed={parsed}, items_matched={r4.get('items_matched', 0)}",
-    })
+    assertions.append(
+        {
+            "check": "Agent 4 parsed takeoff and produced recommendations",
+            "passed": parsed >= 0 and not r4.get("error"),
+            "detail": f"takeoff_items_parsed={parsed}, items_matched={r4.get('items_matched', 0)}",
+        }
+    )
 
     r5 = pipeline_results.get("agent_5", {})
     compared = r5.get("items_compared", 0)
-    assertions.append({
-        "check": "Agent 5 compared against field actuals",
-        "passed": compared >= 0 and not r5.get("error"),
-        "detail": f"items_compared={compared}, with_field_data={r5.get('items_with_field_data', 0)}",
-    })
+    assertions.append(
+        {
+            "check": "Agent 5 compared against field actuals",
+            "passed": compared >= 0 and not r5.get("error"),
+            "detail": f"items_compared={compared}, with_field_data={r5.get('items_with_field_data', 0)}",
+        }
+    )
 
     r6 = pipeline_results.get("agent_6", {})
     report_id = r6.get("report_id", -1)
-    assertions.append({
-        "check": "Agent 6 produced intelligence report",
-        "passed": report_id >= 0 and not r6.get("error"),
-        "detail": f"report_id={report_id}, risk={r6.get('overall_risk_level', 'N/A')}",
-    })
+    assertions.append(
+        {
+            "check": "Agent 6 produced intelligence report",
+            "passed": report_id >= 0 and not r6.get("error"),
+            "detail": f"report_id={report_id}, risk={r6.get('overall_risk_level', 'N/A')}",
+        }
+    )
 
     # --- 5. v2 pipeline deep validation (queries DB directly) ---
     v2_checks = _validate_v2_pipeline(project_id, db)
     for label, passed in v2_checks:
-        assertions.append({
-            "check": f"[v2] {label}",
-            "passed": passed,
-            "detail": "OK" if passed else "FAIL",
-        })
+        assertions.append(
+            {
+                "check": f"[v2] {label}",
+                "passed": passed,
+                "detail": "OK" if passed else "FAIL",
+            }
+        )
 
     all_passed = all(a["passed"] for a in assertions)
 

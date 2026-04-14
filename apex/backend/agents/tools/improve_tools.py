@@ -1,7 +1,9 @@
 """IMPROVE feedback tools for Agent 7."""
 
 import logging
+
 from sqlalchemy.orm import Session
+
 from apex.backend.models.productivity_history import ProductivityHistory
 
 logger = logging.getLogger("apex.tools.improve")
@@ -19,15 +21,17 @@ def actual_importer_tool(rows: list[dict]) -> list[dict]:
         if not csi:
             continue
 
-        cleaned.append({
-            "csi_code": csi,
-            "description": row.get("description", ""),
-            "actual_quantity": float(row.get("actual_quantity", 0) or 0),
-            "actual_labor_hours": float(row.get("actual_labor_hours", 0) or 0),
-            "actual_cost": float(row.get("actual_cost", 0) or 0),
-            "crew_type": row.get("crew_type", ""),
-            "work_type": row.get("work_type", ""),
-        })
+        cleaned.append(
+            {
+                "csi_code": csi,
+                "description": row.get("description", ""),
+                "actual_quantity": float(row.get("actual_quantity", 0) or 0),
+                "actual_labor_hours": float(row.get("actual_labor_hours", 0) or 0),
+                "actual_cost": float(row.get("actual_cost", 0) or 0),
+                "crew_type": row.get("crew_type", ""),
+                "work_type": row.get("work_type", ""),
+            }
+        )
     return cleaned
 
 
@@ -44,14 +48,14 @@ def variance_calculator_tool(estimate_items: list[dict], actual_items: list[dict
             estimate_map[csi] = item
         else:
             # Merge quantities
-            estimate_map[csi]["estimated_quantity"] = (
-                estimate_map[csi].get("estimated_quantity", 0) + item.get("estimated_quantity", 0)
+            estimate_map[csi]["estimated_quantity"] = estimate_map[csi].get("estimated_quantity", 0) + item.get(
+                "estimated_quantity", 0
             )
-            estimate_map[csi]["estimated_labor_hours"] = (
-                estimate_map[csi].get("estimated_labor_hours", 0) + item.get("estimated_labor_hours", 0)
+            estimate_map[csi]["estimated_labor_hours"] = estimate_map[csi].get("estimated_labor_hours", 0) + item.get(
+                "estimated_labor_hours", 0
             )
-            estimate_map[csi]["estimated_cost"] = (
-                estimate_map[csi].get("estimated_cost", 0) + item.get("estimated_cost", 0)
+            estimate_map[csi]["estimated_cost"] = estimate_map[csi].get("estimated_cost", 0) + item.get(
+                "estimated_cost", 0
             )
 
     variances = []
@@ -70,19 +74,21 @@ def variance_calculator_tool(estimate_items: list[dict], actual_items: list[dict
         var_cost = act_cost - est_cost
         var_pct = ((act_cost - est_cost) / est_cost * 100) if est_cost else 0
 
-        variances.append({
-            "csi_code": csi,
-            "description": actual.get("description", est.get("description", "")),
-            "estimated_quantity": est_qty,
-            "actual_quantity": act_qty,
-            "estimated_labor_hours": est_hours,
-            "actual_labor_hours": act_hours,
-            "estimated_cost": est_cost,
-            "actual_cost": act_cost,
-            "variance_hours": round(var_hours, 2),
-            "variance_cost": round(var_cost, 2),
-            "variance_pct": round(var_pct, 2),
-        })
+        variances.append(
+            {
+                "csi_code": csi,
+                "description": actual.get("description", est.get("description", "")),
+                "estimated_quantity": est_qty,
+                "actual_quantity": act_qty,
+                "estimated_labor_hours": est_hours,
+                "actual_labor_hours": act_hours,
+                "estimated_cost": est_cost,
+                "actual_cost": act_cost,
+                "variance_hours": round(var_hours, 2),
+                "variance_cost": round(var_cost, 2),
+                "variance_pct": round(var_pct, 2),
+            }
+        )
 
     return variances
 
@@ -101,11 +107,15 @@ def productivity_updater_tool(
 
     Computes weighted average with existing data.
     """
-    existing = db.query(ProductivityHistory).filter(
-        ProductivityHistory.csi_code == csi_code,
-        ProductivityHistory.work_type == work_type,
-        ProductivityHistory.is_deleted == False,  # noqa: E712
-    ).all()
+    existing = (
+        db.query(ProductivityHistory)
+        .filter(
+            ProductivityHistory.csi_code == csi_code,
+            ProductivityHistory.work_type == work_type,
+            ProductivityHistory.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     if existing:
         # Calculate new weighted average
@@ -152,11 +162,16 @@ def productivity_updater_tool(
 
 def trend_analyzer_tool(db: Session, csi_code: str) -> dict:
     """Analyze productivity trends for a CSI code over time."""
-    records = db.query(ProductivityHistory).filter(
-        ProductivityHistory.csi_code == csi_code,
-        ProductivityHistory.is_actual == 1,
-        ProductivityHistory.is_deleted == False,  # noqa: E712
-    ).order_by(ProductivityHistory.created_at).all()
+    records = (
+        db.query(ProductivityHistory)
+        .filter(
+            ProductivityHistory.csi_code == csi_code,
+            ProductivityHistory.is_actual == 1,
+            ProductivityHistory.is_deleted == False,  # noqa: E712
+        )
+        .order_by(ProductivityHistory.created_at)
+        .all()
+    )
 
     if not records:
         return {"csi_code": csi_code, "trend": "no_data", "data_points": 0}

@@ -14,10 +14,10 @@ import json
 import sys
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Per-agent check definitions
 # ---------------------------------------------------------------------------
+
 
 def _check(name: str, passed: bool) -> dict:
     return {"name": name, "passed": passed}
@@ -113,7 +113,7 @@ def _score_agent_6(result: dict) -> dict:
     """Agent 6 — Estimate Assembly: total_cost > 0 and executive_summary non-empty."""
     checks = []
     total = result.get("total_cost")
-    checks.append(_check("total_cost_gt_0", isinstance(total, (int, float)) and total > 0))
+    checks.append(_check("total_cost_gt_0", isinstance(total, int | float) and total > 0))
     summary = result.get("executive_summary")
     checks.append(_check("executive_summary_non_empty", isinstance(summary, str) and len(summary.strip()) > 0))
     passed = sum(c["passed"] for c in checks)
@@ -160,6 +160,7 @@ AGENT_SCORERS = {
 # Section builders
 # ---------------------------------------------------------------------------
 
+
 def _build_line_item_stats(result: dict) -> dict:
     items = result.get("line_items") or []
     if not isinstance(items, list):
@@ -169,14 +170,14 @@ def _build_line_item_stats(result: dict) -> dict:
     with_qty = sum(1 for it in items if (it.get("quantity") or 0) > 0)
     with_csi = sum(1 for it in items if it.get("csi_code"))
     missing_all = sum(
-        1 for it in items
-        if (it.get("unit_price") or 0) == 0
-        and (it.get("quantity") or 0) == 0
-        and not it.get("csi_code")
+        1
+        for it in items
+        if (it.get("unit_price") or 0) == 0 and (it.get("quantity") or 0) == 0 and not it.get("csi_code")
     )
     coverage = (
-        sum(1 for it in items if (it.get("unit_price") or 0) > 0 and (it.get("quantity") or 0) > 0)
-        / total * 100 if total > 0 else 0.0
+        sum(1 for it in items if (it.get("unit_price") or 0) > 0 and (it.get("quantity") or 0) > 0) / total * 100
+        if total > 0
+        else 0.0
     )
     return {
         "total_items": total,
@@ -210,11 +211,11 @@ def _build_gap_analysis(result: dict) -> dict:
 
 def _build_cost_summary(result: dict) -> dict:
     total_cost = result.get("total_cost")
-    if not isinstance(total_cost, (int, float)):
+    if not isinstance(total_cost, int | float):
         total_cost = 0.0
-    has_summary = isinstance(result.get("executive_summary"), str) and len(
-        (result.get("executive_summary") or "").strip()
-    ) > 0
+    has_summary = (
+        isinstance(result.get("executive_summary"), str) and len((result.get("executive_summary") or "").strip()) > 0
+    )
     has_sched = bool(result.get("schedule") or result.get("milestones"))
     return {
         "total_cost_usd": float(total_cost),
@@ -226,6 +227,7 @@ def _build_cost_summary(result: dict) -> dict:
 # ---------------------------------------------------------------------------
 # Main scorer
 # ---------------------------------------------------------------------------
+
 
 def score_pipeline_result(result: dict, verbose: bool = False) -> dict:
     """Score a completed pipeline result and return a structured accuracy report.
@@ -250,7 +252,7 @@ def score_pipeline_result(result: dict, verbose: bool = False) -> dict:
         score_result = scorer(result)
 
         # If none of the checks have any data to work with, treat as skip
-        all_failed_due_to_missing = all(not c["passed"] for c in score_result["checks"])
+        all(not c["passed"] for c in score_result["checks"])
         # Specifically check if the primary key for this agent exists
         agent_num = int(agent_key.split("_")[1])
         primary_keys = {
@@ -278,9 +280,7 @@ def score_pipeline_result(result: dict, verbose: bool = False) -> dict:
             passed_checks = sum(1 for c in s["checks"] if c["passed"])
             tag = s["status"].upper()
             print(
-                f"Agent {agent_num} [{tag}] — "
-                f"score: {s['score']:.2f} — "
-                f"checks: {passed_checks}/{total_checks} passed"
+                f"Agent {agent_num} [{tag}] — score: {s['score']:.2f} — checks: {passed_checks}/{total_checks} passed"
             )
 
     # Pipeline summary

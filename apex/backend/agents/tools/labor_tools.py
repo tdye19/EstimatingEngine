@@ -1,8 +1,9 @@
 """Labor productivity tools for Agent 5."""
 
 import logging
+
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+
 from apex.backend.models.productivity_history import ProductivityHistory
 
 logger = logging.getLogger("apex.tools.labor")
@@ -48,10 +49,9 @@ def productivity_lookup_tool(db: Session, csi_code: str, work_type: str = None) 
         # Weighted average by confidence
         total_weight = sum(r.confidence_score * r.sample_count for r in records)
         if total_weight > 0:
-            weighted_rate = sum(
-                r.productivity_rate * r.confidence_score * r.sample_count
-                for r in records
-            ) / total_weight
+            weighted_rate = (
+                sum(r.productivity_rate * r.confidence_score * r.sample_count for r in records) / total_weight
+            )
         else:
             weighted_rate = sum(r.productivity_rate for r in records) / len(records)
 

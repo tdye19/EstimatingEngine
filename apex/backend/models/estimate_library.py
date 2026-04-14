@@ -1,7 +1,7 @@
 """Estimate Library models — searchable archive of completed estimates."""
 
 import json
-from datetime import date
+
 from sqlalchemy import (
     Boolean,
     Column,
@@ -35,7 +35,7 @@ class EstimateLibraryEntry(Base, TimestampMixin):
     description = Column(Text, nullable=True)
 
     # Classification
-    project_type = Column(String(100), nullable=True)   # e.g. "Commercial Office TI"
+    project_type = Column(String(100), nullable=True)  # e.g. "Commercial Office TI"
     building_type = Column(String(100), nullable=True)  # e.g. "Wood Frame"
 
     # Size & cost

@@ -2,7 +2,6 @@
 
 from sqlalchemy.orm import Query
 
-
 MAX_LIMIT = 500
 
 

@@ -15,12 +15,11 @@ Key distinction:
 
 import hashlib
 from difflib import SequenceMatcher
-from typing import Optional
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from apex.backend.models.field_actuals import FieldActualsProject, FieldActualsLineItem
+from apex.backend.models.field_actuals import FieldActualsLineItem, FieldActualsProject
 from apex.backend.services.takeoff_parser.parser import parse_takeoff
 
 
@@ -156,16 +155,18 @@ class FieldActualsService:
             )
             project_names = [p[0] for p in projects if p[0]]
 
-            results.append({
-                "activity": r.activity,
-                "unit": r.unit,
-                "sample_count": r.sample_count,
-                "project_count": r.project_count,
-                "avg_rate": round(r.avg_rate, 4) if r.avg_rate else None,
-                "min_rate": round(r.min_rate, 4) if r.min_rate else None,
-                "max_rate": round(r.max_rate, 4) if r.max_rate else None,
-                "projects": project_names,
-            })
+            results.append(
+                {
+                    "activity": r.activity,
+                    "unit": r.unit,
+                    "sample_count": r.sample_count,
+                    "project_count": r.project_count,
+                    "avg_rate": round(r.avg_rate, 4) if r.avg_rate else None,
+                    "min_rate": round(r.min_rate, 4) if r.min_rate else None,
+                    "max_rate": round(r.max_rate, 4) if r.max_rate else None,
+                    "projects": project_names,
+                }
+            )
 
         return results
 
@@ -173,7 +174,7 @@ class FieldActualsService:
         self,
         activity: str,
         unit: str = None,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Find field actuals for a specific activity.
 
         Uses fuzzy matching (same approach as rate_engine) when exact match unavailable.
@@ -207,7 +208,7 @@ class FieldActualsService:
 
         return self._query_rates(best_activity, unit)
 
-    def _query_rates(self, activity: str, unit: str = None) -> Optional[dict]:
+    def _query_rates(self, activity: str, unit: str = None) -> dict | None:
         """Query aggregated field rates for exact activity match."""
         q = self.db.query(
             func.avg(FieldActualsLineItem.actual_production_rate).label("avg_rate"),
@@ -253,7 +254,8 @@ class FieldActualsService:
         total_activities = (
             self.db.query(func.count(func.distinct(FieldActualsLineItem.activity)))
             .filter(FieldActualsLineItem.actual_production_rate.isnot(None))
-            .scalar() or 0
+            .scalar()
+            or 0
         )
 
         return {

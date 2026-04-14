@@ -1,7 +1,15 @@
 """Intelligence Report model — aggregated findings from all upstream agents (Agent 6 v2)."""
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Text, DateTime, ForeignKey, Index, func,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
 )
 from sqlalchemy.orm import relationship
 
@@ -22,10 +30,10 @@ class IntelligenceReportModel(Base):
     takeoff_total_material = Column(Float)
 
     # Intelligence summaries (stored as JSON)
-    rate_intelligence_json = Column(Text)       # JSON of RateIntelligenceSummary
-    field_calibration_json = Column(Text)       # JSON of FieldCalibrationSummary
-    scope_risk_json = Column(Text)              # JSON of ScopeRiskSummary
-    comparable_projects_json = Column(Text)     # JSON of ComparableProjectSummary
+    rate_intelligence_json = Column(Text)  # JSON of RateIntelligenceSummary
+    field_calibration_json = Column(Text)  # JSON of FieldCalibrationSummary
+    scope_risk_json = Column(Text)  # JSON of ScopeRiskSummary
+    comparable_projects_json = Column(Text)  # JSON of ComparableProjectSummary
 
     # Spec intel
     spec_sections_parsed = Column(Integer, default=0)

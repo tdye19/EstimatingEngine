@@ -5,36 +5,38 @@ filtering by context. Context filtering is the difference between
 'historical noise' and 'decision-grade signal.'
 """
 
-from dataclasses import dataclass, field
-from typing import List, Optional
 import json
+from dataclasses import dataclass, field
 
 
 @dataclass
 class ProjectContext:
     """Mandatory context for benchmark retrieval. §10"""
-    project_type: str                       # data_center, healthcare, education, warehouse, ...
-    region: str                             # midwest, southeast, northeast, southwest, west
-    market_sector: Optional[str] = None     # mission_critical, k12, higher_ed, ...
-    size_sf: Optional[float] = None
-    contract_type: Optional[str] = None     # self_perform, subcontract, mixed
-    delivery_method: Optional[str] = None   # cmar, design_build, hard_bid, gmp
-    scope_types: List[str] = field(default_factory=list)  # ["sitework", "concrete", ...]
-    complexity_level: Optional[str] = None  # low | medium | high | very_high
-    schedule_pressure: Optional[str] = None # low | medium | high | extreme
+
+    project_type: str  # data_center, healthcare, education, warehouse, ...
+    region: str  # midwest, southeast, northeast, southwest, west
+    market_sector: str | None = None  # mission_critical, k12, higher_ed, ...
+    size_sf: float | None = None
+    contract_type: str | None = None  # self_perform, subcontract, mixed
+    delivery_method: str | None = None  # cmar, design_build, hard_bid, gmp
+    scope_types: list[str] = field(default_factory=list)  # ["sitework", "concrete", ...]
+    complexity_level: str | None = None  # low | medium | high | very_high
+    schedule_pressure: str | None = None  # low | medium | high | extreme
 
     def to_json(self) -> str:
-        return json.dumps({
-            "project_type": self.project_type,
-            "region": self.region,
-            "market_sector": self.market_sector,
-            "size_sf": self.size_sf,
-            "contract_type": self.contract_type,
-            "delivery_method": self.delivery_method,
-            "scope_types": self.scope_types,
-            "complexity_level": self.complexity_level,
-            "schedule_pressure": self.schedule_pressure,
-        })
+        return json.dumps(
+            {
+                "project_type": self.project_type,
+                "region": self.region,
+                "market_sector": self.market_sector,
+                "size_sf": self.size_sf,
+                "contract_type": self.contract_type,
+                "delivery_method": self.delivery_method,
+                "scope_types": self.scope_types,
+                "complexity_level": self.complexity_level,
+                "schedule_pressure": self.schedule_pressure,
+            }
+        )
 
     @classmethod
     def from_project(cls, project) -> "ProjectContext":
@@ -65,8 +67,8 @@ _SCHEDULE_ORDER = {"low": 0, "medium": 1, "high": 2, "extreme": 3}
 
 # Size buckets (sf) — penalize comparables outside adjacent bucket
 _SIZE_BUCKETS = [
-    (0,       50_000),
-    (50_000,  150_000),
+    (0, 50_000),
+    (50_000, 150_000),
     (150_000, 400_000),
     (400_000, 800_000),
     (800_000, float("inf")),
@@ -80,7 +82,7 @@ def _size_bucket(sf: float) -> int:
     return len(_SIZE_BUCKETS) - 1
 
 
-def _scope_overlap(a: List[str], b: List[str]) -> float:
+def _scope_overlap(a: list[str], b: list[str]) -> float:
     if not a or not b:
         return 0.5  # unknown overlap → neutral
     sa, sb = set(a), set(b)

@@ -5,8 +5,8 @@ No LLM touches money. All math is Python.
 
 from sqlalchemy.orm import Session
 
-from apex.backend.services.decision_pricing import DecisionPricingEngine
 from apex.backend.services.decision_commercial import DecisionCommercialEngine
+from apex.backend.services.decision_pricing import DecisionPricingEngine
 from apex.backend.services.decision_risk import DecisionRiskEngine
 
 

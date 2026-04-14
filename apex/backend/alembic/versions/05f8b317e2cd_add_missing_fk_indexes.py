@@ -5,23 +5,30 @@ Revises: 2e5ae275617d
 Create Date: 2026-04-10 19:14:28.768988
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
-revision: str = '05f8b317e2cd'
-down_revision: Union[str, Sequence[str], None] = '2e5ae275617d'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "05f8b317e2cd"
+down_revision: str | Sequence[str] | None = "2e5ae275617d"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # (index_name, table_name, columns)
 INDEXES = [
     # Decision system tables
-    ("ix_historical_rate_observations_comparable_project_id", "historical_rate_observations", ["comparable_project_id"]),
-    ("ix_historical_rate_observations_canonical_activity_id", "historical_rate_observations", ["canonical_activity_id"]),
+    (
+        "ix_historical_rate_observations_comparable_project_id",
+        "historical_rate_observations",
+        ["comparable_project_id"],
+    ),
+    (
+        "ix_historical_rate_observations_canonical_activity_id",
+        "historical_rate_observations",
+        ["canonical_activity_id"],
+    ),
     ("ix_historical_rate_observations_division_code", "historical_rate_observations", ["division_code"]),
     ("ix_estimate_runs_project_id", "estimate_runs", ["project_id"]),
     ("ix_estimate_runs_project_id_version", "estimate_runs", ["project_id", "version_number"]),

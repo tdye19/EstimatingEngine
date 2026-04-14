@@ -1,33 +1,34 @@
 """Database seeder — populates sample data for development and demo."""
 
 import logging
-from datetime import datetime, timezone, timedelta
-from apex.backend.db.database import SessionLocal
-from apex.backend.models.user import User
-from apex.backend.models.organization import Organization
-from apex.backend.models.project import Project
+from datetime import UTC, datetime, timedelta
+
+from apex.backend.db.database import Base, SessionLocal
+from apex.backend.models.agent_run_log import AgentRunLog
 from apex.backend.models.document import Document
-from apex.backend.models.spec_section import SpecSection
+from apex.backend.models.equipment_rate import EquipmentRate
+from apex.backend.models.estimate import Estimate, EstimateLineItem
 from apex.backend.models.gap_report import GapReport, GapReportItem
-from apex.backend.models.takeoff_item import TakeoffItem
 from apex.backend.models.labor_estimate import LaborEstimate
 from apex.backend.models.material_price import MaterialPrice
-from apex.backend.models.estimate import Estimate, EstimateLineItem
-from apex.backend.utils.csi_utils import parse_csi_division
-from apex.backend.models.project_actual import ProjectActual
+from apex.backend.models.organization import Organization
 from apex.backend.models.productivity_history import ProductivityHistory
-from apex.backend.models.agent_run_log import AgentRunLog
-from apex.backend.models.equipment_rate import EquipmentRate
+from apex.backend.models.project import Project
+from apex.backend.models.project_actual import ProjectActual
+from apex.backend.models.spec_section import SpecSection
+from apex.backend.models.takeoff_item import TakeoffItem
+from apex.backend.models.user import User
 from apex.backend.utils.auth import hash_password
-from apex.backend.db.database import Base
+from apex.backend.utils.csi_utils import parse_csi_division
 
 logger = logging.getLogger("apex.seed")
 
-now = datetime.now(timezone.utc)
+now = datetime.now(UTC)
 
 
 def seed_if_empty(force: bool = False):
     import os
+
     _dev = os.getenv("APEX_DEV_MODE", "").lower() in ("true", "1", "yes")
     if not _dev and not force:
         logger.info("Seeding skipped in production (set APEX_DEV_MODE=true or use --force-seed)")
@@ -38,6 +39,7 @@ def seed_if_empty(force: bool = False):
         if force:
             logger.info("Force flag set — dropping and recreating all tables...")
             from apex.backend.db.database import engine
+
             Base.metadata.drop_all(engine)
             Base.metadata.create_all(engine)
             logger.info("Tables reset. Seeding fresh data...")
@@ -55,38 +57,73 @@ def seed_if_empty(force: bool = False):
 
 def _seed(db):
     # --- Organization ---
-    org = Organization(name="Summit Builders Inc.", address="1200 Industrial Pkwy, Denver, CO 80202", phone="303-555-0100", license_number="GC-2024-8847")
+    org = Organization(
+        name="Summit Builders Inc.",
+        address="1200 Industrial Pkwy, Denver, CO 80202",
+        phone="303-555-0100",
+        license_number="GC-2024-8847",
+    )
     db.add(org)
     db.commit()
     db.refresh(org)
 
     # --- Users ---
-    admin = User(email="admin@summitbuilders.com", hashed_password=hash_password("admin123"), full_name="Mike Reynolds", role="admin", organization_id=org.id)
-    estimator = User(email="estimator@summitbuilders.com", hashed_password=hash_password("estimate123"), full_name="Sarah Chen", role="estimator", organization_id=org.id)
+    admin = User(
+        email="admin@summitbuilders.com",
+        hashed_password=hash_password("admin123"),
+        full_name="Mike Reynolds",
+        role="admin",
+        organization_id=org.id,
+    )
+    estimator = User(
+        email="estimator@summitbuilders.com",
+        hashed_password=hash_password("estimate123"),
+        full_name="Sarah Chen",
+        role="estimator",
+        organization_id=org.id,
+    )
     db.add_all([admin, estimator])
     db.commit()
 
     # --- Projects ---
     p1 = Project(
-        name="Meridian Office Tower", project_number="SOT-2025-001",
-        project_type="commercial", status="estimating",
+        name="Meridian Office Tower",
+        project_number="SOT-2025-001",
+        project_type="commercial",
+        status="estimating",
         description="12-story Class A office building with ground-floor retail, 285,000 SF",
-        location="Denver, CO", square_footage=285000, estimated_value=42000000,
-        bid_date="2025-04-15", owner_id=estimator.id, organization_id=org.id,
+        location="Denver, CO",
+        square_footage=285000,
+        estimated_value=42000000,
+        bid_date="2025-04-15",
+        owner_id=estimator.id,
+        organization_id=org.id,
     )
     p2 = Project(
-        name="Westfield Medical Center Expansion", project_number="WMC-2025-002",
-        project_type="healthcare", status="draft",
+        name="Westfield Medical Center Expansion",
+        project_number="WMC-2025-002",
+        project_type="healthcare",
+        status="draft",
         description="45,000 SF addition to existing medical center including surgery suites and imaging wing",
-        location="Aurora, CO", square_footage=45000, estimated_value=18500000,
-        bid_date="2025-05-20", owner_id=estimator.id, organization_id=org.id,
+        location="Aurora, CO",
+        square_footage=45000,
+        estimated_value=18500000,
+        bid_date="2025-05-20",
+        owner_id=estimator.id,
+        organization_id=org.id,
     )
     p3 = Project(
-        name="Rocky Mountain Fulfillment Center", project_number="RMFC-2024-003",
-        project_type="industrial", status="completed",
+        name="Rocky Mountain Fulfillment Center",
+        project_number="RMFC-2024-003",
+        project_type="industrial",
+        status="completed",
         description="180,000 SF tilt-up warehouse with 30,000 SF office build-out — COMPLETED with actuals",
-        location="Commerce City, CO", square_footage=210000, estimated_value=15200000,
-        bid_date="2024-06-01", owner_id=estimator.id, organization_id=org.id,
+        location="Commerce City, CO",
+        square_footage=210000,
+        estimated_value=15200000,
+        bid_date="2024-06-01",
+        owner_id=estimator.id,
+        organization_id=org.id,
     )
     db.add_all([p1, p2, p3])
     db.commit()
@@ -96,9 +133,37 @@ def _seed(db):
 
     # --- Documents for Project 1 ---
     docs = [
-        Document(project_id=p1.id, filename="Meridian_Specs_Divisions_03-09.pdf", file_path="/data/specs/meridian_03-09.pdf", file_type="pdf", classification="spec", file_size_bytes=4200000, page_count=186, processing_status="completed", raw_text=_sample_spec_text()),
-        Document(project_id=p1.id, filename="Meridian_Structural_Drawings.pdf", file_path="/data/drawings/meridian_structural.pdf", file_type="pdf", classification="drawing", file_size_bytes=12800000, page_count=42, processing_status="completed"),
-        Document(project_id=p1.id, filename="Addendum_01.pdf", file_path="/data/addenda/meridian_add01.pdf", file_type="pdf", classification="addendum", file_size_bytes=850000, page_count=8, processing_status="completed"),
+        Document(
+            project_id=p1.id,
+            filename="Meridian_Specs_Divisions_03-09.pdf",
+            file_path="/data/specs/meridian_03-09.pdf",
+            file_type="pdf",
+            classification="spec",
+            file_size_bytes=4200000,
+            page_count=186,
+            processing_status="completed",
+            raw_text=_sample_spec_text(),
+        ),
+        Document(
+            project_id=p1.id,
+            filename="Meridian_Structural_Drawings.pdf",
+            file_path="/data/drawings/meridian_structural.pdf",
+            file_type="pdf",
+            classification="drawing",
+            file_size_bytes=12800000,
+            page_count=42,
+            processing_status="completed",
+        ),
+        Document(
+            project_id=p1.id,
+            filename="Addendum_01.pdf",
+            file_path="/data/addenda/meridian_add01.pdf",
+            file_type="pdf",
+            classification="addendum",
+            file_size_bytes=850000,
+            page_count=8,
+            processing_status="completed",
+        ),
     ]
     db.add_all(docs)
     db.commit()
@@ -107,30 +172,146 @@ def _seed(db):
 
     # --- Spec Sections for Project 1 ---
     spec_sections_data = [
-        ("03", "03 10 00", "Concrete Forming and Accessories", "Furnish and install all formwork for cast-in-place concrete. Includes shores, reshores, and form ties. 45,000 SF of elevated slab forming, 12,000 LF of edge forms.", ["ASTM A615", "ACI 318"], "Product Data, Shop Drawings for shoring layout"),
-        ("03", "03 20 00", "Concrete Reinforcing", "Furnish and install all reinforcing steel. #4 through #11 bars, WWF 6x6-W2.9xW2.9. Approximately 380 tons.", ["ASTM A615 Grade 60", "ASTM A185"], "Mill certificates, placing drawings"),
-        ("03", "03 30 00", "Cast-in-Place Concrete", "Place and finish all structural and architectural concrete. 4,200 CY structural, 850 CY slab-on-grade, 3,500 psi to 6,000 psi mix designs.", ["ASTM C150", "ACI 301", "ACI 318"], "Mix designs, test reports"),
-        ("05", "05 12 00", "Structural Steel Framing", "Furnish and erect structural steel framing. W-shapes, HSS columns, moment frames. Approximately 1,850 tons.", ["ASTM A992", "AISC 360", "AWS D1.1"], "Shop drawings, mill certs"),
-        ("05", "05 31 00", "Steel Decking", "Furnish and install composite steel floor deck. 3\" 20GA composite deck, 165,000 SF.", ["ASTM A653", "SDI"], "Shop drawings, load tables"),
-        ("05", "05 50 00", "Metal Fabrications", "Miscellaneous metals: embed plates, lintels, shelf angles, bollards. 45,000 LB.", ["ASTM A36"], "Shop drawings"),
-        ("07", "07 21 00", "Thermal Insulation", "Rigid insulation at building envelope. R-25 continuous insulation, 82,000 SF.", ["ASTM C578"], "Product data, thermal calculations"),
-        ("07", "07 50 00", "Membrane Roofing", "60-mil TPO fully adhered roof system. 28,500 SF including cant strips and termination bars.", ["ASTM D6878"], "Manufacturer warranty, installer qualification"),
-        ("07", "07 60 00", "Flashing and Sheet Metal", "Sheet metal copings, counterflashing, through-wall flashing. 4,200 LF.", ["ASTM B209"], "Shop drawings, product data"),
-        ("07", "07 92 00", "Joint Sealants", "Exterior and interior joint sealants. Silicone at curtain wall, polyurethane at concrete joints. 18,500 LF.", ["ASTM C920"], "Product data, compatibility test results"),
-        ("08", "08 11 00", "Metal Doors and Frames", "Hollow metal doors and frames. 186 EA standard, 24 EA fire-rated.", ["ANSI A250.8"], "Product data, hardware schedule"),
-        ("08", "08 50 00", "Windows", "Aluminum-framed windows. Fixed and operable. 340 EA total.", ["AAMA/WDMA"], "Product data, structural calculations"),
-        ("09", "09 29 00", "Gypsum Board", "Metal stud framing and gypsum board assemblies. 285,000 SF walls, 42,000 SF ceilings.", ["ASTM C1396", "ASTM C645"], "Product data, fire-test reports"),
-        ("09", "09 30 00", "Tiling", "Ceramic and porcelain tile. Lobbies, restrooms, break rooms. 14,500 SF floor, 3,200 SF wall.", ["ANSI A137.1"], "Product data, shop drawings"),
-        ("09", "09 51 00", "Acoustical Ceilings", "Suspended acoustical ceiling system. 2x4 lay-in panels. 165,000 SF.", ["ASTM E1264"], "Product data, reflected ceiling plans"),
-        ("09", "09 91 00", "Painting", "Interior and exterior painting. All exposed surfaces. 520,000 SF.", ["SSPC standards"], "Product data, color schedule"),
+        (
+            "03",
+            "03 10 00",
+            "Concrete Forming and Accessories",
+            "Furnish and install all formwork for cast-in-place concrete. Includes shores, reshores, and form ties. 45,000 SF of elevated slab forming, 12,000 LF of edge forms.",
+            ["ASTM A615", "ACI 318"],
+            "Product Data, Shop Drawings for shoring layout",
+        ),
+        (
+            "03",
+            "03 20 00",
+            "Concrete Reinforcing",
+            "Furnish and install all reinforcing steel. #4 through #11 bars, WWF 6x6-W2.9xW2.9. Approximately 380 tons.",
+            ["ASTM A615 Grade 60", "ASTM A185"],
+            "Mill certificates, placing drawings",
+        ),
+        (
+            "03",
+            "03 30 00",
+            "Cast-in-Place Concrete",
+            "Place and finish all structural and architectural concrete. 4,200 CY structural, 850 CY slab-on-grade, 3,500 psi to 6,000 psi mix designs.",
+            ["ASTM C150", "ACI 301", "ACI 318"],
+            "Mix designs, test reports",
+        ),
+        (
+            "05",
+            "05 12 00",
+            "Structural Steel Framing",
+            "Furnish and erect structural steel framing. W-shapes, HSS columns, moment frames. Approximately 1,850 tons.",
+            ["ASTM A992", "AISC 360", "AWS D1.1"],
+            "Shop drawings, mill certs",
+        ),
+        (
+            "05",
+            "05 31 00",
+            "Steel Decking",
+            'Furnish and install composite steel floor deck. 3" 20GA composite deck, 165,000 SF.',
+            ["ASTM A653", "SDI"],
+            "Shop drawings, load tables",
+        ),
+        (
+            "05",
+            "05 50 00",
+            "Metal Fabrications",
+            "Miscellaneous metals: embed plates, lintels, shelf angles, bollards. 45,000 LB.",
+            ["ASTM A36"],
+            "Shop drawings",
+        ),
+        (
+            "07",
+            "07 21 00",
+            "Thermal Insulation",
+            "Rigid insulation at building envelope. R-25 continuous insulation, 82,000 SF.",
+            ["ASTM C578"],
+            "Product data, thermal calculations",
+        ),
+        (
+            "07",
+            "07 50 00",
+            "Membrane Roofing",
+            "60-mil TPO fully adhered roof system. 28,500 SF including cant strips and termination bars.",
+            ["ASTM D6878"],
+            "Manufacturer warranty, installer qualification",
+        ),
+        (
+            "07",
+            "07 60 00",
+            "Flashing and Sheet Metal",
+            "Sheet metal copings, counterflashing, through-wall flashing. 4,200 LF.",
+            ["ASTM B209"],
+            "Shop drawings, product data",
+        ),
+        (
+            "07",
+            "07 92 00",
+            "Joint Sealants",
+            "Exterior and interior joint sealants. Silicone at curtain wall, polyurethane at concrete joints. 18,500 LF.",
+            ["ASTM C920"],
+            "Product data, compatibility test results",
+        ),
+        (
+            "08",
+            "08 11 00",
+            "Metal Doors and Frames",
+            "Hollow metal doors and frames. 186 EA standard, 24 EA fire-rated.",
+            ["ANSI A250.8"],
+            "Product data, hardware schedule",
+        ),
+        (
+            "08",
+            "08 50 00",
+            "Windows",
+            "Aluminum-framed windows. Fixed and operable. 340 EA total.",
+            ["AAMA/WDMA"],
+            "Product data, structural calculations",
+        ),
+        (
+            "09",
+            "09 29 00",
+            "Gypsum Board",
+            "Metal stud framing and gypsum board assemblies. 285,000 SF walls, 42,000 SF ceilings.",
+            ["ASTM C1396", "ASTM C645"],
+            "Product data, fire-test reports",
+        ),
+        (
+            "09",
+            "09 30 00",
+            "Tiling",
+            "Ceramic and porcelain tile. Lobbies, restrooms, break rooms. 14,500 SF floor, 3,200 SF wall.",
+            ["ANSI A137.1"],
+            "Product data, shop drawings",
+        ),
+        (
+            "09",
+            "09 51 00",
+            "Acoustical Ceilings",
+            "Suspended acoustical ceiling system. 2x4 lay-in panels. 165,000 SF.",
+            ["ASTM E1264"],
+            "Product data, reflected ceiling plans",
+        ),
+        (
+            "09",
+            "09 91 00",
+            "Painting",
+            "Interior and exterior painting. All exposed surfaces. 520,000 SF.",
+            ["SSPC standards"],
+            "Product data, color schedule",
+        ),
     ]
 
     sections = []
     for div, sec_num, title, desc, mats, submittals in spec_sections_data:
         s = SpecSection(
-            project_id=p1.id, document_id=docs[0].id,
-            division_number=div, section_number=sec_num, title=title,
-            work_description=desc, materials_referenced=mats,
+            project_id=p1.id,
+            document_id=docs[0].id,
+            division_number=div,
+            section_number=sec_num,
+            title=title,
+            work_description=desc,
+            materials_referenced=mats,
             execution_requirements=f"Install per manufacturer requirements and {mats[0] if mats else 'industry'} standards.",
             submittal_requirements=submittals,
             keywords=title.lower().split(),
@@ -143,8 +324,12 @@ def _seed(db):
 
     # --- Gap Report for Project 1 ---
     gap_report = GapReport(
-        project_id=p1.id, overall_score=42.5, total_gaps=8,
-        critical_count=3, moderate_count=2, watch_count=3,
+        project_id=p1.id,
+        overall_score=42.5,
+        total_gaps=8,
+        critical_count=3,
+        moderate_count=2,
+        watch_count=3,
         summary="Analysis of 16 spec sections against 6 divisions. Found 8 gaps: 3 critical, 2 moderate, 3 watch.",
     )
     db.add(gap_report)
@@ -152,21 +337,93 @@ def _seed(db):
     db.refresh(gap_report)
 
     gap_items_data = [
-        ("07", "07 10 00", "Dampproofing and Waterproofing", "missing", "critical", "Below-grade waterproofing section not found. Required for basement levels.", 10.0),
-        ("07", "07 27 00", "Air Barriers", "missing", "critical", "Air barrier section missing. Required by energy code for commercial buildings.", 9.5),
-        ("07", "07 84 00", "Firestopping", "missing", "critical", "Firestopping section not found. Required for fire-rated assemblies.", 10.0),
-        ("08", "08 41 00", "Entrances and Storefronts", "missing", "moderate", "Ground-floor retail entrances/storefronts not specified.", 6.0),
-        ("08", "08 71 00", "Door Hardware", "missing", "moderate", "Door hardware section missing — may be included in door section.", 5.0),
-        ("05", "05 52 00", "Metal Railings", "missing", "watch", "Metal railings section not found — may be in misc metals.", 2.0),
-        ("09", "09 65 00", "Resilient Flooring", "missing", "watch", "Resilient flooring not specified — verify if carpet only.", 1.5),
-        ("03", "03 35 00", "Concrete Finishing", "missing", "watch", "Concrete finishing may be included in 03 30 00.", 1.0),
+        (
+            "07",
+            "07 10 00",
+            "Dampproofing and Waterproofing",
+            "missing",
+            "critical",
+            "Below-grade waterproofing section not found. Required for basement levels.",
+            10.0,
+        ),
+        (
+            "07",
+            "07 27 00",
+            "Air Barriers",
+            "missing",
+            "critical",
+            "Air barrier section missing. Required by energy code for commercial buildings.",
+            9.5,
+        ),
+        (
+            "07",
+            "07 84 00",
+            "Firestopping",
+            "missing",
+            "critical",
+            "Firestopping section not found. Required for fire-rated assemblies.",
+            10.0,
+        ),
+        (
+            "08",
+            "08 41 00",
+            "Entrances and Storefronts",
+            "missing",
+            "moderate",
+            "Ground-floor retail entrances/storefronts not specified.",
+            6.0,
+        ),
+        (
+            "08",
+            "08 71 00",
+            "Door Hardware",
+            "missing",
+            "moderate",
+            "Door hardware section missing — may be included in door section.",
+            5.0,
+        ),
+        (
+            "05",
+            "05 52 00",
+            "Metal Railings",
+            "missing",
+            "watch",
+            "Metal railings section not found — may be in misc metals.",
+            2.0,
+        ),
+        (
+            "09",
+            "09 65 00",
+            "Resilient Flooring",
+            "missing",
+            "watch",
+            "Resilient flooring not specified — verify if carpet only.",
+            1.5,
+        ),
+        (
+            "03",
+            "03 35 00",
+            "Concrete Finishing",
+            "missing",
+            "watch",
+            "Concrete finishing may be included in 03 30 00.",
+            1.0,
+        ),
     ]
     for div, sec, title, gtype, sev, desc, risk in gap_items_data:
-        db.add(GapReportItem(
-            gap_report_id=gap_report.id, division_number=div, section_number=sec,
-            title=title, gap_type=gtype, severity=sev, description=desc,
-            recommendation=f"Request clarification on {title} scope.", risk_score=risk,
-        ))
+        db.add(
+            GapReportItem(
+                gap_report_id=gap_report.id,
+                division_number=div,
+                section_number=sec,
+                title=title,
+                gap_type=gtype,
+                severity=sev,
+                description=desc,
+                recommendation=f"Request clarification on {title} scope.",
+                risk_score=risk,
+            )
+        )
     db.commit()
 
     # --- Takeoff Items for Project 1 ---
@@ -196,9 +453,14 @@ def _seed(db):
     takeoff_items = []
     for sec_id, csi, desc, qty, unit, dwg, conf in takeoff_data:
         t = TakeoffItem(
-            project_id=p1.id, spec_section_id=sec_id, csi_code=csi,
-            description=desc, quantity=qty, unit_of_measure=unit,
-            drawing_reference=dwg, confidence=conf,
+            project_id=p1.id,
+            spec_section_id=sec_id,
+            csi_code=csi,
+            description=desc,
+            quantity=qty,
+            unit_of_measure=unit,
+            drawing_reference=dwg,
+            confidence=conf,
         )
         db.add(t)
         takeoff_items.append(t)
@@ -262,12 +524,19 @@ def _seed(db):
         ("07 21 00", "Rigid Insulation", "Insulation Crew", 85, "SF", "RMFC-2024-003", 1, 0.85, 1),
     ]
     for csi, wtype, crew, rate, unit, src, is_act, conf, cnt in prod_data:
-        db.add(ProductivityHistory(
-            csi_code=csi, work_type=wtype, crew_type=crew,
-            productivity_rate=rate, unit_of_measure=unit,
-            source_project=src, is_actual=is_act,
-            confidence_score=conf, sample_count=cnt,
-        ))
+        db.add(
+            ProductivityHistory(
+                csi_code=csi,
+                work_type=wtype,
+                crew_type=crew,
+                productivity_rate=rate,
+                unit_of_measure=unit,
+                source_project=src,
+                is_actual=is_act,
+                confidence_score=conf,
+                sample_count=cnt,
+            )
+        )
     db.commit()
 
     # --- Material Prices ---
@@ -278,22 +547,28 @@ def _seed(db):
         ("05 12 00", "Structural steel W-shapes", 2800.00, "TON", "vendor_quote"),
         ("05 31 00", "Composite steel deck 20GA", 3.25, "SF", "vendor_quote"),
         ("05 50 00", "Miscellaneous metals", 1.50, "LB", "rs_means"),
-        ("07 21 00", "Rigid insulation 2\" polyiso", 1.85, "SF", "vendor_quote"),
+        ("07 21 00", 'Rigid insulation 2" polyiso', 1.85, "SF", "vendor_quote"),
         ("07 50 00", "TPO membrane 60 mil", 185.00, "SQ", "vendor_quote"),
         ("07 60 00", "Sheet metal 24GA galv", 8.50, "LF", "rs_means"),
         ("07 92 00", "Silicone sealant", 2.25, "LF", "vendor_quote"),
         ("08 11 00", "HM door & frame assembly", 650.00, "EA", "vendor_quote"),
         ("08 50 00", "Aluminum window assembly", 425.00, "EA", "vendor_quote"),
-        ("09 29 00", "5/8\" gypsum board", 0.65, "SF", "vendor_quote"),
+        ("09 29 00", '5/8" gypsum board', 0.65, "SF", "vendor_quote"),
         ("09 30 00", "Ceramic tile material", 6.50, "SF", "vendor_quote"),
         ("09 51 00", "ACT tile and grid", 2.15, "SF", "vendor_quote"),
         ("09 91 00", "Paint (2-coat system)", 0.45, "SF", "rs_means"),
     ]
     for csi, desc, cost, unit, src in material_data:
-        db.add(MaterialPrice(
-            csi_code=csi, description=desc, unit_cost=cost,
-            unit_of_measure=unit, source=src, region="Denver, CO",
-        ))
+        db.add(
+            MaterialPrice(
+                csi_code=csi,
+                description=desc,
+                unit_cost=cost,
+                unit_of_measure=unit,
+                source=src,
+                region="Denver, CO",
+            )
+        )
     db.commit()
 
     # --- Equipment Rates ---
@@ -308,10 +583,14 @@ def _seed(db):
         ("33", 0.12, "Utilities — trenchers, boring machines"),
     ]
     for div, pct, desc in equipment_rate_data:
-        db.add(EquipmentRate(
-            division_number=div, equipment_pct=pct,
-            description=desc, region="Denver, CO",
-        ))
+        db.add(
+            EquipmentRate(
+                division_number=div,
+                equipment_pct=pct,
+                description=desc,
+                region="Denver, CO",
+            )
+        )
     db.commit()
 
     # --- Labor Estimates for Project 1 ---
@@ -347,11 +626,18 @@ def _seed(db):
         man_hours = hours * crew_size
         cost = man_hours * hr_rate
         le = LaborEstimate(
-            project_id=p1.id, takeoff_item_id=ti.id, csi_code=csi,
-            work_type=wtype, crew_type=crew, productivity_rate=rate,
+            project_id=p1.id,
+            takeoff_item_id=ti.id,
+            csi_code=csi,
+            work_type=wtype,
+            crew_type=crew,
+            productivity_rate=rate,
             productivity_unit=prod_unit_by_key.get((csi, wtype)),
-            quantity=qty, labor_hours=round(hours, 2), crew_size=crew_size,
-            crew_days=round(hours / 8, 2), hourly_rate=hr_rate,
+            quantity=qty,
+            labor_hours=round(hours, 2),
+            crew_size=crew_size,
+            crew_days=round(hours / 8, 2),
+            hourly_rate=hr_rate,
             total_labor_cost=round(cost, 2),
         )
         db.add(le)
@@ -361,10 +647,32 @@ def _seed(db):
     # --- Estimate for Project 1 ---
     total_labor = sum(le.total_labor_cost for le in labor_items)
     total_material = 0
-    for ti, mat_price in zip(takeoff_items, [3.50*45000, 3.50*12000, 0.85*760000, 165*4200, 165*850,
-                                              2800*1850, 3.25*165000, 1.50*45000, 1.85*82000, 185*285,
-                                              8.50*4200, 2.25*18500, 650*210, 425*340, 0.65*285000,
-                                              0.65*42000, 6.50*14500, 6.50*3200, 2.15*165000, 0.45*520000]):
+    for _ti, mat_price in zip(
+        takeoff_items,
+        [
+            3.50 * 45000,
+            3.50 * 12000,
+            0.85 * 760000,
+            165 * 4200,
+            165 * 850,
+            2800 * 1850,
+            3.25 * 165000,
+            1.50 * 45000,
+            1.85 * 82000,
+            185 * 285,
+            8.50 * 4200,
+            2.25 * 18500,
+            650 * 210,
+            425 * 340,
+            0.65 * 285000,
+            0.65 * 42000,
+            6.50 * 14500,
+            6.50 * 3200,
+            2.15 * 165000,
+            0.45 * 520000,
+        ],
+        strict=False,
+    ):
         total_material += mat_price
 
     total_direct = total_labor + total_material
@@ -374,14 +682,19 @@ def _seed(db):
     total_bid = total_direct + overhead + profit + contingency
 
     estimate = Estimate(
-        project_id=p1.id, version=1, status="draft",
+        project_id=p1.id,
+        version=1,
+        status="draft",
         total_direct_cost=round(total_direct, 2),
         total_labor_cost=round(total_labor, 2),
         total_material_cost=round(total_material, 2),
         total_subcontractor_cost=0,
-        overhead_pct=10.0, overhead_amount=round(overhead, 2),
-        profit_pct=8.0, profit_amount=round(profit, 2),
-        contingency_pct=5.0, contingency_amount=round(contingency, 2),
+        overhead_pct=10.0,
+        overhead_amount=round(overhead, 2),
+        profit_pct=8.0,
+        profit_amount=round(profit, 2),
+        contingency_pct=5.0,
+        contingency_amount=round(contingency, 2),
         total_bid_amount=round(total_bid, 2),
         exclusions=[
             "Hazardous material abatement",
@@ -412,27 +725,44 @@ def _seed(db):
     # Estimate line items — look up material unit price by CSI code.
     # TPO roofing (07 50 00) is priced per SQ (100 SF) in material_data; divide by 100 to get per-SF rate.
     mat_price_by_csi = {
-        csi: (unit_cost / 100 if unit == "SQ" else unit_cost)
-        for csi, desc, unit_cost, unit, src in material_data
+        csi: (unit_cost / 100 if unit == "SQ" else unit_cost) for csi, desc, unit_cost, unit, src in material_data
     }
-    for le, ti in zip(labor_items, takeoff_items):
+    for le, ti in zip(labor_items, takeoff_items, strict=False):
         mat_cost = mat_price_by_csi.get(ti.csi_code, 0) * ti.quantity
         equip_cost = le.total_labor_cost * 0.07
         total = le.total_labor_cost + mat_cost + equip_cost
-        db.add(EstimateLineItem(
-            estimate_id=estimate.id, division_number=parse_csi_division(le.csi_code),
-            csi_code=le.csi_code, description=f"{le.work_type} - {ti.description}",
-            quantity=ti.quantity, unit_of_measure=ti.unit_of_measure,
-            labor_cost=le.total_labor_cost, material_cost=round(mat_cost, 2),
-            equipment_cost=round(equip_cost, 2), subcontractor_cost=0,
-            total_cost=round(total, 2),
-            unit_cost=round(total / ti.quantity, 2) if ti.quantity else 0,
-        ))
+        db.add(
+            EstimateLineItem(
+                estimate_id=estimate.id,
+                division_number=parse_csi_division(le.csi_code),
+                csi_code=le.csi_code,
+                description=f"{le.work_type} - {ti.description}",
+                quantity=ti.quantity,
+                unit_of_measure=ti.unit_of_measure,
+                labor_cost=le.total_labor_cost,
+                material_cost=round(mat_cost, 2),
+                equipment_cost=round(equip_cost, 2),
+                subcontractor_cost=0,
+                total_cost=round(total, 2),
+                unit_cost=round(total / ti.quantity, 2) if ti.quantity else 0,
+            )
+        )
     db.commit()
 
     # --- Project 3 Actuals (completed project for IMPROVE demo) ---
     actuals_data = [
-        ("03 30 00", "Structural Concrete", 3200, 3100, 2400, 2580, 475000, 512000, "Concrete Crew", "Structural Concrete"),
+        (
+            "03 30 00",
+            "Structural Concrete",
+            3200,
+            3100,
+            2400,
+            2580,
+            475000,
+            512000,
+            "Concrete Crew",
+            "Structural Concrete",
+        ),
         ("05 12 00", "Structural Steel", 950, 950, 6333, 6800, 740000, 785000, "Ironworker Crew", "Structural Steel"),
         ("05 31 00", "Steel Decking", 120000, 120000, 400, 380, 185000, 178000, "Ironworker Crew", "Steel Decking"),
         ("07 21 00", "Rigid Insulation", 65000, 67000, 812, 790, 115000, 118000, "Insulation Crew", "Rigid Insulation"),
@@ -441,15 +771,24 @@ def _seed(db):
         ("09 91 00", "Painting", 180000, 185000, 720, 685, 95000, 92000, "Painting Crew", "Interior Painting"),
     ]
     for csi, desc, est_qty, act_qty, est_hrs, act_hrs, est_cost, act_cost, crew, wtype in actuals_data:
-        db.add(ProjectActual(
-            project_id=p3.id, csi_code=csi, description=desc,
-            estimated_quantity=est_qty, actual_quantity=act_qty,
-            estimated_labor_hours=est_hrs, actual_labor_hours=act_hrs,
-            estimated_cost=est_cost, actual_cost=act_cost,
-            variance_hours=act_hrs - est_hrs, variance_cost=act_cost - est_cost,
-            variance_pct=round((act_cost - est_cost) / est_cost * 100, 2) if est_cost else 0,
-            crew_type=crew, work_type=wtype,
-        ))
+        db.add(
+            ProjectActual(
+                project_id=p3.id,
+                csi_code=csi,
+                description=desc,
+                estimated_quantity=est_qty,
+                actual_quantity=act_qty,
+                estimated_labor_hours=est_hrs,
+                actual_labor_hours=act_hrs,
+                estimated_cost=est_cost,
+                actual_cost=act_cost,
+                variance_hours=act_hrs - est_hrs,
+                variance_cost=act_cost - est_cost,
+                variance_pct=round((act_cost - est_cost) / est_cost * 100, 2) if est_cost else 0,
+                crew_type=crew,
+                work_type=wtype,
+            )
+        )
     db.commit()
 
     # --- Agent Run Logs for Project 1 ---
@@ -464,12 +803,19 @@ def _seed(db):
     ]
     for name, num, status, offset_s, dur, tokens, summary in logs:
         start = base_time + timedelta(seconds=offset_s)
-        db.add(AgentRunLog(
-            project_id=p1.id, agent_name=name, agent_number=num,
-            status=status, started_at=start,
-            completed_at=start + timedelta(seconds=dur),
-            duration_seconds=dur, tokens_used=tokens, output_summary=summary,
-        ))
+        db.add(
+            AgentRunLog(
+                project_id=p1.id,
+                agent_name=name,
+                agent_number=num,
+                status=status,
+                started_at=start,
+                completed_at=start + timedelta(seconds=dur),
+                duration_seconds=dur,
+                tokens_used=tokens,
+                output_summary=summary,
+            )
+        )
     db.commit()
 
 

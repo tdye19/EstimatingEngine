@@ -1,6 +1,5 @@
 """ProductivityBenchmark model — aggregated cost/productivity data computed from HistoricalLineItems."""
 
-from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean,
     Column,
@@ -26,15 +25,15 @@ class ProductivityBenchmark(Base):
 
     # CSI classification
     csi_division = Column(String(2), nullable=False, index=True)  # e.g. "03", "09"
-    csi_code = Column(String(20), nullable=True, index=True)      # e.g. "03 30 00"
+    csi_code = Column(String(20), nullable=True, index=True)  # e.g. "03 30 00"
 
     description = Column(String(500), nullable=False)
 
     # Segmentation dimensions
-    project_type = Column(String(50), nullable=True, index=True)   # healthcare, commercial, industrial
-    region = Column(String(100), nullable=True, index=True)        # MSA or state
+    project_type = Column(String(50), nullable=True, index=True)  # healthcare, commercial, industrial
+    region = Column(String(100), nullable=True, index=True)  # MSA or state
 
-    unit_of_measure = Column(String(20), nullable=False)           # SF, LF, CY, EA, etc.
+    unit_of_measure = Column(String(20), nullable=False)  # SF, LF, CY, EA, etc.
 
     # Aggregated cost stats
     avg_unit_cost = Column(Float, nullable=False)
@@ -74,10 +73,15 @@ class ProductivityBenchmark(Base):
     __table_args__ = (
         Index(
             "ix_pb_division_type_region_org",
-            "csi_division", "project_type", "region", "organization_id",
+            "csi_division",
+            "project_type",
+            "region",
+            "organization_id",
         ),
         Index(
             "ix_pb_code_uom_org",
-            "csi_code", "unit_of_measure", "organization_id",
+            "csi_code",
+            "unit_of_measure",
+            "organization_id",
         ),
     )

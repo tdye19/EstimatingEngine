@@ -6,8 +6,9 @@ Revision ID: f2c9d4e7b3a1
 Revises: d4f7b1c9e2a5
 Create Date: 2026-03-28 00:00:00.000000
 """
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "f2c9d4e7b3a1"

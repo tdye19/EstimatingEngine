@@ -1,31 +1,37 @@
 """Project management router."""
 
+import csv
+import io
 import logging
 import math
 import os
 import shutil
 import time
 import uuid
-from pathlib import Path
-import csv
-import io
 from datetime import datetime, timedelta
+from pathlib import Path
 
 log = logging.getLogger(__name__)
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy.orm import Session
+
 from apex.backend.db.database import get_db
-from apex.backend.models.project import Project
 from apex.backend.models.document import Document
+from apex.backend.models.project import Project
 from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.upload_session import UploadSession
-from apex.backend.models.upload_chunk import UploadChunk
 from apex.backend.models.user import User
 from apex.backend.services.crew_orchestrator import get_orchestrator
-from apex.backend.utils.auth import require_auth, get_authorized_project, get_current_user, SECRET_KEY, ALGORITHM
+from apex.backend.utils.auth import ALGORITHM, SECRET_KEY, get_authorized_project, get_current_user, require_auth
 from apex.backend.utils.schemas import (
-    ProjectCreate, ProjectUpdate, ProjectOut, DocumentOut, APIResponse,
-    PipelineStatusOut, AgentStepStatus, ChunkedUploadInitRequest,
+    AgentStepStatus,
+    APIResponse,
+    ChunkedUploadInitRequest,
+    DocumentOut,
+    PipelineStatusOut,
+    ProjectCreate,
+    ProjectOut,
+    ProjectUpdate,
     ShadowComparisonOut,
 )
 
@@ -33,24 +39,28 @@ router = APIRouter(prefix="/api/projects", tags=["projects"], dependencies=[Depe
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
 from apex.backend.config import (
-    UPLOAD_DIR, CHUNK_SIZE, SESSION_TTL, MAX_UPLOAD_BYTES, ALLOWED_EXTENSIONS,
+    ALLOWED_EXTENSIONS,
+    CHUNK_SIZE,
+    MAX_UPLOAD_BYTES,
     PIPELINE_RATE_LIMIT,
+    SESSION_TTL,
+    UPLOAD_DIR,
 )
+
 _limiter = Limiter(key_func=get_remote_address)
-from apex.backend.utils.upload_utils import get_chunk_path, assemble_chunks, cleanup_chunks
+from apex.backend.utils.upload_utils import assemble_chunks, cleanup_chunks, get_chunk_path
+
 
 def cleanup_stale_upload_sessions() -> None:
     """Remove upload sessions and temp dirs older than SESSION_TTL. Call on startup."""
     now = datetime.utcnow()
     from apex.backend.db.database import SessionLocal
+
     db = SessionLocal()
     try:
-        expired_sessions = (
-            db.query(UploadSession)
-            .filter(UploadSession.expires_at < now)
-            .all()
-        )
+        expired_sessions = db.query(UploadSession).filter(UploadSession.expires_at < now).all()
         for session in expired_sessions:
             cleanup_chunks(session.upload_id)
             db.delete(session)
@@ -72,11 +82,8 @@ def _generate_project_number(db: Session) -> str:
     year = datetime.now().year
     prefix = f"PRJ-{year}-"
     from sqlalchemy import func
-    max_num = (
-        db.query(func.max(Project.project_number))
-        .filter(Project.project_number.like(f"{prefix}%"))
-        .scalar()
-    )
+
+    max_num = db.query(func.max(Project.project_number)).filter(Project.project_number.like(f"{prefix}%")).scalar()
     if max_num:
         last_seq = int(max_num.replace(prefix, ""))
     else:
@@ -128,10 +135,14 @@ def list_projects(
     db: Session = Depends(get_db),
     user: User = Depends(require_auth),
 ):
-    query = db.query(Project).filter(
-        Project.is_deleted == False,  # noqa: E712
-        Project.owner_id == user.id,
-    ).order_by(Project.id.desc())
+    query = (
+        db.query(Project)
+        .filter(
+            Project.is_deleted == False,  # noqa: E712
+            Project.owner_id == user.id,
+        )
+        .order_by(Project.id.desc())
+    )
     total = query.count()
     projects = query.offset(skip).limit(min(limit, 200)).all()
     return APIResponse(
@@ -151,7 +162,9 @@ def get_project(project_id: int, db: Session = Depends(get_db), user: User = Dep
 
 
 @router.put("/{project_id}", response_model=APIResponse)
-def update_project(project_id: int, data: ProjectUpdate, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+def update_project(
+    project_id: int, data: ProjectUpdate, db: Session = Depends(get_db), user: User = Depends(require_auth)
+):
     project = get_authorized_project(project_id, user, db)
 
     for field, value in data.model_dump(exclude_unset=True).items():
@@ -199,11 +212,7 @@ def get_shadow_comparison(
     by_division = None
     if latest_estimate:
         division_totals = {}
-        line_items = (
-            db.query(EstimateLineItem)
-            .filter(EstimateLineItem.estimate_id == latest_estimate.id)
-            .all()
-        )
+        line_items = db.query(EstimateLineItem).filter(EstimateLineItem.estimate_id == latest_estimate.id).all()
         for item in line_items:
             div = item.division_number
             if div not in division_totals:
@@ -235,7 +244,7 @@ async def upload_document(
     db: Session = Depends(get_db),
     user: User = Depends(require_auth),
 ):
-    project = get_authorized_project(project_id, user, db)
+    get_authorized_project(project_id, user, db)
 
     # Reject large files early — they must use the chunked upload path
     _single_upload_limit = 50 * 1024 * 1024  # 50 MB
@@ -429,7 +438,7 @@ async def chunked_upload_complete(
     if not assemble_chunks(upload_id, total_chunks, Path(file_path)):
         raise HTTPException(
             status_code=400,
-            detail=f"Incomplete upload: one or more chunks missing on disk",
+            detail="Incomplete upload: one or more chunks missing on disk",
         )
 
     file_size = os.path.getsize(file_path)
@@ -482,10 +491,14 @@ async def chunked_upload_complete(
 @router.get("/{project_id}/documents", response_model=APIResponse)
 def list_documents(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
     get_authorized_project(project_id, user, db)
-    docs = db.query(Document).filter(
-        Document.project_id == project_id,
-        Document.is_deleted == False,  # noqa: E712
-    ).all()
+    docs = (
+        db.query(Document)
+        .filter(
+            Document.project_id == project_id,
+            Document.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
     return APIResponse(
         success=True,
         data=[DocumentOut.model_validate(d).model_dump(mode="json") for d in docs],
@@ -507,11 +520,15 @@ def bulk_delete_documents(
 
     count = 0
     for doc_id in doc_ids:
-        doc = db.query(Document).filter(
-            Document.id == doc_id,
-            Document.project_id == project_id,
-            Document.is_deleted == False,  # noqa: E712
-        ).first()
+        doc = (
+            db.query(Document)
+            .filter(
+                Document.id == doc_id,
+                Document.project_id == project_id,
+                Document.is_deleted == False,  # noqa: E712
+            )
+            .first()
+        )
         if doc:
             doc.is_deleted = True
             count += 1
@@ -547,64 +564,111 @@ def clone_project(
 
     # Clone spec sections
     from apex.backend.models.spec_section import SpecSection
-    sections = db.query(SpecSection).filter(
-        SpecSection.project_id == project_id, SpecSection.is_deleted == False  # noqa: E712
-    ).all()
+
+    sections = (
+        db.query(SpecSection)
+        .filter(
+            SpecSection.project_id == project_id,
+            SpecSection.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
     for s in sections:
-        db.add(SpecSection(
-            project_id=clone.id, document_id=None,
-            division_number=s.division_number, section_number=s.section_number,
-            title=s.title, work_description=s.work_description,
-            materials_referenced=s.materials_referenced,
-            execution_requirements=s.execution_requirements,
-            submittal_requirements=s.submittal_requirements,
-            keywords=s.keywords, raw_text=s.raw_text,
-        ))
+        db.add(
+            SpecSection(
+                project_id=clone.id,
+                document_id=None,
+                division_number=s.division_number,
+                section_number=s.section_number,
+                title=s.title,
+                work_description=s.work_description,
+                materials_referenced=s.materials_referenced,
+                execution_requirements=s.execution_requirements,
+                submittal_requirements=s.submittal_requirements,
+                keywords=s.keywords,
+                raw_text=s.raw_text,
+            )
+        )
 
     # Clone takeoff items
     from apex.backend.models.takeoff_item import TakeoffItem
-    items = db.query(TakeoffItem).filter(
-        TakeoffItem.project_id == project_id, TakeoffItem.is_deleted == False  # noqa: E712
-    ).all()
+
+    items = (
+        db.query(TakeoffItem)
+        .filter(
+            TakeoffItem.project_id == project_id,
+            TakeoffItem.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
     for t in items:
-        db.add(TakeoffItem(
-            project_id=clone.id, csi_code=t.csi_code,
-            description=t.description, quantity=t.quantity,
-            unit_of_measure=t.unit_of_measure, drawing_reference=t.drawing_reference,
-            confidence=t.confidence, notes=t.notes,
-        ))
+        db.add(
+            TakeoffItem(
+                project_id=clone.id,
+                csi_code=t.csi_code,
+                description=t.description,
+                quantity=t.quantity,
+                unit_of_measure=t.unit_of_measure,
+                drawing_reference=t.drawing_reference,
+                confidence=t.confidence,
+                notes=t.notes,
+            )
+        )
 
     # Clone latest estimate + line items
     from apex.backend.models.estimate import Estimate, EstimateLineItem
-    est = db.query(Estimate).filter(
-        Estimate.project_id == project_id, Estimate.is_deleted == False  # noqa: E712
-    ).order_by(Estimate.version.desc()).first()
+
+    est = (
+        db.query(Estimate)
+        .filter(
+            Estimate.project_id == project_id,
+            Estimate.is_deleted == False,  # noqa: E712
+        )
+        .order_by(Estimate.version.desc())
+        .first()
+    )
     if est:
         new_est = Estimate(
-            project_id=clone.id, version=1, status="draft",
+            project_id=clone.id,
+            version=1,
+            status="draft",
             total_direct_cost=est.total_direct_cost,
             total_labor_cost=est.total_labor_cost,
             total_material_cost=est.total_material_cost,
             total_subcontractor_cost=est.total_subcontractor_cost,
-            gc_markup_pct=est.gc_markup_pct, gc_markup_amount=est.gc_markup_amount,
-            overhead_pct=est.overhead_pct, overhead_amount=est.overhead_amount,
-            profit_pct=est.profit_pct, profit_amount=est.profit_amount,
-            contingency_pct=est.contingency_pct, contingency_amount=est.contingency_amount,
+            gc_markup_pct=est.gc_markup_pct,
+            gc_markup_amount=est.gc_markup_amount,
+            overhead_pct=est.overhead_pct,
+            overhead_amount=est.overhead_amount,
+            profit_pct=est.profit_pct,
+            profit_amount=est.profit_amount,
+            contingency_pct=est.contingency_pct,
+            contingency_amount=est.contingency_amount,
             total_bid_amount=est.total_bid_amount,
-            exclusions=est.exclusions, assumptions=est.assumptions,
-            alternates=est.alternates, executive_summary=est.executive_summary,
+            exclusions=est.exclusions,
+            assumptions=est.assumptions,
+            alternates=est.alternates,
+            executive_summary=est.executive_summary,
         )
         db.add(new_est)
         db.flush()
         for li in est.line_items:
-            db.add(EstimateLineItem(
-                estimate_id=new_est.id, division_number=li.division_number,
-                csi_code=li.csi_code, description=li.description,
-                quantity=li.quantity, unit_of_measure=li.unit_of_measure,
-                labor_cost=li.labor_cost, material_cost=li.material_cost,
-                equipment_cost=li.equipment_cost, subcontractor_cost=li.subcontractor_cost,
-                total_cost=li.total_cost, unit_cost=li.unit_cost,
-            ))
+            db.add(
+                EstimateLineItem(
+                    estimate_id=new_est.id,
+                    division_number=li.division_number,
+                    csi_code=li.csi_code,
+                    description=li.description,
+                    quantity=li.quantity,
+                    unit_of_measure=li.unit_of_measure,
+                    labor_cost=li.labor_cost,
+                    material_cost=li.material_cost,
+                    equipment_cost=li.equipment_cost,
+                    subcontractor_cost=li.subcontractor_cost,
+                    total_cost=li.total_cost,
+                    unit_cost=li.unit_cost,
+                )
+            )
 
     db.commit()
     db.refresh(clone)
@@ -626,11 +690,15 @@ def delete_project(project_id: int, db: Session = Depends(get_db), user: User = 
 @router.delete("/{project_id}/documents/{doc_id}", status_code=204)
 def delete_document(project_id: int, doc_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
     get_authorized_project(project_id, user, db)
-    doc = db.query(Document).filter(
-        Document.id == doc_id,
-        Document.project_id == project_id,
-        Document.is_deleted == False,  # noqa: E712
-    ).first()
+    doc = (
+        db.query(Document)
+        .filter(
+            Document.id == doc_id,
+            Document.project_id == project_id,
+            Document.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     doc.is_deleted = True
@@ -665,6 +733,7 @@ def _run_pipeline(project_id: int, document_id: int = None, pipeline_mode: str =
     document's file type (.est → "winest_import", everything else → "spec").
     """
     from apex.backend.db.database import SessionLocal
+
     db = SessionLocal()
     try:
         if pipeline_mode is None:
@@ -736,9 +805,9 @@ def pipeline_run(
         success=True,
         message="Pipeline started",
         data={
-            "status":        "started",
-            "project_id":    project_id,
-            "document_id":   document_id,
+            "status": "started",
+            "project_id": project_id,
+            "document_id": document_id,
             "pipeline_mode": pipeline_mode,
         },
     )
@@ -786,9 +855,9 @@ def run_single_agent(
         orchestrator = get_orchestrator(db, project_id)
         result = orchestrator.run_single_agent(agent_number)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Agent {agent_number} failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Agent {agent_number} failed: {str(e)}") from e
     return APIResponse(
         success=True,
         message=f"Agent {agent_number} completed",
@@ -805,7 +874,8 @@ def get_document_file(
     user: User = Depends(get_current_user),
 ):
     """Serve the actual document file for viewing."""
-    from jose import JWTError, jwt as jose_jwt
+    from jose import JWTError
+    from jose import jwt as jose_jwt
 
     # If no user from Authorization header, try the query-string token
     if user is None and token:
@@ -813,9 +883,14 @@ def get_document_file(
             payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             sub = payload.get("sub")
             if sub is not None:
-                user = db.query(User).filter(
-                    User.id == int(sub), User.is_deleted == False  # noqa: E712
-                ).first()
+                user = (
+                    db.query(User)
+                    .filter(
+                        User.id == int(sub),
+                        User.is_deleted == False,  # noqa: E712
+                    )
+                    .first()
+                )
         except (JWTError, ValueError):
             pass
 
@@ -823,11 +898,15 @@ def get_document_file(
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     get_authorized_project(project_id, user, db)
-    doc = db.query(Document).filter(
-        Document.id == doc_id,
-        Document.project_id == project_id,
-        Document.is_deleted == False,  # noqa: E712
-    ).first()
+    doc = (
+        db.query(Document)
+        .filter(
+            Document.id == doc_id,
+            Document.project_id == project_id,
+            Document.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -838,6 +917,7 @@ def get_document_file(
         raise HTTPException(status_code=404, detail="File not found on disk")
 
     from fastapi.responses import FileResponse
+
     media_type = {
         "pdf": "application/pdf",
         "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -873,7 +953,7 @@ async def upload_actuals(
 
     imported = 0
     skipped = 0
-    for row_num, row in enumerate(reader, start=2):
+    for _row_num, row in enumerate(reader, start=2):
         try:
             actual = ProjectActual(
                 project_id=project_id,
@@ -892,13 +972,16 @@ async def upload_actuals(
         imported += 1
 
     if imported == 0:
-        raise HTTPException(status_code=400, detail=f"No valid rows in CSV ({skipped} rows skipped due to invalid data)")
+        raise HTTPException(
+            status_code=400, detail=f"No valid rows in CSV ({skipped} rows skipped due to invalid data)"
+        )
 
     db.commit()
 
     # Run IMPROVE agent in background
     def _run_improve(pid: int):
         from apex.backend.db.database import SessionLocal
+
         session = SessionLocal()
         try:
             orchestrator = get_orchestrator(session, pid)

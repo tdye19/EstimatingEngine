@@ -1,10 +1,8 @@
 """Productivity Brain router — bulk upload, rates, and estimate comparison."""
 
 import os
-from typing import Optional
 
 import aiofiles
-
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.orm import Session
 
@@ -65,11 +63,7 @@ def get_stats(db: Session = Depends(get_db)):
     svc = ProductivityBrainService(db)
     stats = svc.get_stats()
 
-    last = (
-        db.query(PBProject)
-        .order_by(PBProject.ingested_at.desc())
-        .first()
-    )
+    last = db.query(PBProject).order_by(PBProject.ingested_at.desc()).first()
     stats["last_ingested"] = last.ingested_at.isoformat() if last and last.ingested_at else None
 
     return APIResponse(success=True, data=stats)
@@ -77,9 +71,9 @@ def get_stats(db: Session = Depends(get_db)):
 
 @router.get("/rates", response_model=APIResponse)
 def get_rates(
-    activity: Optional[str] = Query(None),
-    wbs: Optional[str] = Query(None),
-    unit: Optional[str] = Query(None),
+    activity: str | None = Query(None),
+    wbs: str | None = Query(None),
+    unit: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """Averaged production rates with optional filters."""
@@ -111,12 +105,14 @@ def compare_estimate(
     # Normalize input keys to what the service expects
     normalized = []
     for item in items:
-        normalized.append({
-            "activity": item.get("activity", ""),
-            "production_rate": item.get("rate") or item.get("production_rate"),
-            "unit": item.get("unit"),
-            "csi_code": item.get("csi_code"),
-        })
+        normalized.append(
+            {
+                "activity": item.get("activity", ""),
+                "production_rate": item.get("rate") or item.get("production_rate"),
+                "unit": item.get("unit"),
+                "csi_code": item.get("csi_code"),
+            }
+        )
 
     results = svc.compare_estimate(normalized)
 
@@ -131,15 +127,17 @@ def compare_estimate(
         else:
             confidence = "low"
 
-        output.append({
-            "activity": r.get("activity"),
-            "estimate_rate": r.get("production_rate"),
-            "historical_avg": r.get("historical_avg"),
-            "delta_pct": r.get("delta_pct"),
-            "flag": r.get("flag"),
-            "sample_count": count,
-            "confidence": confidence,
-        })
+        output.append(
+            {
+                "activity": r.get("activity"),
+                "estimate_rate": r.get("production_rate"),
+                "historical_avg": r.get("historical_avg"),
+                "delta_pct": r.get("delta_pct"),
+                "flag": r.get("flag"),
+                "sample_count": count,
+                "confidence": confidence,
+            }
+        )
 
     return APIResponse(success=True, data=output)
 
@@ -153,9 +151,9 @@ def list_projects(db: Session = Depends(get_db)):
 
 @router.get("/match", response_model=APIResponse)
 def match_activity(
-    csi_code: Optional[str] = Query(None),
-    description: Optional[str] = Query(None),
-    unit: Optional[str] = Query(None),
+    csi_code: str | None = Query(None),
+    description: str | None = Query(None),
+    unit: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """Find best matching PB activity with historical rates. Used by Agent 4."""

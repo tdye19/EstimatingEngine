@@ -1,8 +1,8 @@
 """Document processing tools for Agent 1."""
 
+import logging
 import os
 import re
-import logging
 
 logger = logging.getLogger("apex.tools.document")
 
@@ -20,28 +20,34 @@ def pdf_reader_tool(file_path: str) -> dict:
 
     try:
         import fitz  # PyMuPDF
+
         doc = fitz.open(file_path)
         result["total_pages"] = len(doc)
         for page_num in range(len(doc)):
             page = doc[page_num]
             text = page.get_text()
-            result["pages"].append({
-                "page_number": page_num + 1,
-                "text": text.strip(),
-            })
+            result["pages"].append(
+                {
+                    "page_number": page_num + 1,
+                    "text": text.strip(),
+                }
+            )
         doc.close()
     except ImportError:
         # Fallback: try pdfplumber
         try:
             import pdfplumber
+
             with pdfplumber.open(file_path) as pdf:
                 result["total_pages"] = len(pdf.pages)
                 for i, page in enumerate(pdf.pages):
                     text = page.extract_text() or ""
-                    result["pages"].append({
-                        "page_number": i + 1,
-                        "text": text.strip(),
-                    })
+                    result["pages"].append(
+                        {
+                            "page_number": i + 1,
+                            "text": text.strip(),
+                        }
+                    )
         except ImportError:
             result["error"] = "No PDF library available (install PyMuPDF or pdfplumber)"
     except Exception as e:
@@ -60,6 +66,7 @@ def docx_reader_tool(file_path: str) -> dict:
 
     try:
         from docx import Document
+
         doc = Document(file_path)
         for para in doc.paragraphs:
             if para.text.strip():

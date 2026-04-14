@@ -1,23 +1,23 @@
 """Quantity takeoff tools for Agent 4."""
 
-import re
 import logging
+import re
 
 logger = logging.getLogger("apex.tools.takeoff")
 
 # Common construction units
 UNIT_PATTERNS = {
-    "SF": [r'\b(\d[\d,]*\.?\d*)\s*(?:sf|sq\.?\s*ft|square\s*feet?)\b'],
-    "LF": [r'\b(\d[\d,]*\.?\d*)\s*(?:lf|lin\.?\s*ft|linear\s*feet?)\b'],
-    "CY": [r'\b(\d[\d,]*\.?\d*)\s*(?:cy|cu\.?\s*yd|cubic\s*yards?)\b'],
-    "EA": [r'\b(\d[\d,]*\.?\d*)\s*(?:ea|each|pcs?|pieces?|units?)\b'],
-    "TON": [r'\b(\d[\d,]*\.?\d*)\s*(?:tons?)\b'],
-    "GAL": [r'\b(\d[\d,]*\.?\d*)\s*(?:gal|gallons?)\b'],
-    "SQ": [r'\b(\d[\d,]*\.?\d*)\s*(?:sq|squares?)\b'],
-    "LB": [r'\b(\d[\d,]*\.?\d*)\s*(?:lbs?|pounds?)\b'],
-    "CF": [r'\b(\d[\d,]*\.?\d*)\s*(?:cf|cu\.?\s*ft|cubic\s*feet?)\b'],
-    "SY": [r'\b(\d[\d,]*\.?\d*)\s*(?:sy|sq\.?\s*yd|square\s*yards?)\b'],
-    "HR": [r'\b(\d[\d,]*\.?\d*)\s*(?:hrs?|hours?)\b'],
+    "SF": [r"\b(\d[\d,]*\.?\d*)\s*(?:sf|sq\.?\s*ft|square\s*feet?)\b"],
+    "LF": [r"\b(\d[\d,]*\.?\d*)\s*(?:lf|lin\.?\s*ft|linear\s*feet?)\b"],
+    "CY": [r"\b(\d[\d,]*\.?\d*)\s*(?:cy|cu\.?\s*yd|cubic\s*yards?)\b"],
+    "EA": [r"\b(\d[\d,]*\.?\d*)\s*(?:ea|each|pcs?|pieces?|units?)\b"],
+    "TON": [r"\b(\d[\d,]*\.?\d*)\s*(?:tons?)\b"],
+    "GAL": [r"\b(\d[\d,]*\.?\d*)\s*(?:gal|gallons?)\b"],
+    "SQ": [r"\b(\d[\d,]*\.?\d*)\s*(?:sq|squares?)\b"],
+    "LB": [r"\b(\d[\d,]*\.?\d*)\s*(?:lbs?|pounds?)\b"],
+    "CF": [r"\b(\d[\d,]*\.?\d*)\s*(?:cf|cu\.?\s*ft|cubic\s*feet?)\b"],
+    "SY": [r"\b(\d[\d,]*\.?\d*)\s*(?:sy|sq\.?\s*yd|square\s*yards?)\b"],
+    "HR": [r"\b(\d[\d,]*\.?\d*)\s*(?:hrs?|hours?)\b"],
 }
 
 
@@ -35,12 +35,14 @@ def unit_extractor_tool(text: str) -> list[dict]:
                 qty_str = match.group(1).replace(",", "")
                 try:
                     qty = float(qty_str)
-                    results.append({
-                        "quantity": qty,
-                        "unit": unit,
-                        "raw_match": match.group(0),
-                        "confidence": 0.85,
-                    })
+                    results.append(
+                        {
+                            "quantity": qty,
+                            "unit": unit,
+                            "raw_match": match.group(0),
+                            "confidence": 0.85,
+                        }
+                    )
                 except ValueError:
                     pass
 
@@ -81,10 +83,10 @@ def drawing_reference_linker_tool(text: str) -> list[str]:
     references = []
 
     patterns = [
-        r'(?i)(?:sheet|dwg|drawing)\s+([A-Z]-?\d{3,})',
-        r'(?i)(?:detail|section)\s+(\d+/[A-Z]-?\d{3,})',
-        r'(?i)(?:see|refer\s+to)\s+([A-Z]\d{1,2}-\d{3,})',
-        r'\b([ASMEPCL]-\d{3}(?:\.\d+)?)\b',
+        r"(?i)(?:sheet|dwg|drawing)\s+([A-Z]-?\d{3,})",
+        r"(?i)(?:detail|section)\s+(\d+/[A-Z]-?\d{3,})",
+        r"(?i)(?:see|refer\s+to)\s+([A-Z]\d{1,2}-\d{3,})",
+        r"\b([ASMEPCL]-\d{3}(?:\.\d+)?)\b",
     ]
 
     for pattern in patterns:

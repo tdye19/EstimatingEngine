@@ -1,7 +1,7 @@
 """Audit trail helper for recording data changes."""
 
-from typing import Optional
 from sqlalchemy.orm import Session
+
 from apex.backend.models.audit_log import AuditLog
 
 
@@ -11,7 +11,7 @@ def log_audit(
     action: str,
     resource_type: str,
     resource_id: int,
-    details: Optional[dict] = None,
+    details: dict | None = None,
 ) -> AuditLog:
     """Create an audit log entry.
 

@@ -1,9 +1,9 @@
 """Spec parsing tools for Agent 2."""
 
 import json
+import logging
 import os
 import re
-import logging
 
 logger = logging.getLogger("apex.tools.spec")
 
@@ -42,7 +42,7 @@ DIVISION_RANGES = {
 
 def chunk_document(text: str, max_words: int = 3000) -> list[str]:
     """Split document into chunks on paragraph boundaries, not mid-sentence."""
-    paragraphs = re.split(r'\n\s*\n', text)
+    paragraphs = re.split(r"\n\s*\n", text)
     chunks = []
     current_chunk: list[str] = []
     current_word_count = 0
@@ -63,9 +63,7 @@ def chunk_document(text: str, max_words: int = 3000) -> list[str]:
     return chunks if chunks else [text]
 
 
-async def llm_parse_spec_sections(
-    document_text: str, provider
-) -> tuple[list[dict], int, int]:
+async def llm_parse_spec_sections(document_text: str, provider) -> tuple[list[dict], int, int]:
     """Use LLM to extract CSI MasterFormat sections from spec text.
 
     Returns (sections, total_input_tokens, total_output_tokens).
@@ -87,8 +85,7 @@ async def llm_parse_spec_sections(
     if estimated_tokens > _TOKEN_CHUNK_THRESHOLD:
         chunks = chunk_document(document_text, max_words=max_words_per_chunk)
         logger.info(
-            "Agent 2: estimated %.0f tokens exceeds threshold %d — using %d chunks "
-            "of ~%d words each (provider=%s)",
+            "Agent 2: estimated %.0f tokens exceeds threshold %d — using %d chunks of ~%d words each (provider=%s)",
             estimated_tokens,
             _TOKEN_CHUNK_THRESHOLD,
             len(chunks),
@@ -144,8 +141,8 @@ async def llm_parse_spec_sections(
         )
         if finish == "MAX_TOKENS":
             logger.warning(
-                "Agent 2: LLM hit MAX_TOKENS — response likely truncated "
-                "(%d output tokens, provider=%s)", response.output_tokens,
+                "Agent 2: LLM hit MAX_TOKENS — response likely truncated (%d output tokens, provider=%s)",
+                response.output_tokens,
                 provider.provider_name,
             )
         return parse_and_validate_llm_sections(response.content)
@@ -169,9 +166,7 @@ async def llm_parse_spec_sections(
                 try:
                     sections.extend(await _parse_chunk(sub))
                 except json.JSONDecodeError:
-                    logger.warning(
-                        "Chunk %d sub-chunk %d also failed JSON parse — skipping", i, j
-                    )
+                    logger.warning("Chunk %d sub-chunk %d also failed JSON parse — skipping", i, j)
 
         for s in sections:
             key = s["section_number"]
@@ -181,16 +176,18 @@ async def llm_parse_spec_sections(
     # Normalize to v2 dict shape (spec parameters, no content/quantities)
     result = []
     for s in all_sections.values():
-        result.append({
-            "section_number": s["section_number"],
-            "division_number": s["division"],
-            "title": s.get("section_title") or s.get("title", ""),
-            "in_scope": s.get("in_scope", True),
-            "material_specs": s.get("material_specs", {}),
-            "quality_requirements": s.get("quality_requirements", []),
-            "submittals_required": s.get("submittals_required", []),
-            "referenced_standards": s.get("referenced_standards", []),
-        })
+        result.append(
+            {
+                "section_number": s["section_number"],
+                "division_number": s["division"],
+                "title": s.get("section_title") or s.get("title", ""),
+                "in_scope": s.get("in_scope", True),
+                "material_specs": s.get("material_specs", {}),
+                "quality_requirements": s.get("quality_requirements", []),
+                "submittals_required": s.get("submittals_required", []),
+                "referenced_standards": s.get("referenced_standards", []),
+            }
+        )
 
     section_nums = [s["section_number"] for s in result]
     logger.info(
@@ -224,7 +221,7 @@ def regex_parse_spec_sections(text: str, division_range: str = None) -> list[dic
     sections = []
 
     # Pattern: SECTION XX XX XX or XX XX XX - Title
-    pattern = r'(?:SECTION\s+)?(\d{2})\s+(\d{2})\s+(\d{2})(?:\s*[-–—]\s*(.+?))?(?:\n|$)'
+    pattern = r"(?:SECTION\s+)?(\d{2})\s+(\d{2})\s+(\d{2})(?:\s*[-–—]\s*(.+?))?(?:\n|$)"
     matches = list(re.finditer(pattern, text, re.IGNORECASE | re.MULTILINE))
 
     for i, match in enumerate(matches):
@@ -241,27 +238,29 @@ def regex_parse_spec_sections(text: str, division_range: str = None) -> list[dic
         raw_content = text[start:end].strip()
 
         # Extract referenced standards (best-effort regex)
-        standards = re.findall(r'(?:ASTM|ACI|AISI|ANSI|AWS|CRSI|AISC)\s+[A-Z]?\d+(?:[/-]\d+)?', raw_content)
+        standards = re.findall(r"(?:ASTM|ACI|AISI|ANSI|AWS|CRSI|AISC)\s+[A-Z]?\d+(?:[/-]\d+)?", raw_content)
         standards = sorted(set(s.strip() for s in standards))
 
         # Extract submittals (best-effort regex)
         submittals = []
-        sub_match = re.search(r'(?i)SUBMITTALS?(.*?)(?=\n\s*\d+\.\d+|\nPART|$)', raw_content, re.DOTALL)
+        sub_match = re.search(r"(?i)SUBMITTALS?(.*?)(?=\n\s*\d+\.\d+|\nPART|$)", raw_content, re.DOTALL)
         if sub_match:
-            sub_lines = [l.strip() for l in sub_match.group(1).strip().split('\n') if l.strip()]
+            sub_lines = [ln.strip() for ln in sub_match.group(1).strip().split("\n") if ln.strip()]
             submittals = sub_lines[:10]
 
-        sections.append({
-            "section_number": sec_num,
-            "division_number": div,
-            "title": title,
-            "in_scope": True,
-            "material_specs": {},
-            "quality_requirements": [],
-            "submittals_required": submittals,
-            "referenced_standards": standards,
-            "raw_content": raw_content[:3000],
-        })
+        sections.append(
+            {
+                "section_number": sec_num,
+                "division_number": div,
+                "title": title,
+                "in_scope": True,
+                "material_specs": {},
+                "quality_requirements": [],
+                "submittals_required": submittals,
+                "referenced_standards": standards,
+                "raw_content": raw_content[:3000],
+            }
+        )
 
     return sections
 
@@ -272,6 +271,7 @@ def division_mapper_tool(section_number: str) -> dict:
     if parts:
         div = parts[0].zfill(2)
         from apex.backend.utils.csi_utils import get_division_name
+
         return {
             "division_number": div,
             "division_name": get_division_name(div),
@@ -283,18 +283,18 @@ def division_mapper_tool(section_number: str) -> dict:
 def keyword_tagger_tool(text: str) -> list[str]:
     """Extract relevant construction keywords from text."""
     keyword_patterns = [
-        r'\b(concrete|reinforcing|rebar|formwork|cast-in-place|precast)\b',
-        r'\b(steel|structural|framing|decking|joist|fabrication)\b',
-        r'\b(masonry|brick|block|mortar|grout)\b',
-        r'\b(waterproofing|insulation|roofing|membrane|flashing|sealant)\b',
-        r'\b(drywall|gypsum|plaster|ceiling|tile|paint|coating|flooring|carpet)\b',
-        r'\b(door|window|hardware|glazing|storefront|curtain\s*wall)\b',
-        r'\b(electrical|lighting|switchboard|panel|conduit|wiring)\b',
-        r'\b(plumbing|piping|fixture|valve|drain|hvac|ductwork)\b',
-        r'\b(excavation|grading|backfill|compaction|earthwork)\b',
-        r'\b(fire\s*stop|firestopping|fire\s*protection|sprinkler)\b',
-        r'\b(demolition|abatement|hazmat)\b',
-        r'\b(submittal|shop\s*drawing|mock-up|sample|testing)\b',
+        r"\b(concrete|reinforcing|rebar|formwork|cast-in-place|precast)\b",
+        r"\b(steel|structural|framing|decking|joist|fabrication)\b",
+        r"\b(masonry|brick|block|mortar|grout)\b",
+        r"\b(waterproofing|insulation|roofing|membrane|flashing|sealant)\b",
+        r"\b(drywall|gypsum|plaster|ceiling|tile|paint|coating|flooring|carpet)\b",
+        r"\b(door|window|hardware|glazing|storefront|curtain\s*wall)\b",
+        r"\b(electrical|lighting|switchboard|panel|conduit|wiring)\b",
+        r"\b(plumbing|piping|fixture|valve|drain|hvac|ductwork)\b",
+        r"\b(excavation|grading|backfill|compaction|earthwork)\b",
+        r"\b(fire\s*stop|firestopping|fire\s*protection|sprinkler)\b",
+        r"\b(demolition|abatement|hazmat)\b",
+        r"\b(submittal|shop\s*drawing|mock-up|sample|testing)\b",
     ]
     keywords = set()
     text_lower = text.lower()
@@ -314,38 +314,36 @@ def parse_section_parts(content: str) -> dict:
     }
 
     # Try to split on PART headers
-    parts = re.split(r'(?i)PART\s+(\d)', content)
-
-    full_text = content
+    re.split(r"(?i)PART\s+(\d)", content)
 
     # Extract work description (Part 1 / General)
-    part1_match = re.search(r'(?i)PART\s+1.*?(?=PART\s+2|$)', content, re.DOTALL)
+    part1_match = re.search(r"(?i)PART\s+1.*?(?=PART\s+2|$)", content, re.DOTALL)
     if part1_match:
         part1 = part1_match.group(0)
         result["work_description"] = part1[:1500].strip()
 
         # Extract submittal requirements
-        sub_match = re.search(r'(?i)SUBMITTALS?(.*?)(?=\n\s*\d+\.\d+|\nPART|$)', part1, re.DOTALL)
+        sub_match = re.search(r"(?i)SUBMITTALS?(.*?)(?=\n\s*\d+\.\d+|\nPART|$)", part1, re.DOTALL)
         if sub_match:
             result["submittal_requirements"] = sub_match.group(1).strip()[:500]
 
     # Extract materials (Part 2 / Products)
-    part2_match = re.search(r'(?i)PART\s+2.*?(?=PART\s+3|$)', content, re.DOTALL)
+    part2_match = re.search(r"(?i)PART\s+2.*?(?=PART\s+3|$)", content, re.DOTALL)
     if part2_match:
         part2 = part2_match.group(0)
-        materials = re.findall(r'(?i)(?:ASTM|AISI|ACI|ANSI|AWS)\s+[A-Z]?\d+', part2)
-        materials += re.findall(r'(?i)(?:manufacturer|product):\s*(.+?)(?:\n|$)', part2)
+        materials = re.findall(r"(?i)(?:ASTM|AISI|ACI|ANSI|AWS)\s+[A-Z]?\d+", part2)
+        materials += re.findall(r"(?i)(?:manufacturer|product):\s*(.+?)(?:\n|$)", part2)
         result["materials_referenced"] = list(set(m.strip() for m in materials))[:20]
 
     # Extract execution requirements (Part 3)
-    part3_match = re.search(r'(?i)PART\s+3.*', content, re.DOTALL)
+    part3_match = re.search(r"(?i)PART\s+3.*", content, re.DOTALL)
     if part3_match:
         result["execution_requirements"] = part3_match.group(0)[:1500].strip()
 
     # If no PART structure found, do best-effort extraction
     if not part1_match and not part2_match:
         result["work_description"] = content[:1500].strip()
-        materials = re.findall(r'(?i)(?:ASTM|AISI|ACI|ANSI|AWS)\s+[A-Z]?\d+', content)
+        materials = re.findall(r"(?i)(?:ASTM|AISI|ACI|ANSI|AWS)\s+[A-Z]?\d+", content)
         result["materials_referenced"] = list(set(m.strip() for m in materials))[:20]
 
     return result

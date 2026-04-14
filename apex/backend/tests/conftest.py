@@ -7,15 +7,15 @@ os.environ["APEX_DEV_MODE"] = "true"
 os.environ["DATABASE_URL"] = "sqlite://"
 
 import pytest
-from sqlalchemy import create_engine, StaticPool, event
-from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
+from sqlalchemy import StaticPool, create_engine, event
+from sqlalchemy.orm import sessionmaker
 
-from apex.backend.db.database import Base, get_db, engine as app_engine, SessionLocal
+from apex.backend.db.database import Base, get_db
 from apex.backend.main import app
-from apex.backend.models.user import User
 from apex.backend.models.project import Project
-from apex.backend.utils.auth import hash_password, create_access_token
+from apex.backend.models.user import User
+from apex.backend.utils.auth import create_access_token, hash_password
 
 # Use a shared in-memory SQLite engine via StaticPool so both the app
 # lifespan (seed, init_db) and the tests share the same database.
@@ -27,8 +27,10 @@ _test_engine = create_engine(
 
 # Monkey-patch the app's engine and session factory to use our test engine
 import apex.backend.db.database as _db_mod
+
 _db_mod.engine = _test_engine
 _db_mod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_test_engine)
+
 
 # Enable WAL-like listener for test engine
 @event.listens_for(_test_engine, "connect")
@@ -36,6 +38,7 @@ def _set_wal(dbapi_conn, rec):
     cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.close()
+
 
 # Create all tables
 Base.metadata.create_all(bind=_test_engine)
@@ -59,6 +62,7 @@ def db_session():
 @pytest.fixture
 def client(db_session):
     """FastAPI TestClient with db override."""
+
     def _override_get_db():
         yield db_session
 
@@ -72,6 +76,7 @@ def client(db_session):
 def test_user(db_session):
     """Create a test estimator user."""
     import uuid
+
     user = User(
         email=f"testuser-{uuid.uuid4().hex[:8]}@example.com",
         hashed_password=hash_password("testpass123"),
@@ -87,8 +92,10 @@ def test_user(db_session):
 @pytest.fixture
 def admin_user(db_session):
     """Create an admin user."""
+    import uuid
+
     user = User(
-        email="admin@example.com",
+        email=f"admin-{uuid.uuid4().hex[:8]}@example.com",
         hashed_password=hash_password("adminpass123"),
         full_name="Admin User",
         role="admin",
@@ -116,11 +123,14 @@ def admin_headers(admin_user):
 @pytest.fixture
 def test_project(db_session, test_user):
     """Create a test project owned by test_user."""
+    import uuid
+
     project = Project(
         name="Test Project",
-        project_number="TP-001",
+        project_number=f"TP-{uuid.uuid4().hex[:8].upper()}",
         owner_id=test_user.id,
         status="draft",
+        project_type="commercial",
     )
     db_session.add(project)
     db_session.commit()
@@ -131,8 +141,10 @@ def test_project(db_session, test_user):
 @pytest.fixture
 def mock_llm_response():
     """Factory for mock LLM responses."""
+
     def _make(content="mock response", model="test-model", provider="test"):
         from apex.backend.services.llm_provider import LLMResponse
+
         return LLMResponse(
             content=content,
             model=model,
@@ -141,4 +153,5 @@ def mock_llm_response():
             output_tokens=50,
             duration_ms=500.0,
         )
+
     return _make

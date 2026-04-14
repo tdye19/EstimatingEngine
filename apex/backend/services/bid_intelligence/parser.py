@@ -1,6 +1,5 @@
 """Parser for EstimationHistory_Enhanced.xlsx — reads the Estimating sheet."""
 
-import re
 from datetime import datetime
 
 import pandas as pd
@@ -120,7 +119,7 @@ def _parse_date(val):
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return None
     # Already a datetime/Timestamp from pandas
-    if isinstance(val, (datetime, pd.Timestamp)):
+    if isinstance(val, datetime | pd.Timestamp):
         return val.date() if not pd.isna(val) else None
     s = _clean_value(val)
     if s is None:
@@ -156,15 +155,37 @@ def parse_estimation_history(filepath: str) -> list[dict]:
                 record[field] = _parse_int(raw)
             elif field in _PCT_FIELDS:
                 record[field] = _parse_pct(raw)
-            elif field in ("bid_amount", "contract_amount", "contract_fee",
-                           "fee", "total_gc_labor", "wip_est_cost",
-                           "wip_est_fee", "wip_est_contract", "equipment_value"):
+            elif field in (
+                "bid_amount",
+                "contract_amount",
+                "contract_fee",
+                "fee",
+                "total_gc_labor",
+                "wip_est_cost",
+                "wip_est_fee",
+                "wip_est_contract",
+                "equipment_value",
+            ):
                 record[field] = _parse_currency(raw)
-            elif field in ("status", "region", "market_sector", "job_number",
-                           "estimate_number", "name", "location", "trade",
-                           "estimator", "comments", "customer", "contract_status",
-                           "delivery_method", "opportunity_source", "go_no_go_score",
-                           "loss_reason", "competitor_who_won"):
+            elif field in (
+                "status",
+                "region",
+                "market_sector",
+                "job_number",
+                "estimate_number",
+                "name",
+                "location",
+                "trade",
+                "estimator",
+                "comments",
+                "customer",
+                "contract_status",
+                "delivery_method",
+                "opportunity_source",
+                "go_no_go_score",
+                "loss_reason",
+                "competitor_who_won",
+            ):
                 record[field] = _clean_value(raw)
             else:
                 record[field] = _parse_float(raw)

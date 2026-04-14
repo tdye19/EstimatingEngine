@@ -4,100 +4,98 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
-from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.models.estimate import Estimate
 from apex.backend.models.estimate_library import EstimateLibraryEntry, EstimateLibraryTag
 from apex.backend.models.project import Project
+from apex.backend.models.user import User
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
-from apex.backend.models.user import User
 
 # ── Pydantic Schemas ──────────────────────────────────────────────────────────
 
 
 class LibraryEntryCreate(BaseModel):
     name: str
-    description: Optional[str] = None
-    project_type: Optional[str] = None
-    building_type: Optional[str] = None
-    square_footage: Optional[float] = None
+    description: str | None = None
+    project_type: str | None = None
+    building_type: str | None = None
+    square_footage: float | None = None
     total_cost: float
-    location_city: Optional[str] = None
-    location_state: Optional[str] = None
-    location_zip: Optional[str] = None
-    bid_date: Optional[date] = None
-    status: Optional[str] = "completed"
-    bid_result: Optional[str] = None
-    csi_divisions: Optional[dict] = None
-    line_item_count: Optional[int] = None
-    tags: Optional[List[str]] = None
-    source: Optional[str] = "manual"
-    original_file_path: Optional[str] = None
-    notes: Optional[str] = None
-    is_template: Optional[bool] = False
-    project_id: Optional[int] = None
-    estimate_id: Optional[int] = None
+    location_city: str | None = None
+    location_state: str | None = None
+    location_zip: str | None = None
+    bid_date: date | None = None
+    status: str | None = "completed"
+    bid_result: str | None = None
+    csi_divisions: dict | None = None
+    line_item_count: int | None = None
+    tags: list[str] | None = None
+    source: str | None = "manual"
+    original_file_path: str | None = None
+    notes: str | None = None
+    is_template: bool | None = False
+    project_id: int | None = None
+    estimate_id: int | None = None
 
 
 class LibraryEntryUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    project_type: Optional[str] = None
-    building_type: Optional[str] = None
-    square_footage: Optional[float] = None
-    total_cost: Optional[float] = None
-    location_city: Optional[str] = None
-    location_state: Optional[str] = None
-    location_zip: Optional[str] = None
-    bid_date: Optional[date] = None
-    status: Optional[str] = None
-    bid_result: Optional[str] = None
-    csi_divisions: Optional[dict] = None
-    line_item_count: Optional[int] = None
-    tags: Optional[List[str]] = None
-    source: Optional[str] = None
-    original_file_path: Optional[str] = None
-    notes: Optional[str] = None
-    is_template: Optional[bool] = None
+    name: str | None = None
+    description: str | None = None
+    project_type: str | None = None
+    building_type: str | None = None
+    square_footage: float | None = None
+    total_cost: float | None = None
+    location_city: str | None = None
+    location_state: str | None = None
+    location_zip: str | None = None
+    bid_date: date | None = None
+    status: str | None = None
+    bid_result: str | None = None
+    csi_divisions: dict | None = None
+    line_item_count: int | None = None
+    tags: list[str] | None = None
+    source: str | None = None
+    original_file_path: str | None = None
+    notes: str | None = None
+    is_template: bool | None = None
 
 
 class LibraryEntryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    project_id: Optional[int]
-    estimate_id: Optional[int]
+    project_id: int | None
+    estimate_id: int | None
     name: str
-    description: Optional[str]
-    project_type: Optional[str]
-    building_type: Optional[str]
-    square_footage: Optional[float]
+    description: str | None
+    project_type: str | None
+    building_type: str | None
+    square_footage: float | None
     total_cost: float
-    cost_per_sqft: Optional[float]
-    location_city: Optional[str]
-    location_state: Optional[str]
-    location_zip: Optional[str]
-    bid_date: Optional[date]
+    cost_per_sqft: float | None
+    location_city: str | None
+    location_state: str | None
+    location_zip: str | None
+    bid_date: date | None
     status: str
-    bid_result: Optional[str]
-    csi_divisions_json: Optional[str]
-    line_item_count: Optional[int]
-    tags: Optional[str]
+    bid_result: str | None
+    csi_divisions_json: str | None
+    line_item_count: int | None
+    tags: str | None
     source: str
-    original_file_path: Optional[str]
-    notes: Optional[str]
-    created_by: Optional[int]
+    original_file_path: str | None
+    notes: str | None
+    created_by: int | None
     created_at: datetime
     updated_at: datetime
     is_template: bool
-    organization_id: Optional[int]
+    organization_id: int | None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -114,7 +112,7 @@ def _entry_to_dict(entry: EstimateLibraryEntry) -> dict:
     return d
 
 
-def _apply_tags(db: Session, entry: EstimateLibraryEntry, tags: List[str]) -> None:
+def _apply_tags(db: Session, entry: EstimateLibraryEntry, tags: list[str]) -> None:
     """Replace the normalized tag rows for an entry."""
     db.query(EstimateLibraryTag).filter(EstimateLibraryTag.entry_id == entry.id).delete()
     seen: set[str] = set()
@@ -158,10 +156,7 @@ def stats_summary(
         if e.project_type and e.cost_per_sqft:
             type_buckets.setdefault(e.project_type, []).append(e.cost_per_sqft)
 
-    avg_cost_per_sqft_by_type = {
-        pt: round(sum(vals) / len(vals), 2)
-        for pt, vals in type_buckets.items()
-    }
+    avg_cost_per_sqft_by_type = {pt: round(sum(vals) / len(vals), 2) for pt, vals in type_buckets.items()}
 
     # cost/sqft by state
     state_buckets: dict[str, list[float]] = {}
@@ -169,10 +164,7 @@ def stats_summary(
         if e.location_state and e.cost_per_sqft:
             state_buckets.setdefault(e.location_state, []).append(e.cost_per_sqft)
 
-    avg_cost_per_sqft_by_state = {
-        st: round(sum(vals) / len(vals), 2)
-        for st, vals in state_buckets.items()
-    }
+    avg_cost_per_sqft_by_state = {st: round(sum(vals) / len(vals), 2) for st, vals in state_buckets.items()}
 
     # Win/loss ratio by project_type
     wl_buckets: dict[str, dict[str, int]] = {}
@@ -217,8 +209,8 @@ def compare_entries(
         )
     try:
         entry_ids = [int(i) for i in raw_ids]
-    except ValueError:
-        raise HTTPException(status_code=400, detail="IDs must be integers.")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="IDs must be integers.") from exc
 
     entries = (
         db.query(EstimateLibraryEntry)
@@ -246,18 +238,18 @@ def compare_entries(
 # GET /
 @router.get("/", response_model=APIResponse)
 def list_entries(
-    project_type: Optional[str] = Query(None),
-    building_type: Optional[str] = Query(None),
-    min_cost: Optional[float] = Query(None),
-    max_cost: Optional[float] = Query(None),
-    min_sqft: Optional[float] = Query(None),
-    max_sqft: Optional[float] = Query(None),
-    status: Optional[str] = Query(None),
-    bid_result: Optional[str] = Query(None),
-    location_state: Optional[str] = Query(None),
-    tag: Optional[str] = Query(None, description="Filter by a single tag (exact match)"),
-    search: Optional[str] = Query(None, description="Full-text search across name, description, tags"),
-    is_template: Optional[bool] = Query(None),
+    project_type: str | None = Query(None),
+    building_type: str | None = Query(None),
+    min_cost: float | None = Query(None),
+    max_cost: float | None = Query(None),
+    min_sqft: float | None = Query(None),
+    max_sqft: float | None = Query(None),
+    status: str | None = Query(None),
+    bid_result: str | None = Query(None),
+    location_state: str | None = Query(None),
+    tag: str | None = Query(None, description="Filter by a single tag (exact match)"),
+    search: str | None = Query(None, description="Full-text search across name, description, tags"),
+    is_template: bool | None = Query(None),
     sort_by: str = Query("created_at"),
     sort_order: str = Query("desc"),
     skip: int = Query(0, ge=0),
@@ -292,9 +284,7 @@ def list_entries(
 
     if tag:
         # Join to tag table for normalized tag filtering
-        q = q.join(EstimateLibraryTag).filter(
-            EstimateLibraryTag.tag == tag.strip().lower()
-        )
+        q = q.join(EstimateLibraryTag).filter(EstimateLibraryTag.tag == tag.strip().lower())
 
     if search:
         like = f"%{search}%"
@@ -332,10 +322,14 @@ def list_entries(
 @router.get("/{entry_id}", response_model=APIResponse)
 def get_entry(entry_id: int, db: Session = Depends(get_db)):
     """Retrieve a single library entry by ID."""
-    entry = db.query(EstimateLibraryEntry).filter(
-        EstimateLibraryEntry.id == entry_id,
-        EstimateLibraryEntry.is_deleted == False,  # noqa: E712
-    ).first()
+    entry = (
+        db.query(EstimateLibraryEntry)
+        .filter(
+            EstimateLibraryEntry.id == entry_id,
+            EstimateLibraryEntry.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not entry:
         raise HTTPException(status_code=404, detail="Library entry not found")
     return APIResponse(success=True, data=_entry_to_dict(entry))
@@ -404,10 +398,14 @@ def create_from_project(
     current_user: User = Depends(require_auth),
 ):
     """Auto-create a library entry from a project's latest completed estimate."""
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.is_deleted == False,  # noqa: E712
-    ).first()
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -473,10 +471,14 @@ def update_entry(
     db: Session = Depends(get_db),
 ):
     """Update an existing library entry."""
-    entry = db.query(EstimateLibraryEntry).filter(
-        EstimateLibraryEntry.id == entry_id,
-        EstimateLibraryEntry.is_deleted == False,  # noqa: E712
-    ).first()
+    entry = (
+        db.query(EstimateLibraryEntry)
+        .filter(
+            EstimateLibraryEntry.id == entry_id,
+            EstimateLibraryEntry.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not entry:
         raise HTTPException(status_code=404, detail="Library entry not found")
 
@@ -510,10 +512,14 @@ def delete_entry(
     db: Session = Depends(get_db),
 ):
     """Soft-delete (archive) or hard-delete a library entry."""
-    entry = db.query(EstimateLibraryEntry).filter(
-        EstimateLibraryEntry.id == entry_id,
-        EstimateLibraryEntry.is_deleted == False,  # noqa: E712
-    ).first()
+    entry = (
+        db.query(EstimateLibraryEntry)
+        .filter(
+            EstimateLibraryEntry.id == entry_id,
+            EstimateLibraryEntry.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not entry:
         raise HTTPException(status_code=404, detail="Library entry not found")
 

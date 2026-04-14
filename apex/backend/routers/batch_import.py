@@ -18,8 +18,6 @@ import tempfile
 import uuid
 
 import aiofiles
-from typing import Optional
-
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -50,8 +48,8 @@ _MAX_ZIP_BYTES: int = 500 * 1024 * 1024
 
 
 class AssociationUpdateRequest(BaseModel):
-    document_role: Optional[str] = None
-    library_entry_id: Optional[int] = None
+    document_role: str | None = None
+    library_entry_id: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -77,9 +75,7 @@ async def upload_zip(
         raise HTTPException(status_code=400, detail="Only .zip files are accepted")
 
     # Stream to a temp file while enforcing the size cap
-    tmp_path = os.path.join(
-        tempfile.gettempdir(), f"apex_zip_{uuid.uuid4().hex}.zip"
-    )
+    tmp_path = os.path.join(tempfile.gettempdir(), f"apex_zip_{uuid.uuid4().hex}.zip")
     total_bytes = 0
     try:
         async with aiofiles.open(tmp_path, "wb") as fh:
@@ -143,7 +139,7 @@ def process_group(
             {"event": "batch_group_error", "group_id": group_id, "error": str(exc)},
         )
         logger.error("process_batch_group failed for group %d: %s", group_id, exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     ws_manager.broadcast_batch_sync(
         group_id,
@@ -158,26 +154,24 @@ def list_groups(
     current_user=Depends(get_current_user),
 ):
     """List all DocumentGroups with file counts and parse status."""
-    groups = (
-        db.query(DocumentGroup)
-        .order_by(DocumentGroup.created_at.desc())
-        .all()
-    )
+    groups = db.query(DocumentGroup).order_by(DocumentGroup.created_at.desc()).all()
     rows = []
     for g in groups:
-        assocs   = g.associations or []
-        total    = len(assocs)
-        parsed   = sum(1 for a in assocs if a.parsed)
-        rows.append({
-            "id":                 g.id,
-            "name":               g.name,
-            "library_entry_id":   g.library_entry_id,
-            "project_id":         g.project_id,
-            "file_count":         total,
-            "parsed_count":       parsed,
-            "pending_count":      total - parsed,
-            "created_at":         g.created_at.isoformat() if g.created_at else None,
-        })
+        assocs = g.associations or []
+        total = len(assocs)
+        parsed = sum(1 for a in assocs if a.parsed)
+        rows.append(
+            {
+                "id": g.id,
+                "name": g.name,
+                "library_entry_id": g.library_entry_id,
+                "project_id": g.project_id,
+                "file_count": total,
+                "parsed_count": parsed,
+                "pending_count": total - parsed,
+                "created_at": g.created_at.isoformat() if g.created_at else None,
+            }
+        )
     return {"success": True, "data": rows}
 
 
@@ -193,29 +187,31 @@ def get_group(
         raise HTTPException(status_code=404, detail="DocumentGroup not found")
 
     docs = []
-    for assoc in (group.associations or []):
+    for assoc in group.associations or []:
         doc = assoc.document
-        docs.append({
-            "association_id":    assoc.id,
-            "document_id":       doc.id             if doc else None,
-            "filename":          doc.filename        if doc else None,
-            "file_type":         doc.file_type       if doc else None,
-            "document_role":     assoc.document_role,
-            "parsed":            assoc.parsed,
-            "parsed_at":         assoc.parsed_at.isoformat() if assoc.parsed_at else None,
-            "parse_errors":      assoc.parse_errors,
-            "processing_status": doc.processing_status if doc else None,
-        })
+        docs.append(
+            {
+                "association_id": assoc.id,
+                "document_id": doc.id if doc else None,
+                "filename": doc.filename if doc else None,
+                "file_type": doc.file_type if doc else None,
+                "document_role": assoc.document_role,
+                "parsed": assoc.parsed,
+                "parsed_at": assoc.parsed_at.isoformat() if assoc.parsed_at else None,
+                "parse_errors": assoc.parse_errors,
+                "processing_status": doc.processing_status if doc else None,
+            }
+        )
 
     return {
         "success": True,
         "data": {
-            "id":               group.id,
-            "name":             group.name,
+            "id": group.id,
+            "name": group.name,
             "library_entry_id": group.library_entry_id,
-            "project_id":       group.project_id,
-            "created_at":       group.created_at.isoformat() if group.created_at else None,
-            "documents":        docs,
+            "project_id": group.project_id,
+            "created_at": group.created_at.isoformat() if group.created_at else None,
+            "documents": docs,
         },
     }
 
@@ -234,11 +230,7 @@ def update_association(
     ``blueprints``, ``as_built``, ``change_order``, ``bid_tab``,
     ``subcontractor_quote``, ``other``.
     """
-    assoc = (
-        db.query(DocumentAssociation)
-        .filter(DocumentAssociation.id == assoc_id)
-        .first()
-    )
+    assoc = db.query(DocumentAssociation).filter(DocumentAssociation.id == assoc_id).first()
     if not assoc:
         raise HTTPException(status_code=404, detail="DocumentAssociation not found")
 
@@ -260,8 +252,8 @@ def update_association(
     return {
         "success": True,
         "data": {
-            "id":               assoc.id,
-            "document_role":    assoc.document_role,
+            "id": assoc.id,
+            "document_role": assoc.document_role,
             "library_entry_id": assoc.library_entry_id,
         },
     }
@@ -277,10 +269,10 @@ def process_winest(
     try:
         items = _service.process_winest_file(doc_association_id=assoc_id, db=db)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("process_winest failed for assoc %d: %s", assoc_id, exc)
-        raise HTTPException(status_code=500, detail="WinEst processing failed")
+        raise HTTPException(status_code=500, detail="WinEst processing failed") from exc
 
     return {
         "success": True,
@@ -288,16 +280,16 @@ def process_winest(
             "line_items_created": len(items),
             "items": [
                 {
-                    "id":                item.id,
-                    "description":       item.description,
-                    "csi_code":          item.csi_code,
-                    "csi_division":      item.csi_division,
+                    "id": item.id,
+                    "description": item.description,
+                    "csi_code": item.csi_code,
+                    "csi_division": item.csi_division,
                     "csi_division_name": item.csi_division_name,
-                    "quantity":          item.quantity,
-                    "unit_of_measure":   item.unit_of_measure,
-                    "unit_cost":         item.unit_cost,
-                    "total_cost":        item.total_cost,
-                    "labor_hours":       item.labor_hours,
+                    "quantity": item.quantity,
+                    "unit_of_measure": item.unit_of_measure,
+                    "unit_cost": item.unit_cost,
+                    "total_cost": item.total_cost,
+                    "labor_hours": item.labor_hours,
                     "productivity_rate": item.productivity_rate,
                 }
                 for item in items

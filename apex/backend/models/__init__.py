@@ -1,72 +1,106 @@
-from apex.backend.models.user import User
-from apex.backend.models.organization import Organization
-from apex.backend.models.project import Project
-from apex.backend.models.document import Document
-from apex.backend.models.spec_section import SpecSection
-from apex.backend.models.gap_report import GapReport, GapReportItem
-from apex.backend.models.takeoff_item import TakeoffItem
-from apex.backend.models.labor_estimate import LaborEstimate
-from apex.backend.models.material_price import MaterialPrice
-from apex.backend.models.estimate import Estimate, EstimateLineItem
-from apex.backend.models.project_actual import ProjectActual
-from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.models.agent_run_log import AgentRunLog
-from apex.backend.models.upload_session import UploadSession
-from apex.backend.models.upload_chunk import UploadChunk
-from apex.backend.models.token_usage import TokenUsage
-from apex.backend.models.bid_comparison import BidComparison
-from apex.backend.models.equipment_rate import EquipmentRate
-from apex.backend.models.change_order import ChangeOrder
 from apex.backend.models.audit_log import AuditLog
-from apex.backend.models.estimate_library import EstimateLibraryEntry, EstimateLibraryTag
-from apex.backend.models.historical_line_item import HistoricalLineItem
-from apex.backend.models.document_association import DocumentGroup, DocumentAssociation
-from apex.backend.models.productivity_benchmark import ProductivityBenchmark
-from apex.backend.services.productivity_brain.models import PBProject, PBLineItem
-from apex.backend.models.takeoff_v2 import TakeoffItemV2
-from apex.backend.models.field_actuals import FieldActualsProject, FieldActualsLineItem
-from apex.backend.models.intelligence_report import IntelligenceReportModel
-from apex.backend.services.bid_intelligence.models import BIEstimate
+from apex.backend.models.bid_comparison import BidComparison
+from apex.backend.models.change_order import ChangeOrder
 from apex.backend.models.decision_models import (
-    ComparableProject,
-    HistoricalRateObservation,
-    CanonicalActivity,
     ActivityAlias,
+    BenchmarkResult,
+    BidOutcome,
+    CanonicalActivity,
+    ComparableProject,
+    CostBreakdownBucket,
+    EscalationInput,
+    EstimateLine,
     EstimateRun,
-    SourceReference,
+    EstimatorOverride,
+    FieldActual,
+    HistoricalRateObservation,
+    QuantityItem,
+    RiskItem,
+    ScheduleScenario,
     ScopeItem,
     ScopeItemEvidence,
-    QuantityItem,
-    BenchmarkResult,
-    EstimateLine,
-    CostBreakdownBucket,
-    RiskItem,
-    EscalationInput,
-    ScheduleScenario,
-    EstimatorOverride,
-    BidOutcome,
-    FieldActual,
+    SourceReference,
 )
+from apex.backend.models.document import Document
+from apex.backend.models.document_association import DocumentAssociation, DocumentGroup
+from apex.backend.models.equipment_rate import EquipmentRate
+from apex.backend.models.estimate import Estimate, EstimateLineItem
+from apex.backend.models.estimate_library import EstimateLibraryEntry, EstimateLibraryTag
+from apex.backend.models.field_actuals import FieldActualsLineItem, FieldActualsProject
+from apex.backend.models.gap_report import GapReport, GapReportItem
+from apex.backend.models.historical_line_item import HistoricalLineItem
+from apex.backend.models.intelligence_report import IntelligenceReportModel
+from apex.backend.models.labor_estimate import LaborEstimate
+from apex.backend.models.material_price import MaterialPrice
+from apex.backend.models.organization import Organization
+from apex.backend.models.productivity_benchmark import ProductivityBenchmark
+from apex.backend.models.productivity_history import ProductivityHistory
+from apex.backend.models.project import Project
+from apex.backend.models.project_actual import ProjectActual
+from apex.backend.models.spec_section import SpecSection
+from apex.backend.models.takeoff_item import TakeoffItem
+from apex.backend.models.takeoff_v2 import TakeoffItemV2
+from apex.backend.models.token_usage import TokenUsage
+from apex.backend.models.upload_chunk import UploadChunk
+from apex.backend.models.upload_session import UploadSession
+from apex.backend.models.user import User
+from apex.backend.services.bid_intelligence.models import BIEstimate
+from apex.backend.services.productivity_brain.models import PBLineItem, PBProject
 
 __all__ = [
-    "User", "Organization", "Project", "Document", "SpecSection",
-    "GapReport", "GapReportItem", "TakeoffItem", "LaborEstimate",
-    "MaterialPrice", "Estimate", "EstimateLineItem", "ProjectActual",
-    "ProductivityHistory", "AgentRunLog",
-    "UploadSession", "UploadChunk", "TokenUsage", "BidComparison", "EquipmentRate", "ChangeOrder", "AuditLog",
-    "EstimateLibraryEntry", "EstimateLibraryTag",
+    "User",
+    "Organization",
+    "Project",
+    "Document",
+    "SpecSection",
+    "GapReport",
+    "GapReportItem",
+    "TakeoffItem",
+    "LaborEstimate",
+    "MaterialPrice",
+    "Estimate",
+    "EstimateLineItem",
+    "ProjectActual",
+    "ProductivityHistory",
+    "AgentRunLog",
+    "UploadSession",
+    "UploadChunk",
+    "TokenUsage",
+    "BidComparison",
+    "EquipmentRate",
+    "ChangeOrder",
+    "AuditLog",
+    "EstimateLibraryEntry",
+    "EstimateLibraryTag",
     "HistoricalLineItem",
-    "DocumentGroup", "DocumentAssociation",
+    "DocumentGroup",
+    "DocumentAssociation",
     "ProductivityBenchmark",
-    "PBProject", "PBLineItem",
+    "PBProject",
+    "PBLineItem",
     "BIEstimate",
     "TakeoffItemV2",
-    "FieldActualsProject", "FieldActualsLineItem",
+    "FieldActualsProject",
+    "FieldActualsLineItem",
     "IntelligenceReportModel",
     # Decision system models
-    "ComparableProject", "HistoricalRateObservation", "CanonicalActivity",
-    "ActivityAlias", "EstimateRun", "SourceReference", "ScopeItem",
-    "ScopeItemEvidence", "QuantityItem", "BenchmarkResult", "EstimateLine",
-    "CostBreakdownBucket", "RiskItem", "EscalationInput", "ScheduleScenario",
-    "EstimatorOverride", "BidOutcome", "FieldActual",
+    "ComparableProject",
+    "HistoricalRateObservation",
+    "CanonicalActivity",
+    "ActivityAlias",
+    "EstimateRun",
+    "SourceReference",
+    "ScopeItem",
+    "ScopeItemEvidence",
+    "QuantityItem",
+    "BenchmarkResult",
+    "EstimateLine",
+    "CostBreakdownBucket",
+    "RiskItem",
+    "EscalationInput",
+    "ScheduleScenario",
+    "EstimatorOverride",
+    "BidOutcome",
+    "FieldActual",
 ]

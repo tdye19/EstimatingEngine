@@ -2,14 +2,13 @@
 
 import json
 import math
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional
+from datetime import UTC, datetime
 
-from sqlalchemy import func, and_
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
-from apex.backend.models.historical_line_item import HistoricalLineItem
 from apex.backend.models.estimate_library import EstimateLibraryEntry
+from apex.backend.models.historical_line_item import HistoricalLineItem
 from apex.backend.models.productivity_benchmark import ProductivityBenchmark
 from apex.backend.utils.schemas import BenchmarkQuery
 
@@ -17,15 +16,15 @@ from apex.backend.utils.schemas import BenchmarkQuery
 _RECENCY_DECAY_YEARS = 2
 
 
-def _recency_factor(bid_date: Optional[object], now: datetime) -> float:
+def _recency_factor(bid_date: object | None, now: datetime) -> float:
     """Return a 0.0–1.0 recency weight; items within 2 years score 1.0, older items decay linearly."""
     if bid_date is None:
         return 0.5  # unknown age — neutral weight
     # bid_date may be a date or datetime
     if hasattr(bid_date, "year") and not isinstance(bid_date, datetime):
-        bid_dt = datetime(bid_date.year, bid_date.month, bid_date.day, tzinfo=timezone.utc)
+        bid_dt = datetime(bid_date.year, bid_date.month, bid_date.day, tzinfo=UTC)
     else:
-        bid_dt = bid_date.replace(tzinfo=timezone.utc) if bid_date.tzinfo is None else bid_date
+        bid_dt = bid_date.replace(tzinfo=UTC) if bid_date.tzinfo is None else bid_date
     age_years = (now - bid_dt).days / 365.25
     if age_years <= _RECENCY_DECAY_YEARS:
         return 1.0
@@ -33,7 +32,7 @@ def _recency_factor(bid_date: Optional[object], now: datetime) -> float:
     return max(0.0, 1.0 - (age_years - _RECENCY_DECAY_YEARS) / _RECENCY_DECAY_YEARS)
 
 
-def _std_dev(values: List[float]) -> Optional[float]:
+def _std_dev(values: list[float]) -> float | None:
     n = len(values)
     if n < 2:
         return None
@@ -42,7 +41,7 @@ def _std_dev(values: List[float]) -> Optional[float]:
     return math.sqrt(variance)
 
 
-def _safe_avg(values: List[Optional[float]]) -> Optional[float]:
+def _safe_avg(values: list[float | None]) -> float | None:
     non_null = [v for v in values if v is not None]
     return sum(non_null) / len(non_null) if non_null else None
 
@@ -50,15 +49,15 @@ def _safe_avg(values: List[Optional[float]]) -> Optional[float]:
 def compute_benchmarks(
     db: Session,
     organization_id: int,
-    filters: Optional[BenchmarkQuery] = None,
-) -> List[ProductivityBenchmark]:
+    filters: BenchmarkQuery | None = None,
+) -> list[ProductivityBenchmark]:
     """
     Aggregate HistoricalLineItems into ProductivityBenchmark records and upsert them.
 
     Groups by (csi_code, unit_of_measure) and optionally by project_type and region
     when those fields are populated on the line items.
     """
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     # ── 1. Fetch relevant line items ──────────────────────────────────────────
     q = (
@@ -84,7 +83,7 @@ def compute_benchmarks(
         if filters.unit_of_measure:
             q = q.filter(HistoricalLineItem.unit_of_measure == filters.unit_of_measure)
 
-    items: List[HistoricalLineItem] = q.all()
+    items: list[HistoricalLineItem] = q.all()
 
     # ── 2. Group in Python ────────────────────────────────────────────────────
     # Key: (csi_code, unit_of_measure, project_type or None, region or None)
@@ -98,7 +97,7 @@ def compute_benchmarks(
         )
         groups.setdefault(key, []).append(item)
 
-    upserted: List[ProductivityBenchmark] = []
+    upserted: list[ProductivityBenchmark] = []
 
     # ── 3. Compute stats per group ────────────────────────────────────────────
     for (csi_code, uom, project_type, region), group_items in groups.items():
@@ -113,7 +112,7 @@ def compute_benchmarks(
         std = _std_dev(unit_costs)
 
         # Per-type cost averages (divide by quantity to get per-unit)
-        def _per_unit(cost_attr: str) -> Optional[float]:
+        def _per_unit(cost_attr: str) -> float | None:
             vals = []
             for i in group_items:
                 raw = getattr(i, cost_attr)
@@ -138,9 +137,7 @@ def compute_benchmarks(
             continue
 
         # Collect contributing project IDs
-        project_ids = sorted({
-            i.project_id for i in group_items if i.project_id is not None
-        })
+        project_ids = sorted({i.project_id for i in group_items if i.project_id is not None})
 
         # Description: use the most-common description in the group
         desc_counts: dict = {}
@@ -152,7 +149,7 @@ def compute_benchmarks(
         csi_division = csi_code.split(" ")[0][:2] if csi_code else "00"
 
         # ── 4. Upsert ─────────────────────────────────────────────────────────
-        existing: Optional[ProductivityBenchmark] = (
+        existing: ProductivityBenchmark | None = (
             db.query(ProductivityBenchmark)
             .filter(
                 ProductivityBenchmark.organization_id == organization_id,
@@ -207,20 +204,17 @@ def query_benchmarks(
     organization_id: int,
     csi_code: str,
     unit_of_measure: str,
-    project_type: Optional[str] = None,
-    region: Optional[str] = None,
-) -> Optional[ProductivityBenchmark]:
+    project_type: str | None = None,
+    region: str | None = None,
+) -> ProductivityBenchmark | None:
     """
     Return the most-specific active benchmark for the given parameters,
     falling back through progressively looser matches.
     """
-    base = (
-        db.query(ProductivityBenchmark)
-        .filter(
-            ProductivityBenchmark.organization_id == organization_id,
-            ProductivityBenchmark.unit_of_measure == unit_of_measure,
-            ProductivityBenchmark.is_deleted.is_(False),
-        )
+    base = db.query(ProductivityBenchmark).filter(
+        ProductivityBenchmark.organization_id == organization_id,
+        ProductivityBenchmark.unit_of_measure == unit_of_measure,
+        ProductivityBenchmark.is_deleted.is_(False),
     )
 
     # Level 1: exact match
@@ -289,18 +283,10 @@ def get_benchmark_summary(db: Session, organization_id: int) -> dict:
     )
     coverage_by_division = {div: cnt for div, cnt in division_rows}
 
-    avg_sample = (
-        db.query(func.avg(ProductivityBenchmark.sample_size))
-        .filter(base_filter)
-        .scalar()
-    )
+    avg_sample = db.query(func.avg(ProductivityBenchmark.sample_size)).filter(base_filter).scalar()
     avg_sample_size = round(float(avg_sample), 1) if avg_sample is not None else 0.0
 
-    last_computed = (
-        db.query(func.max(ProductivityBenchmark.last_computed_at))
-        .filter(base_filter)
-        .scalar()
-    )
+    last_computed = db.query(func.max(ProductivityBenchmark.last_computed_at)).filter(base_filter).scalar()
 
     return {
         "total_benchmarks": total,

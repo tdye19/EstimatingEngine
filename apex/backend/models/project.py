@@ -1,7 +1,8 @@
 """Project model."""
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text
+from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from apex.backend.db.database import Base
 from apex.backend.models.base import TimestampMixin
 
@@ -25,16 +26,16 @@ class Project(Base, TimestampMixin):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
     # ── Decision-system context fields (§9.1 / §10) ──────────────────────────
-    region = Column(String(50), nullable=True)             # geographic market: midwest | southeast | northeast | west
+    region = Column(String(50), nullable=True)  # geographic market: midwest | southeast | northeast | west
     # Required for context-aware benchmarking — historical rates must be
     # filtered by context. A hospital is not a school. (arch §3.4)
-    market_sector = Column(String(100), nullable=True)     # mission_critical, healthcare, education, etc.
-    scope_types = Column(Text, nullable=True)              # JSON array: ["sitework","concrete","steel"]
-    delivery_method = Column(String(50), nullable=True)    # cmar, design_build, hard_bid, gmp
-    contract_type = Column(String(50), nullable=True)      # self_perform, subcontract, mixed
-    complexity_level = Column(String(20), nullable=True)   # low | medium | high | very_high
+    market_sector = Column(String(100), nullable=True)  # mission_critical, healthcare, education, etc.
+    scope_types = Column(Text, nullable=True)  # JSON array: ["sitework","concrete","steel"]
+    delivery_method = Column(String(50), nullable=True)  # cmar, design_build, hard_bid, gmp
+    contract_type = Column(String(50), nullable=True)  # self_perform, subcontract, mixed
+    complexity_level = Column(String(20), nullable=True)  # low | medium | high | very_high
     schedule_pressure = Column(String(20), nullable=True)  # low | medium | high | extreme
-    bid_due_date = Column(String(50), nullable=True)       # ISO date string
+    bid_due_date = Column(String(50), nullable=True)  # ISO date string
 
     owner = relationship("User", back_populates="projects")
     organization = relationship("Organization", back_populates="projects")

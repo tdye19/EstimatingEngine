@@ -27,16 +27,15 @@ from apex.backend.db.database import Base, SessionLocal
 from apex.backend.models.decision_models import ComparableProject
 from apex.backend.services.decision_project_loader import load_winest_project
 
-
 _WINEST_DIR = os.path.join(os.path.dirname(__file__), "data", "winest")
 
 _DEFAULT_CONTEXT = {
-    "project_type":   "commercial",
-    "market_sector":  "commercial",
-    "region":         "michigan",
-    "delivery_method":"cmar",
-    "contract_type":  "self_perform",
-    "complexity_level":"medium",
+    "project_type": "commercial",
+    "market_sector": "commercial",
+    "region": "michigan",
+    "delivery_method": "cmar",
+    "contract_type": "self_perform",
+    "complexity_level": "medium",
     "data_quality_score": 0.6,
 }
 
@@ -65,11 +64,7 @@ def bulk_load(args):
         print("  Create it and add XLSX exports, then re-run.")
         return
 
-    files = [
-        os.path.join(scan_dir, f)
-        for f in sorted(os.listdir(scan_dir))
-        if f.lower().endswith(".xlsx")
-    ]
+    files = [os.path.join(scan_dir, f) for f in sorted(os.listdir(scan_dir)) if f.lower().endswith(".xlsx")]
 
     if not files:
         print(f"[load] No XLSX files found in {scan_dir}")
@@ -77,6 +72,7 @@ def bulk_load(args):
 
     # Create tables
     from apex.backend.db.database import engine
+
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
@@ -93,7 +89,7 @@ def bulk_load(args):
             if hasattr(args, "region") and args.region:
                 metadata["region"] = args.region
             if hasattr(args, "type") and getattr(args, "type", None):
-                metadata["project_type"] = getattr(args, "type")
+                metadata["project_type"] = args.type
             if hasattr(args, "sector") and args.sector:
                 metadata["market_sector"] = args.sector
             if hasattr(args, "method") and args.method:
@@ -104,10 +100,7 @@ def bulk_load(args):
             try:
                 result = load_winest_project(db, file_path, metadata)
                 db.commit()
-                print(
-                    f"  [OK] {result['project_name']}: "
-                    f"{result['observations_loaded']} observations"
-                )
+                print(f"  [OK] {result['project_name']}: {result['observations_loaded']} observations")
                 total_projects += 1
                 total_obs += result["observations_loaded"]
             except FileNotFoundError as e:
@@ -143,6 +136,7 @@ def single_load(args):
     }
 
     from apex.backend.db.database import engine
+
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
@@ -159,9 +153,7 @@ def single_load(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Load WinEst XLSX projects into the APEX decision system"
-    )
+    parser = argparse.ArgumentParser(description="Load WinEst XLSX projects into the APEX decision system")
     parser.add_argument("file", nargs="?", help="Path to single XLSX file (omit for bulk mode)")
     parser.add_argument("name", nargs="?", help="Project name for single file mode")
     parser.add_argument("--region", default=None)

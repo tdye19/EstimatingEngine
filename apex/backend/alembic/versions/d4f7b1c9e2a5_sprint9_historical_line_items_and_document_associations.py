@@ -9,8 +9,9 @@ Revision ID: d4f7b1c9e2a5
 Revises: c9f4a8d2e1b3
 Create Date: 2026-03-26 00:00:00.000000
 """
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "d4f7b1c9e2a5"
@@ -65,9 +66,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         # Constraints
-        sa.ForeignKeyConstraint(
-            ["library_entry_id"], ["estimate_library.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["library_entry_id"], ["estimate_library.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"]),
         sa.PrimaryKeyConstraint("id"),
     )

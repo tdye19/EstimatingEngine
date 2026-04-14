@@ -1,8 +1,9 @@
 """Pydantic v2 schemas for API request/response validation."""
 
 from __future__ import annotations
+
 from datetime import datetime
-from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -10,8 +11,8 @@ from pydantic import BaseModel, ConfigDict
 class APIResponse(BaseModel):
     success: bool = True
     message: str = ""
-    data: Optional[dict | list] = None
-    error: Optional[str] = None
+    data: dict | list | None = None
+    error: str | None = None
 
 
 # --- Chunked Upload ---
@@ -24,18 +25,18 @@ class ChunkedUploadInitRequest(BaseModel):
 # --- Organization ---
 class OrganizationCreate(BaseModel):
     name: str
-    address: Optional[str] = None
-    phone: Optional[str] = None
-    license_number: Optional[str] = None
+    address: str | None = None
+    phone: str | None = None
+    license_number: str | None = None
 
 
 class OrganizationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     name: str
-    address: Optional[str] = None
-    phone: Optional[str] = None
-    license_number: Optional[str] = None
+    address: str | None = None
+    phone: str | None = None
+    license_number: str | None = None
     created_at: datetime
 
 
@@ -45,7 +46,7 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     role: str = "estimator"
-    organization_id: Optional[int] = None
+    organization_id: int | None = None
 
 
 class UserOut(BaseModel):
@@ -54,7 +55,7 @@ class UserOut(BaseModel):
     email: str
     full_name: str
     role: str
-    organization_id: Optional[int] = None
+    organization_id: int | None = None
 
 
 class LoginRequest(BaseModel):
@@ -65,34 +66,34 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user: Optional["UserOut"] = None
+    user: UserOut | None = None
 
 
 # --- Project ---
 class ProjectCreate(BaseModel):
     name: str
-    project_number: Optional[str] = None
+    project_number: str | None = None
     project_type: str = "commercial"
     mode: str = "shadow"
-    description: Optional[str] = None
-    location: Optional[str] = None
-    square_footage: Optional[float] = None
-    estimated_value: Optional[float] = None
-    bid_date: Optional[str] = None
+    description: str | None = None
+    location: str | None = None
+    square_footage: float | None = None
+    estimated_value: float | None = None
+    bid_date: str | None = None
 
 
 class ProjectUpdate(BaseModel):
-    name: Optional[str] = None
-    project_type: Optional[str] = None
-    status: Optional[str] = None
-    mode: Optional[str] = None
-    description: Optional[str] = None
-    location: Optional[str] = None
-    square_footage: Optional[float] = None
-    estimated_value: Optional[float] = None
-    bid_date: Optional[str] = None
-    manual_estimate_total: Optional[float] = None
-    manual_estimate_notes: Optional[str] = None
+    name: str | None = None
+    project_type: str | None = None
+    status: str | None = None
+    mode: str | None = None
+    description: str | None = None
+    location: str | None = None
+    square_footage: float | None = None
+    estimated_value: float | None = None
+    bid_date: str | None = None
+    manual_estimate_total: float | None = None
+    manual_estimate_notes: str | None = None
 
 
 class ProjectOut(BaseModel):
@@ -103,13 +104,13 @@ class ProjectOut(BaseModel):
     project_type: str
     status: str
     mode: str = "shadow"
-    description: Optional[str] = None
-    location: Optional[str] = None
-    square_footage: Optional[float] = None
-    estimated_value: Optional[float] = None
-    bid_date: Optional[str] = None
-    manual_estimate_total: Optional[float] = None
-    manual_estimate_notes: Optional[str] = None
+    description: str | None = None
+    location: str | None = None
+    square_footage: float | None = None
+    estimated_value: float | None = None
+    bid_date: str | None = None
+    manual_estimate_total: float | None = None
+    manual_estimate_notes: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -117,12 +118,12 @@ class ProjectOut(BaseModel):
 class ShadowComparisonOut(BaseModel):
     project_id: int
     mode: str
-    apex_estimate_total: Optional[float] = None
-    manual_estimate_total: Optional[float] = None
-    manual_estimate_notes: Optional[str] = None
-    variance_absolute: Optional[float] = None
-    variance_pct: Optional[float] = None
-    by_division: Optional[list] = None
+    apex_estimate_total: float | None = None
+    manual_estimate_total: float | None = None
+    manual_estimate_notes: str | None = None
+    variance_absolute: float | None = None
+    variance_pct: float | None = None
+    by_division: list | None = None
 
 
 # --- Document ---
@@ -132,9 +133,9 @@ class DocumentOut(BaseModel):
     project_id: int
     filename: str
     file_type: str
-    classification: Optional[str] = None
-    file_size_bytes: Optional[int] = None
-    page_count: Optional[int] = None
+    classification: str | None = None
+    file_size_bytes: int | None = None
+    page_count: int | None = None
     processing_status: str
     created_at: datetime
 
@@ -148,11 +149,11 @@ class SpecSectionOut(BaseModel):
     division_number: str
     section_number: str
     title: str
-    work_description: Optional[str] = None
-    materials_referenced: Optional[list] = None
-    execution_requirements: Optional[str] = None
-    submittal_requirements: Optional[str] = None
-    keywords: Optional[list] = None
+    work_description: str | None = None
+    materials_referenced: list | None = None
+    execution_requirements: str | None = None
+    submittal_requirements: str | None = None
+    keywords: list | None = None
 
 
 # --- Gap Report ---
@@ -160,25 +161,25 @@ class GapReportItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     division_number: str
-    section_number: Optional[str] = None
+    section_number: str | None = None
     title: str
     gap_type: str
     severity: str
-    description: Optional[str] = None
-    recommendation: Optional[str] = None
-    risk_score: Optional[float] = None
+    description: str | None = None
+    recommendation: str | None = None
+    risk_score: float | None = None
 
 
 class GapReportOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     project_id: int
-    overall_score: Optional[float] = None
+    overall_score: float | None = None
     total_gaps: int
     critical_count: int
     moderate_count: int
     watch_count: int
-    summary: Optional[str] = None
+    summary: str | None = None
     items: list[GapReportItemOut] = []
     created_at: datetime
 
@@ -188,22 +189,22 @@ class TakeoffItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     project_id: int
-    spec_section_id: Optional[int] = None
+    spec_section_id: int | None = None
     csi_code: str
     description: str
     quantity: float
     unit_of_measure: str
-    drawing_reference: Optional[str] = None
+    drawing_reference: str | None = None
     confidence: float
-    notes: Optional[str] = None
+    notes: str | None = None
     is_manual_override: int
 
 
 class TakeoffItemUpdate(BaseModel):
-    description: Optional[str] = None
-    quantity: Optional[float] = None
-    unit_of_measure: Optional[str] = None
-    notes: Optional[str] = None
+    description: str | None = None
+    quantity: float | None = None
+    unit_of_measure: str | None = None
+    notes: str | None = None
 
 
 # --- Labor Estimate ---
@@ -213,13 +214,13 @@ class LaborEstimateOut(BaseModel):
     project_id: int
     takeoff_item_id: int
     csi_code: str
-    work_type: Optional[str] = None
-    crew_type: Optional[str] = None
+    work_type: str | None = None
+    crew_type: str | None = None
     productivity_rate: float
     quantity: float
     labor_hours: float
     crew_size: int
-    crew_days: Optional[float] = None
+    crew_days: float | None = None
     hourly_rate: float
     total_labor_cost: float
 
@@ -260,10 +261,10 @@ class EstimateOut(BaseModel):
     contingency_pct: float
     contingency_amount: float
     total_bid_amount: float
-    exclusions: Optional[list] = None
-    assumptions: Optional[list] = None
-    alternates: Optional[list] = None
-    executive_summary: Optional[str] = None
+    exclusions: list | None = None
+    assumptions: list | None = None
+    alternates: list | None = None
+    executive_summary: str | None = None
     bid_bond_required: int
     line_items: list[EstimateLineItemOut] = []
     created_at: datetime
@@ -275,25 +276,25 @@ class ProjectActualOut(BaseModel):
     id: int
     project_id: int
     csi_code: str
-    description: Optional[str] = None
-    estimated_quantity: Optional[float] = None
-    actual_quantity: Optional[float] = None
-    estimated_labor_hours: Optional[float] = None
-    actual_labor_hours: Optional[float] = None
-    estimated_cost: Optional[float] = None
-    actual_cost: Optional[float] = None
-    variance_hours: Optional[float] = None
-    variance_cost: Optional[float] = None
-    variance_pct: Optional[float] = None
+    description: str | None = None
+    estimated_quantity: float | None = None
+    actual_quantity: float | None = None
+    estimated_labor_hours: float | None = None
+    actual_labor_hours: float | None = None
+    estimated_cost: float | None = None
+    actual_cost: float | None = None
+    variance_hours: float | None = None
+    variance_cost: float | None = None
+    variance_pct: float | None = None
 
 
 class VarianceReportOut(BaseModel):
     project_id: int
     total_items: int
-    overall_variance_pct: Optional[float] = None
-    accuracy_score: Optional[float] = None
+    overall_variance_pct: float | None = None
+    accuracy_score: float | None = None
     items: list[ProjectActualOut] = []
-    by_division: Optional[dict] = None
+    by_division: dict | None = None
 
 
 # --- Productivity ---
@@ -302,19 +303,19 @@ class ProductivityHistoryOut(BaseModel):
     id: int
     csi_code: str
     work_type: str
-    crew_type: Optional[str] = None
+    crew_type: str | None = None
     productivity_rate: float
     unit_of_measure: str
-    source_project: Optional[str] = None
+    source_project: str | None = None
     is_actual: int
     confidence_score: float
     sample_count: int
 
 
 class ProductivityUpdate(BaseModel):
-    productivity_rate: Optional[float] = None
-    crew_type: Optional[str] = None
-    notes: Optional[str] = None
+    productivity_rate: float | None = None
+    crew_type: str | None = None
+    notes: str | None = None
 
 
 # --- Equipment Rate ---
@@ -322,34 +323,36 @@ class EquipmentRateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     division_number: str
-    csi_code: Optional[str] = None
+    csi_code: str | None = None
     equipment_pct: float
-    description: Optional[str] = None
-    region: Optional[str] = None
+    description: str | None = None
+    region: str | None = None
     created_at: datetime
     updated_at: datetime
 
+
 class EquipmentRateCreate(BaseModel):
     division_number: str
-    csi_code: Optional[str] = None
+    csi_code: str | None = None
     equipment_pct: float
-    description: Optional[str] = None
-    region: Optional[str] = None
+    description: str | None = None
+    region: str | None = None
+
 
 class EquipmentRateUpdate(BaseModel):
-    division_number: Optional[str] = None
-    csi_code: Optional[str] = None
-    equipment_pct: Optional[float] = None
-    description: Optional[str] = None
-    region: Optional[str] = None
+    division_number: str | None = None
+    csi_code: str | None = None
+    equipment_pct: float | None = None
+    description: str | None = None
+    region: str | None = None
 
 
 # --- Estimate Markup ---
 class EstimateMarkupUpdate(BaseModel):
-    overhead_pct: Optional[float] = None
-    profit_pct: Optional[float] = None
-    contingency_pct: Optional[float] = None
-    gc_markup_pct: Optional[float] = None
+    overhead_pct: float | None = None
+    profit_pct: float | None = None
+    contingency_pct: float | None = None
+    gc_markup_pct: float | None = None
 
 
 # --- Pipeline Status ---
@@ -357,11 +360,11 @@ class AgentStepStatus(BaseModel):
     agent_number: int
     agent_name: str
     status: str  # pending / running / completed / failed / skipped
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
-    duration_seconds: Optional[float] = None
-    error_message: Optional[str] = None
-    output_summary: Optional[str] = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    duration_seconds: float | None = None
+    error_message: str | None = None
+    output_summary: str | None = None
 
 
 class PipelineStatusOut(BaseModel):
@@ -373,13 +376,13 @@ class PipelineStatusOut(BaseModel):
 # --- Bid Comparison ---
 class BidComparisonItemCreate(BaseModel):
     division_number: str
-    csi_code: Optional[str] = None
-    description: Optional[str] = None
+    csi_code: str | None = None
+    description: str | None = None
     amount: float = 0.0
-    unit_cost: Optional[float] = None
-    quantity: Optional[float] = None
-    unit_of_measure: Optional[str] = None
-    notes: Optional[str] = None
+    unit_cost: float | None = None
+    quantity: float | None = None
+    unit_of_measure: str | None = None
+    notes: str | None = None
 
 
 class BidComparisonItemOut(BaseModel):
@@ -387,21 +390,21 @@ class BidComparisonItemOut(BaseModel):
     id: int
     comparison_id: int
     division_number: str
-    csi_code: Optional[str] = None
-    description: Optional[str] = None
+    csi_code: str | None = None
+    description: str | None = None
     amount: float
-    unit_cost: Optional[float] = None
-    quantity: Optional[float] = None
-    unit_of_measure: Optional[str] = None
-    notes: Optional[str] = None
+    unit_cost: float | None = None
+    quantity: float | None = None
+    unit_of_measure: str | None = None
+    notes: str | None = None
 
 
 class BidComparisonCreate(BaseModel):
     name: str
     source_type: str = "competitor"
-    bid_date: Optional[str] = None
-    total_bid_amount: Optional[float] = None
-    notes: Optional[str] = None
+    bid_date: str | None = None
+    total_bid_amount: float | None = None
+    notes: str | None = None
     items: list[BidComparisonItemCreate] = []
 
 
@@ -411,9 +414,9 @@ class BidComparisonOut(BaseModel):
     project_id: int
     name: str
     source_type: str
-    bid_date: Optional[str] = None
-    total_bid_amount: Optional[float] = None
-    notes: Optional[str] = None
+    bid_date: str | None = None
+    total_bid_amount: float | None = None
+    notes: str | None = None
     items: list[BidComparisonItemOut] = []
     created_at: datetime
 
@@ -421,24 +424,24 @@ class BidComparisonOut(BaseModel):
 # --- Change Order ---
 class ChangeOrderCreate(BaseModel):
     title: str
-    description: Optional[str] = None
-    csi_code: Optional[str] = None
+    description: str | None = None
+    csi_code: str | None = None
     change_type: str = "addition"
-    requested_by: Optional[str] = None
+    requested_by: str | None = None
     cost_impact: float = 0.0
     schedule_impact_days: int = 0
     status: str = "pending"
 
 
 class ChangeOrderUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    csi_code: Optional[str] = None
-    change_type: Optional[str] = None
-    requested_by: Optional[str] = None
-    cost_impact: Optional[float] = None
-    schedule_impact_days: Optional[int] = None
-    status: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    csi_code: str | None = None
+    change_type: str | None = None
+    requested_by: str | None = None
+    cost_impact: float | None = None
+    schedule_impact_days: int | None = None
+    status: str | None = None
 
 
 class ChangeOrderOut(BaseModel):
@@ -447,15 +450,15 @@ class ChangeOrderOut(BaseModel):
     project_id: int
     co_number: str
     title: str
-    description: Optional[str] = None
-    csi_code: Optional[str] = None
+    description: str | None = None
+    csi_code: str | None = None
     change_type: str
-    requested_by: Optional[str] = None
+    requested_by: str | None = None
     cost_impact: float
     schedule_impact_days: int
     status: str
-    approved_by: Optional[str] = None
-    approved_at: Optional[datetime] = None
+    approved_by: str | None = None
+    approved_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -480,27 +483,27 @@ class AgentRunLogOut(BaseModel):
     agent_name: str
     agent_number: int
     status: str
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    duration_seconds: Optional[float] = None
-    tokens_used: Optional[int] = None
-    output_summary: Optional[str] = None
-    error_message: Optional[str] = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    duration_seconds: float | None = None
+    tokens_used: int | None = None
+    output_summary: str | None = None
+    error_message: str | None = None
 
 
 # --- User Update (Admin) ---
 class UserUpdate(BaseModel):
-    full_name: Optional[str] = None
-    role: Optional[str] = None
-    is_active: Optional[bool] = None
+    full_name: str | None = None
+    role: str | None = None
+    is_active: bool | None = None
 
 
 # --- Organization Update (Admin) ---
 class OrganizationUpdate(BaseModel):
-    name: Optional[str] = None
-    address: Optional[str] = None
-    phone: Optional[str] = None
-    license_number: Optional[str] = None
+    name: str | None = None
+    address: str | None = None
+    phone: str | None = None
+    license_number: str | None = None
 
 
 # --- Material Price ---
@@ -511,10 +514,10 @@ class MaterialPriceOut(BaseModel):
     description: str
     unit_cost: float
     unit_of_measure: str
-    supplier: Optional[str] = None
-    region: Optional[str] = None
-    effective_date: Optional[str] = None
-    source: Optional[str] = None
+    supplier: str | None = None
+    region: str | None = None
+    effective_date: str | None = None
+    source: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -524,21 +527,21 @@ class MaterialPriceCreate(BaseModel):
     description: str
     unit_cost: float
     unit_of_measure: str
-    supplier: Optional[str] = None
-    region: Optional[str] = None
-    effective_date: Optional[str] = None
-    source: Optional[str] = None
+    supplier: str | None = None
+    region: str | None = None
+    effective_date: str | None = None
+    source: str | None = None
 
 
 class MaterialPriceUpdate(BaseModel):
-    csi_code: Optional[str] = None
-    description: Optional[str] = None
-    unit_cost: Optional[float] = None
-    unit_of_measure: Optional[str] = None
-    supplier: Optional[str] = None
-    region: Optional[str] = None
-    effective_date: Optional[str] = None
-    source: Optional[str] = None
+    csi_code: str | None = None
+    description: str | None = None
+    unit_cost: float | None = None
+    unit_of_measure: str | None = None
+    supplier: str | None = None
+    region: str | None = None
+    effective_date: str | None = None
+    source: str | None = None
 
 
 # --- Productivity Benchmark ---
@@ -546,34 +549,34 @@ class ProductivityBenchmarkOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     csi_division: str
-    csi_code: Optional[str] = None
+    csi_code: str | None = None
     description: str
-    project_type: Optional[str] = None
-    region: Optional[str] = None
+    project_type: str | None = None
+    region: str | None = None
     unit_of_measure: str
     avg_unit_cost: float
-    avg_labor_cost_per_unit: Optional[float] = None
-    avg_material_cost_per_unit: Optional[float] = None
-    avg_equipment_cost_per_unit: Optional[float] = None
-    avg_sub_cost_per_unit: Optional[float] = None
-    avg_labor_hours_per_unit: Optional[float] = None
-    min_unit_cost: Optional[float] = None
-    max_unit_cost: Optional[float] = None
-    std_dev: Optional[float] = None
+    avg_labor_cost_per_unit: float | None = None
+    avg_material_cost_per_unit: float | None = None
+    avg_equipment_cost_per_unit: float | None = None
+    avg_sub_cost_per_unit: float | None = None
+    avg_labor_hours_per_unit: float | None = None
+    min_unit_cost: float | None = None
+    max_unit_cost: float | None = None
+    std_dev: float | None = None
     sample_size: int
-    confidence_score: Optional[float] = None
+    confidence_score: float | None = None
     last_computed_at: datetime
-    source_project_ids: Optional[str] = None
+    source_project_ids: str | None = None
     organization_id: int
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
 
 class BenchmarkQuery(BaseModel):
-    csi_division: Optional[str] = None
-    csi_code: Optional[str] = None
-    project_type: Optional[str] = None
-    region: Optional[str] = None
-    unit_of_measure: Optional[str] = None
-    min_confidence: Optional[float] = None  # filter out low-confidence benchmarks
-    min_sample_size: Optional[int] = None
+    csi_division: str | None = None
+    csi_code: str | None = None
+    project_type: str | None = None
+    region: str | None = None
+    unit_of_measure: str | None = None
+    min_confidence: float | None = None  # filter out low-confidence benchmarks
+    min_sample_size: int | None = None

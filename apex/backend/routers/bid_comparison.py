@@ -23,16 +23,21 @@ router = APIRouter(
 
 
 def _get_project_or_404(project_id: int, db: Session) -> Project:
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.is_deleted == False,  # noqa: E712
-    ).first()
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
 
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────
+
 
 @router.get("/{project_id}/bid-comparisons", response_model=APIResponse)
 def list_comparisons(project_id: int, db: Session = Depends(get_db)):
@@ -93,11 +98,15 @@ def delete_comparison(
     comparison_id: int,
     db: Session = Depends(get_db),
 ):
-    comp = db.query(BidComparison).filter(
-        BidComparison.id == comparison_id,
-        BidComparison.project_id == project_id,
-        BidComparison.is_deleted == False,  # noqa: E712
-    ).first()
+    comp = (
+        db.query(BidComparison)
+        .filter(
+            BidComparison.id == comparison_id,
+            BidComparison.project_id == project_id,
+            BidComparison.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not comp:
         raise HTTPException(status_code=404, detail="Comparison not found")
     comp.is_deleted = True
@@ -106,6 +115,7 @@ def delete_comparison(
 
 
 # ── Overlay endpoint — merge estimate + all comparisons ───────────────────────
+
 
 @router.get("/{project_id}/bid-comparisons/overlay", response_model=APIResponse)
 def get_overlay(project_id: int, db: Session = Depends(get_db)):

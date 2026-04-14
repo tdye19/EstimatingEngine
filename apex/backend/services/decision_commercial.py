@@ -10,15 +10,15 @@ from apex.backend.models.decision_models import CostBreakdownBucket
 
 class DecisionCommercialEngine:
     DEFAULT_RULES = {
-        "general_conditions":    0.08,
-        "supervision":           0.04,
-        "temporary_facilities":  0.02,
-        "logistics":             0.015,
-        "permits":               0.005,
-        "testing":               0.005,
-        "contingency":           0.05,
-        "overhead":              0.04,
-        "fee":                   0.05,
+        "general_conditions": 0.08,
+        "supervision": 0.04,
+        "temporary_facilities": 0.02,
+        "logistics": 0.015,
+        "permits": 0.005,
+        "testing": 0.005,
+        "contingency": 0.05,
+        "overhead": 0.04,
+        "fee": 0.05,
     }
 
     def __init__(self, db: Session):
@@ -27,9 +27,9 @@ class DecisionCommercialEngine:
     def structure_cost(self, project_id: int, direct_cost: float) -> list:
         """Delete existing buckets for project, create fresh set, return all."""
         # Delete existing
-        self.db.query(CostBreakdownBucket).filter(
-            CostBreakdownBucket.project_id == project_id
-        ).delete(synchronize_session=False)
+        self.db.query(CostBreakdownBucket).filter(CostBreakdownBucket.project_id == project_id).delete(
+            synchronize_session=False
+        )
 
         buckets = []
 

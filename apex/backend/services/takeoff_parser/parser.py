@@ -22,13 +22,13 @@ import pandas as pd
 
 from apex.backend.agents.pipeline_contracts import TakeoffLineItem
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _safe_float(val) -> Optional[float]:
+
+def _safe_float(val) -> float | None:
     if val is None:
         return None
-    if isinstance(val, (int, float)):
+    if isinstance(val, int | float):
         if pd.isna(val):
             return None
         return float(val)
@@ -38,7 +38,7 @@ def _safe_float(val) -> Optional[float]:
         return None
 
 
-def _safe_str(val) -> Optional[str]:
+def _safe_str(val) -> str | None:
     if val is None:
         return None
     if isinstance(val, float) and pd.isna(val):
@@ -48,6 +48,7 @@ def _safe_str(val) -> Optional[str]:
 
 
 # ── Format detection ─────────────────────────────────────────────────────────
+
 
 def detect_takeoff_format(filepath: str) -> str:
     """Detect takeoff file format.
@@ -86,9 +87,7 @@ def _detect_csv_format(filepath: str) -> str:
                 if i >= 5:
                     break
                 lower_row = [c.strip().lower() for c in row]
-                if "activity" in lower_row and any(
-                    h in lower_row for h in ("qty", "quantity")
-                ):
+                if "activity" in lower_row and any(h in lower_row for h in ("qty", "quantity")):
                     return "simple_csv"
     except Exception:
         pass
@@ -99,14 +98,13 @@ def _detect_simple_header(df: pd.DataFrame) -> str:
     """Scan first 5 rows of a DataFrame for Activity + Qty/Quantity columns."""
     for i in range(min(5, len(df))):
         row_vals = [str(c).strip().lower() for c in df.iloc[i] if pd.notna(c)]
-        if "activity" in row_vals and any(
-            h in row_vals for h in ("qty", "quantity")
-        ):
+        if "activity" in row_vals and any(h in row_vals for h in ("qty", "quantity")):
             return "simple_csv"
     return "unknown"
 
 
 # ── 26-column parser ─────────────────────────────────────────────────────────
+
 
 def parse_26col_takeoff(filepath: str) -> list[TakeoffLineItem]:
     """Parse a 26-column CCI Civil Est Report export.
@@ -131,22 +129,25 @@ def parse_26col_takeoff(filepath: str) -> list[TakeoffLineItem]:
             continue
 
         row_num += 1
-        items.append(TakeoffLineItem(
-            row_number=row_num,
-            wbs_area=_safe_str(row[1]),               # col B
-            activity=activity,                          # col C
-            quantity=_safe_float(row[5]),               # col F
-            unit=_safe_str(row[6]),                     # col G
-            crew=_safe_str(row[7]),                     # col H
-            production_rate=_safe_float(row[8]),        # col I
-            labor_cost_per_unit=_safe_float(row[10]),   # col K
-            material_cost_per_unit=_safe_float(row[11]),  # col L
-        ))
+        items.append(
+            TakeoffLineItem(
+                row_number=row_num,
+                wbs_area=_safe_str(row[1]),  # col B
+                activity=activity,  # col C
+                quantity=_safe_float(row[5]),  # col F
+                unit=_safe_str(row[6]),  # col G
+                crew=_safe_str(row[7]),  # col H
+                production_rate=_safe_float(row[8]),  # col I
+                labor_cost_per_unit=_safe_float(row[10]),  # col K
+                material_cost_per_unit=_safe_float(row[11]),  # col L
+            )
+        )
 
     return items
 
 
 # ── 21-column parser ─────────────────────────────────────────────────────────
+
 
 def parse_21col_takeoff(filepath: str) -> list[TakeoffLineItem]:
     """Parse a 21-column CCI Estimate Report export.
@@ -169,20 +170,23 @@ def parse_21col_takeoff(filepath: str) -> list[TakeoffLineItem]:
             continue
 
         row_num += 1
-        items.append(TakeoffLineItem(
-            row_number=row_num,
-            wbs_area=_safe_str(row[1]),           # col B
-            activity=activity,                     # col C
-            quantity=_safe_float(row[3]),          # col D
-            unit=_safe_str(row[4]),                # col E
-            crew=_safe_str(row[5]),                # col F
-            production_rate=_safe_float(row[6]),   # col G
-        ))
+        items.append(
+            TakeoffLineItem(
+                row_number=row_num,
+                wbs_area=_safe_str(row[1]),  # col B
+                activity=activity,  # col C
+                quantity=_safe_float(row[3]),  # col D
+                unit=_safe_str(row[4]),  # col E
+                crew=_safe_str(row[5]),  # col F
+                production_rate=_safe_float(row[6]),  # col G
+            )
+        )
 
     return items
 
 
 # ── Simple CSV/XLSX parser ────────────────────────────────────────────────────
+
 
 def parse_simple_csv(filepath: str) -> list[TakeoffLineItem]:
     """Parse a simple CSV or XLSX with named columns.
@@ -205,7 +209,7 @@ def parse_simple_csv(filepath: str) -> list[TakeoffLineItem]:
         return _parse_xlsx_simple(filepath)
 
 
-def _find_header_row(rows: list[list]) -> tuple[Optional[int], dict[str, int]]:
+def _find_header_row(rows: list[list]) -> tuple[int | None, dict[str, int]]:
     """Find the header row and build a column-name-to-index map."""
     col_aliases = {
         "activity": "activity",
@@ -253,7 +257,7 @@ def _parse_csv_file(filepath: str) -> list[TakeoffLineItem]:
     items: list[TakeoffLineItem] = []
     row_num = 0
 
-    for row in all_rows[header_idx + 1:]:
+    for row in all_rows[header_idx + 1 :]:
         activity_idx = col_map["activity"]
         if activity_idx >= len(row):
             continue
@@ -262,16 +266,30 @@ def _parse_csv_file(filepath: str) -> list[TakeoffLineItem]:
             continue
 
         row_num += 1
-        items.append(TakeoffLineItem(
-            row_number=row_num,
-            activity=activity,
-            quantity=_safe_float(row[col_map["quantity"]]) if "quantity" in col_map and col_map["quantity"] < len(row) else None,
-            unit=row[col_map["unit"]].strip() if "unit" in col_map and col_map["unit"] < len(row) and row[col_map["unit"]].strip() else None,
-            crew=row[col_map["crew"]].strip() if "crew" in col_map and col_map["crew"] < len(row) and row[col_map["crew"]].strip() else None,
-            production_rate=_safe_float(row[col_map["production_rate"]]) if "production_rate" in col_map and col_map["production_rate"] < len(row) else None,
-            wbs_area=row[col_map["wbs_area"]].strip() if "wbs_area" in col_map and col_map["wbs_area"] < len(row) and row[col_map["wbs_area"]].strip() else None,
-            csi_code=row[col_map["csi_code"]].strip() if "csi_code" in col_map and col_map["csi_code"] < len(row) and row[col_map["csi_code"]].strip() else None,
-        ))
+        items.append(
+            TakeoffLineItem(
+                row_number=row_num,
+                activity=activity,
+                quantity=_safe_float(row[col_map["quantity"]])
+                if "quantity" in col_map and col_map["quantity"] < len(row)
+                else None,
+                unit=row[col_map["unit"]].strip()
+                if "unit" in col_map and col_map["unit"] < len(row) and row[col_map["unit"]].strip()
+                else None,
+                crew=row[col_map["crew"]].strip()
+                if "crew" in col_map and col_map["crew"] < len(row) and row[col_map["crew"]].strip()
+                else None,
+                production_rate=_safe_float(row[col_map["production_rate"]])
+                if "production_rate" in col_map and col_map["production_rate"] < len(row)
+                else None,
+                wbs_area=row[col_map["wbs_area"]].strip()
+                if "wbs_area" in col_map and col_map["wbs_area"] < len(row) and row[col_map["wbs_area"]].strip()
+                else None,
+                csi_code=row[col_map["csi_code"]].strip()
+                if "csi_code" in col_map and col_map["csi_code"] < len(row) and row[col_map["csi_code"]].strip()
+                else None,
+            )
+        )
 
     return items
 
@@ -316,16 +334,18 @@ def _parse_xlsx_simple(filepath: str) -> list[TakeoffLineItem]:
                 return None
             return row_list[idx]
 
-        items.append(TakeoffLineItem(
-            row_number=row_num,
-            activity=activity,
-            quantity=_safe_float(_get("quantity")),
-            unit=_safe_str(_get("unit")),
-            crew=_safe_str(_get("crew")),
-            production_rate=_safe_float(_get("production_rate")),
-            wbs_area=_safe_str(_get("wbs_area")),
-            csi_code=_safe_str(_get("csi_code")),
-        ))
+        items.append(
+            TakeoffLineItem(
+                row_number=row_num,
+                activity=activity,
+                quantity=_safe_float(_get("quantity")),
+                unit=_safe_str(_get("unit")),
+                crew=_safe_str(_get("crew")),
+                production_rate=_safe_float(_get("production_rate")),
+                wbs_area=_safe_str(_get("wbs_area")),
+                csi_code=_safe_str(_get("csi_code")),
+            )
+        )
 
     wb.close()
     return items
@@ -335,35 +355,88 @@ def _parse_xlsx_simple(filepath: str) -> list[TakeoffLineItem]:
 
 # Column name matching (case-insensitive, stripped)
 _ACTIVITY_KEYWORDS = {
-    "label", "description", "activity", "item", "scope", "work item",
-    "work description", "element", "component", "task",
+    "label",
+    "description",
+    "activity",
+    "item",
+    "scope",
+    "work item",
+    "work description",
+    "element",
+    "component",
+    "task",
 }
 
 _QUANTITY_KEYWORDS = {
     # Direct unit names
-    "qty", "quantity", "amount",
+    "qty",
+    "quantity",
+    "amount",
     # Linear
-    "lf", "lnft", "lineal ft", "linear feet", "total lnft", "length",
+    "lf",
+    "lnft",
+    "lineal ft",
+    "linear feet",
+    "total lnft",
+    "length",
     # Area
-    "sf", "sqft", "area", "total area", "total area (sf)", "square feet",
+    "sf",
+    "sqft",
+    "area",
+    "total area",
+    "total area (sf)",
+    "square feet",
     # Volume
-    "cy", "cuyd", "cubic yards", "total cuyd", "volume", "total cy",
+    "cy",
+    "cuyd",
+    "cubic yards",
+    "total cuyd",
+    "volume",
+    "total cy",
     # Count
-    "ea", "each", "count", "pcs", "pieces",
+    "ea",
+    "each",
+    "count",
+    "pcs",
+    "pieces",
     # Weight
-    "tons", "lbs", "pounds", "weight",
+    "tons",
+    "lbs",
+    "pounds",
+    "weight",
 }
 
-_UNIT_INFERENCE: dict[str, Optional[str]] = {
-    "lf": "LF", "lnft": "LF", "lineal ft": "LF", "linear feet": "LF",
-    "total lnft": "LF", "length": "LF",
-    "sf": "SF", "sqft": "SF", "area": "SF", "total area": "SF",
-    "total area (sf)": "SF", "square feet": "SF",
-    "cy": "CY", "cuyd": "CY", "cubic yards": "CY", "total cuyd": "CY",
-    "volume": "CY", "total cy": "CY",
-    "ea": "EA", "each": "EA", "count": "EA", "pcs": "EA", "pieces": "EA",
-    "tons": "TON", "lbs": "LBS", "pounds": "LBS", "weight": "LBS",
-    "qty": None, "quantity": None, "amount": None,
+_UNIT_INFERENCE: dict[str, str | None] = {
+    "lf": "LF",
+    "lnft": "LF",
+    "lineal ft": "LF",
+    "linear feet": "LF",
+    "total lnft": "LF",
+    "length": "LF",
+    "sf": "SF",
+    "sqft": "SF",
+    "area": "SF",
+    "total area": "SF",
+    "total area (sf)": "SF",
+    "square feet": "SF",
+    "cy": "CY",
+    "cuyd": "CY",
+    "cubic yards": "CY",
+    "total cuyd": "CY",
+    "volume": "CY",
+    "total cy": "CY",
+    "ea": "EA",
+    "each": "EA",
+    "count": "EA",
+    "pcs": "EA",
+    "pieces": "EA",
+    "tons": "TON",
+    "lbs": "LBS",
+    "pounds": "LBS",
+    "weight": "LBS",
+    "qty": None,
+    "quantity": None,
+    "amount": None,
 }
 
 # Priority order for picking the primary quantity column
@@ -372,7 +445,7 @@ _UNIT_PRIORITY = ["CY", "SF", "LF", "EA", "TON", "LBS", None]
 _TOTAL_KEYWORDS = {"total", "subtotal", "sum", "grand total"}
 
 
-def _match_keyword(cell_text: str, keywords: set[str]) -> Optional[str]:
+def _match_keyword(cell_text: str, keywords: set[str]) -> str | None:
     """Check if cell_text matches any keyword (exact or substring).
 
     Returns the matched keyword, or None.
@@ -390,7 +463,7 @@ def _match_keyword(cell_text: str, keywords: set[str]) -> Optional[str]:
     return None
 
 
-def _detect_generic_header(rows: list[list]) -> tuple[Optional[int], Optional[int], list[tuple[int, str, Optional[str]]]]:
+def _detect_generic_header(rows: list[list]) -> tuple[int | None, int | None, list[tuple[int, str, str | None]]]:
     """Scan rows for a generic takeoff header.
 
     Returns (header_row_index, activity_col_index, qty_columns) where
@@ -401,7 +474,7 @@ def _detect_generic_header(rows: list[list]) -> tuple[Optional[int], Optional[in
         cells = [str(c).strip() if c is not None else "" for c in row]
 
         activity_col = None
-        qty_cols: list[tuple[int, str, Optional[str]]] = []
+        qty_cols: list[tuple[int, str, str | None]] = []
 
         for col_idx, cell in enumerate(cells):
             if not cell:
@@ -423,14 +496,14 @@ def _detect_generic_header(rows: list[list]) -> tuple[Optional[int], Optional[in
     return None, None, []
 
 
-def _pick_primary_qty(qty_cols: list[tuple[int, str, Optional[str]]], row_data: list) -> tuple[Optional[float], Optional[str]]:
+def _pick_primary_qty(qty_cols: list[tuple[int, str, str | None]], row_data: list) -> tuple[float | None, str | None]:
     """Pick the best quantity column value for a data row.
 
     Priority: CY > SF > LF > EA > TON > LBS > generic (None unit).
     Within a priority level, picks the first column with a non-None value.
     """
     # Group columns by inferred unit
-    by_unit: dict[Optional[str], list[tuple[int, str]]] = {}
+    by_unit: dict[str | None, list[tuple[int, str]]] = {}
     for col_idx, kw, unit in qty_cols:
         by_unit.setdefault(unit, []).append((col_idx, kw))
 
@@ -447,11 +520,10 @@ def _pick_primary_qty(qty_cols: list[tuple[int, str, Optional[str]]], row_data: 
 def _is_total_row(activity: str) -> bool:
     """Return True if activity looks like a total/summary row."""
     lower = activity.strip().lower()
-    return any(lower == kw or lower.startswith(kw + " ") or lower.startswith(kw + ":")
-               for kw in _TOTAL_KEYWORDS)
+    return any(lower == kw or lower.startswith(kw + " ") or lower.startswith(kw + ":") for kw in _TOTAL_KEYWORDS)
 
 
-def _try_generic_format_ws(ws) -> Optional[dict]:
+def _try_generic_format_ws(ws) -> dict | None:
     """Try to parse a single worksheet as a generic takeoff.
 
     Returns {"items": [...], "warnings": [...]} or None if no header found.
@@ -490,12 +562,14 @@ def _try_generic_format_ws(ws) -> Optional[dict]:
         qty_val, unit = _pick_primary_qty(qty_cols, row_data)
 
         row_num += 1
-        items.append(TakeoffLineItem(
-            row_number=row_num,
-            activity=activity,
-            quantity=qty_val,
-            unit=unit,
-        ))
+        items.append(
+            TakeoffLineItem(
+                row_number=row_num,
+                activity=activity,
+                quantity=qty_val,
+                unit=unit,
+            )
+        )
 
     if not items:
         return None
@@ -503,7 +577,7 @@ def _try_generic_format_ws(ws) -> Optional[dict]:
     return {"items": items, "warnings": warnings}
 
 
-def _try_generic_format(filepath: str) -> Optional[dict]:
+def _try_generic_format(filepath: str) -> dict | None:
     """Try to parse an xlsx file as a generic takeoff.
 
     Tries the active sheet first, then other sheets.
@@ -537,6 +611,7 @@ def _try_generic_format(filepath: str) -> Optional[dict]:
 
 # ── .est (OLE2 native) parser ───────────────────────────────────────────────
 
+
 def _parse_est_file(filepath: str) -> list[TakeoffLineItem]:
     """Parse a native WinEst .est file using the existing OLE2 parser.
 
@@ -563,23 +638,26 @@ def _parse_est_file(filepath: str) -> list[TakeoffLineItem]:
         if not desc or len(desc) < 3:
             continue  # skip noise
 
-        items.append(TakeoffLineItem(
-            row_number=idx,
-            wbs_area=raw_item.get("wbs_code"),
-            activity=desc,
-            quantity=raw_item.get("quantity"),
-            unit=raw_item.get("unit"),
-            crew=_safe_str(raw_item.get("crew_size")),
-            production_rate=raw_item.get("productivity_rate"),
-            labor_cost_per_unit=raw_item.get("labor_rate"),
-            material_cost_per_unit=raw_item.get("material_cost"),
-            csi_code=raw_item.get("csi_code"),
-        ))
+        items.append(
+            TakeoffLineItem(
+                row_number=idx,
+                wbs_area=raw_item.get("wbs_code"),
+                activity=desc,
+                quantity=raw_item.get("quantity"),
+                unit=raw_item.get("unit"),
+                crew=_safe_str(raw_item.get("crew_size")),
+                production_rate=raw_item.get("productivity_rate"),
+                labor_cost_per_unit=raw_item.get("labor_rate"),
+                material_cost_per_unit=raw_item.get("material_cost"),
+                csi_code=raw_item.get("csi_code"),
+            )
+        )
 
     return items
 
 
 # ── Main dispatcher ──────────────────────────────────────────────────────────
+
 
 def parse_takeoff(filepath: str) -> tuple[list[TakeoffLineItem], str]:
     """Parse a takeoff file, auto-detecting format.

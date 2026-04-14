@@ -1,9 +1,9 @@
 """Notification settings router — configure email alert preferences."""
 
 import os
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import Optional
 
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
@@ -20,7 +20,7 @@ class NotificationSettingsOut(BaseModel):
     email_configured: bool
     smtp_host: str
     smtp_port: int
-    notification_email: Optional[str] = None
+    notification_email: str | None = None
     triggers: dict
 
 

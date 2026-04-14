@@ -2,16 +2,15 @@ import os
 import sys
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # ---------------------------------------------------------------------------
 # Ensure the repo root is on sys.path so apex.backend.* imports work whether
 # alembic is invoked from apex/backend/ or from the project root.
 # ---------------------------------------------------------------------------
 _here = os.path.dirname(os.path.abspath(__file__))  # apex/backend/alembic/
-_backend = os.path.dirname(_here)                    # apex/backend/
+_backend = os.path.dirname(_here)  # apex/backend/
 _repo_root = os.path.dirname(os.path.dirname(_backend))  # project root
 for _p in (_repo_root, _backend):
     if _p not in sys.path:
@@ -21,8 +20,7 @@ for _p in (_repo_root, _backend):
 # Import Base (defined in database.py) and ALL models so autogenerate sees
 # every table.
 # ---------------------------------------------------------------------------
-from apex.backend.db.database import Base, DATABASE_URL  # noqa: E402
-
+from apex.backend.db.database import DATABASE_URL, Base  # noqa: E402
 from apex.backend.models import (  # noqa: F401, E402
     agent_run_log,
     audit_log,
@@ -46,18 +44,26 @@ from apex.backend.models import (  # noqa: F401, E402
     upload_session,
     user,
 )
-from apex.backend.models.historical_line_item import HistoricalLineItem  # noqa: F401, E402
-from apex.backend.models.document_association import DocumentAssociation, DocumentGroup  # noqa: F401, E402
-from apex.backend.services.productivity_brain.models import PBProject, PBLineItem  # noqa: F401, E402
-from apex.backend.services.bid_intelligence.models import BIEstimate  # noqa: F401, E402
-from apex.backend.models.takeoff_v2 import TakeoffItemV2  # noqa: F401, E402
-from apex.backend.models.field_actuals import FieldActualsProject, FieldActualsLineItem  # noqa: F401, E402
-from apex.backend.models.intelligence_report import IntelligenceReportModel  # noqa: F401, E402
 from apex.backend.models.decision_models import (  # noqa: F401, E402
-    ComparableProject, HistoricalRateObservation, CanonicalActivity,
-    ActivityAlias, EstimateLine, CostBreakdownBucket, RiskItem,
-    EscalationInput, EstimatorOverride, BidOutcome, FieldActual,
+    ActivityAlias,
+    BidOutcome,
+    CanonicalActivity,
+    ComparableProject,
+    CostBreakdownBucket,
+    EscalationInput,
+    EstimateLine,
+    EstimatorOverride,
+    FieldActual,
+    HistoricalRateObservation,
+    RiskItem,
 )
+from apex.backend.models.document_association import DocumentAssociation, DocumentGroup  # noqa: F401, E402
+from apex.backend.models.field_actuals import FieldActualsLineItem, FieldActualsProject  # noqa: F401, E402
+from apex.backend.models.historical_line_item import HistoricalLineItem  # noqa: F401, E402
+from apex.backend.models.intelligence_report import IntelligenceReportModel  # noqa: F401, E402
+from apex.backend.models.takeoff_v2 import TakeoffItemV2  # noqa: F401, E402
+from apex.backend.services.bid_intelligence.models import BIEstimate  # noqa: F401, E402
+from apex.backend.services.productivity_brain.models import PBLineItem, PBProject  # noqa: F401, E402
 
 # ---------------------------------------------------------------------------
 # Alembic Config

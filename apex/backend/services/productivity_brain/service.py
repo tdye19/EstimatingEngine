@@ -5,10 +5,13 @@ from difflib import SequenceMatcher
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from apex.backend.services.productivity_brain.models import PBProject, PBLineItem
+from apex.backend.services.productivity_brain.models import PBLineItem, PBProject
 from apex.backend.services.productivity_brain.parser import (
-    compute_file_hash, detect_format,
-    parse_26col, parse_21col, parse_averaged_rates,
+    compute_file_hash,
+    detect_format,
+    parse_21col,
+    parse_26col,
+    parse_averaged_rates,
 )
 
 _PARSERS = {
@@ -134,13 +137,17 @@ class ProductivityBrainService:
             activity = item.get("activity", "")
             current_rate = item.get("production_rate")
 
-            hist = self.db.query(
-                func.avg(PBLineItem.production_rate).label("avg"),
-                func.count(PBLineItem.id).label("cnt"),
-            ).filter(
-                PBLineItem.activity == activity,
-                PBLineItem.production_rate.isnot(None),
-            ).first()
+            hist = (
+                self.db.query(
+                    func.avg(PBLineItem.production_rate).label("avg"),
+                    func.count(PBLineItem.id).label("cnt"),
+                )
+                .filter(
+                    PBLineItem.activity == activity,
+                    PBLineItem.production_rate.isnot(None),
+                )
+                .first()
+            )
 
             if hist and hist.cnt > 0 and current_rate:
                 avg = round(hist.avg, 2)
@@ -153,21 +160,25 @@ class ProductivityBrainService:
                 else:
                     flag = "UPDATE"
 
-                results.append({
-                    **item,
-                    "historical_avg": avg,
-                    "historical_count": hist.cnt,
-                    "delta_pct": delta_pct,
-                    "flag": flag,
-                })
+                results.append(
+                    {
+                        **item,
+                        "historical_avg": avg,
+                        "historical_count": hist.cnt,
+                        "delta_pct": delta_pct,
+                        "flag": flag,
+                    }
+                )
             else:
-                results.append({
-                    **item,
-                    "historical_avg": None,
-                    "historical_count": 0,
-                    "delta_pct": None,
-                    "flag": "NO DATA",
-                })
+                results.append(
+                    {
+                        **item,
+                        "historical_avg": None,
+                        "historical_count": 0,
+                        "delta_pct": None,
+                        "flag": "NO DATA",
+                    }
+                )
 
         return results
 
@@ -178,13 +189,12 @@ class ProductivityBrainService:
         total_activities = (
             self.db.query(func.count(func.distinct(PBLineItem.activity)))
             .filter(PBLineItem.production_rate.isnot(None))
-            .scalar() or 0
+            .scalar()
+            or 0
         )
 
         format_breakdown = dict(
-            self.db.query(PBProject.format_type, func.count(PBProject.id))
-            .group_by(PBProject.format_type)
-            .all()
+            self.db.query(PBProject.format_type, func.count(PBProject.id)).group_by(PBProject.format_type).all()
         )
 
         return {
@@ -236,10 +246,7 @@ class ProductivityBrainService:
 
         # 2) Fuzzy description match — pull distinct activities then score
         distinct_activities = (
-            self.db.query(PBLineItem.activity)
-            .filter(PBLineItem.production_rate.isnot(None))
-            .distinct()
-            .all()
+            self.db.query(PBLineItem.activity).filter(PBLineItem.production_rate.isnot(None)).distinct().all()
         )
 
         desc_lower = description.lower()
@@ -256,7 +263,7 @@ class ProductivityBrainService:
 
         # 3) Unit tiebreaker among top matches
         if unit:
-            for ratio, act in scored:
+            for _ratio, act in scored:
                 match = self._rates_for_filter(
                     PBLineItem.activity == act,
                     PBLineItem.unit == unit,
@@ -273,22 +280,28 @@ class ProductivityBrainService:
 
     def _rates_for_filter(self, *filters) -> list[dict]:
         """Aggregate rates for given filter criteria."""
-        q = self.db.query(
-            PBLineItem.activity,
-            PBLineItem.unit,
-            PBLineItem.crew_trade,
-            func.count(PBLineItem.id).label("occurrences"),
-            func.count(func.distinct(PBLineItem.project_id)).label("project_count"),
-            func.avg(PBLineItem.production_rate).label("avg_rate"),
-            func.min(PBLineItem.production_rate).label("min_rate"),
-            func.max(PBLineItem.production_rate).label("max_rate"),
-            func.avg(PBLineItem.labor_cost_per_unit).label("avg_labor_cost"),
-            func.avg(PBLineItem.material_cost_per_unit).label("avg_material_cost"),
-        ).filter(
-            PBLineItem.production_rate.isnot(None),
-            *filters,
-        ).group_by(
-            PBLineItem.activity, PBLineItem.unit, PBLineItem.crew_trade,
+        q = (
+            self.db.query(
+                PBLineItem.activity,
+                PBLineItem.unit,
+                PBLineItem.crew_trade,
+                func.count(PBLineItem.id).label("occurrences"),
+                func.count(func.distinct(PBLineItem.project_id)).label("project_count"),
+                func.avg(PBLineItem.production_rate).label("avg_rate"),
+                func.min(PBLineItem.production_rate).label("min_rate"),
+                func.max(PBLineItem.production_rate).label("max_rate"),
+                func.avg(PBLineItem.labor_cost_per_unit).label("avg_labor_cost"),
+                func.avg(PBLineItem.material_cost_per_unit).label("avg_material_cost"),
+            )
+            .filter(
+                PBLineItem.production_rate.isnot(None),
+                *filters,
+            )
+            .group_by(
+                PBLineItem.activity,
+                PBLineItem.unit,
+                PBLineItem.crew_trade,
+            )
         )
 
         return [

@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 from apex.backend.models.decision_models import RiskItem
 
 _SEVERITY_PCT = {
-    "low":      0.01,
-    "medium":   0.03,
-    "high":     0.06,
+    "low": 0.01,
+    "medium": 0.03,
+    "high": 0.06,
     "critical": 0.10,
 }
 
@@ -18,27 +18,27 @@ _SEVERITY_PCT = {
 class DecisionRiskEngine:
     RISK_TEMPLATES = {
         "default": [
-            ("Scope ambiguity",               "scope_ambiguity",         0.4, "medium"),
-            ("Design incompleteness",          "design_incompleteness",   0.3, "medium"),
-            ("Market volatility",              "market_volatility",       0.5, "medium"),
-            ("Labor availability",             "labor_availability",      0.3, "medium"),
-            ("Permit/utility coordination",    "permit_utility",          0.2, "low"),
+            ("Scope ambiguity", "scope_ambiguity", 0.4, "medium"),
+            ("Design incompleteness", "design_incompleteness", 0.3, "medium"),
+            ("Market volatility", "market_volatility", 0.5, "medium"),
+            ("Labor availability", "labor_availability", 0.3, "medium"),
+            ("Permit/utility coordination", "permit_utility", 0.2, "low"),
         ],
         "industrial": [
-            ("Equipment lead time",            "equipment_lead_time",     0.4, "high"),
-            ("Hazardous material handling",    "hazmat",                  0.2, "high"),
+            ("Equipment lead time", "equipment_lead_time", 0.4, "high"),
+            ("Hazardous material handling", "hazmat", 0.2, "high"),
         ],
         "energy": [
-            ("Regulatory compliance",          "regulatory",              0.3, "high"),
-            ("Utility coordination complexity","utility_coord",           0.4, "medium"),
+            ("Regulatory compliance", "regulatory", 0.3, "high"),
+            ("Utility coordination complexity", "utility_coord", 0.4, "medium"),
         ],
         "commercial": [
-            ("Tenant coordination",            "tenant_coord",            0.3, "low"),
-            ("Phased construction impacts",    "phased_construction",     0.25, "medium"),
+            ("Tenant coordination", "tenant_coord", 0.3, "low"),
+            ("Phased construction impacts", "phased_construction", 0.25, "medium"),
         ],
         "healthcare": [
-            ("Infection control requirements", "icra",                    0.4, "high"),
-            ("Operational continuity",         "operational_continuity",  0.3, "high"),
+            ("Infection control requirements", "icra", 0.4, "high"),
+            ("Operational continuity", "operational_continuity", 0.3, "high"),
         ],
     }
 
@@ -57,9 +57,7 @@ class DecisionRiskEngine:
             templates += self.RISK_TEMPLATES[market_sector]
 
         # Delete existing risk items for this project
-        self.db.query(RiskItem).filter(
-            RiskItem.project_id == project.id
-        ).delete(synchronize_session=False)
+        self.db.query(RiskItem).filter(RiskItem.project_id == project.id).delete(synchronize_session=False)
 
         items = []
         for name, category, probability, severity in templates:

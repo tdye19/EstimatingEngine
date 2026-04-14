@@ -5,8 +5,7 @@ This engine works with ComparableProject + HistoricalRateObservation.
 """
 
 import statistics
-from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -16,19 +15,37 @@ from apex.backend.models.decision_models import ComparableProject, HistoricalRat
 # Context similarity weights
 # ---------------------------------------------------------------------------
 CONTEXT_WEIGHTS = {
-    "project_type":    0.25,
-    "market_sector":   0.15,
-    "region":          0.20,
+    "project_type": 0.25,
+    "market_sector": 0.15,
+    "region": 0.20,
     "delivery_method": 0.10,
-    "contract_type":   0.10,
+    "contract_type": 0.10,
     "complexity_level": 0.10,
-    "size_bucket":     0.10,
+    "size_bucket": 0.10,
 }
 
-_STOP_WORDS = {"the", "and", "for", "with", "from", "into", "over", "per", "by", "of", "a", "an", "in", "on", "at", "to", "is"}
+_STOP_WORDS = {
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "into",
+    "over",
+    "per",
+    "by",
+    "of",
+    "a",
+    "an",
+    "in",
+    "on",
+    "at",
+    "to",
+    "is",
+}
 
 
-def _size_bucket(size_sf: Optional[float]) -> Optional[str]:
+def _size_bucket(size_sf: float | None) -> str | None:
     if size_sf is None:
         return None
     if size_sf < 10_000:
@@ -95,10 +112,10 @@ def _recency_score(comp: ComparableProject) -> float:
     """Return 0-1 recency score based on completed_date."""
     if comp.completed_date is None:
         return 0.3
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cd = comp.completed_date
     if cd.tzinfo is None:
-        cd = cd.replace(tzinfo=timezone.utc)
+        cd = cd.replace(tzinfo=UTC)
     age_years = (now - cd).days / 365.25
     if age_years < 1:
         return 1.0
@@ -116,7 +133,7 @@ def compute_confidence(
     avg_sim: float,
     avg_recency: float,
     avg_dq: float,
-) -> Tuple[float, str]:
+) -> tuple[float, str]:
     """Return (confidence_score, confidence_label)."""
     cov = (std_dev / mean) if (mean and mean != 0) else 1.0
     score = (
@@ -142,6 +159,7 @@ def compute_confidence(
 # Main engine
 # ---------------------------------------------------------------------------
 
+
 class DecisionBenchmarkEngine:
     def __init__(self, db: Session):
         self.db = db
@@ -150,7 +168,7 @@ class DecisionBenchmarkEngine:
         self,
         project,
         min_similarity: float = 0.0,
-    ) -> List[Tuple[ComparableProject, float]]:
+    ) -> list[tuple[ComparableProject, float]]:
         """Return all ComparableProjects with similarity >= min_similarity, sorted desc."""
         comps = self.db.query(ComparableProject).all()
         scored = []
@@ -166,7 +184,7 @@ class DecisionBenchmarkEngine:
         project,
         activity_name: str,
         division_code: str = None,
-        comparable_projects: List[Tuple[ComparableProject, float]] = None,
+        comparable_projects: list[tuple[ComparableProject, float]] = None,
     ) -> dict:
         """Retrieve historical rates for an activity and compute percentile distribution."""
         if comparable_projects is None:
@@ -179,40 +197,28 @@ class DecisionBenchmarkEngine:
         sim_by_id = {c.id: s for c, s in comparable_projects}
 
         # Base query: unit_cost IS NOT NULL, within our comparable set
-        base_q = (
-            self.db.query(HistoricalRateObservation)
-            .filter(
-                HistoricalRateObservation.comparable_project_id.in_(comp_ids),
-                HistoricalRateObservation.unit_cost.isnot(None),
-            )
+        base_q = self.db.query(HistoricalRateObservation).filter(
+            HistoricalRateObservation.comparable_project_id.in_(comp_ids),
+            HistoricalRateObservation.unit_cost.isnot(None),
         )
 
         # MATCHING STRATEGY — stop at first strategy with results
         observations = []
 
         # Strategy 1: full activity_name ILIKE substring
-        obs1 = (
-            base_q.filter(
-                HistoricalRateObservation.raw_activity_name.ilike(f"%{activity_name}%")
-            ).all()
-        )
+        obs1 = base_q.filter(HistoricalRateObservation.raw_activity_name.ilike(f"%{activity_name}%")).all()
         if obs1:
             observations = obs1
         else:
             # Strategy 2: top 3 keyword tokens ALL matching
-            tokens = [
-                t for t in activity_name.lower().split()
-                if len(t) > 2 and t not in _STOP_WORDS
-            ]
+            tokens = [t for t in activity_name.lower().split() if len(t) > 2 and t not in _STOP_WORDS]
             tokens.sort(key=len, reverse=True)
             top_tokens = tokens[:3]
 
             if top_tokens:
                 q2 = base_q
                 for tok in top_tokens:
-                    q2 = q2.filter(
-                        HistoricalRateObservation.raw_activity_name.ilike(f"%{tok}%")
-                    )
+                    q2 = q2.filter(HistoricalRateObservation.raw_activity_name.ilike(f"%{tok}%"))
                 obs2 = q2.all()
                 if obs2:
                     observations = obs2
@@ -222,13 +228,9 @@ class DecisionBenchmarkEngine:
                     if top2:
                         q3 = base_q
                         for tok in top2:
-                            q3 = q3.filter(
-                                HistoricalRateObservation.raw_activity_name.ilike(f"%{tok}%")
-                            )
+                            q3 = q3.filter(HistoricalRateObservation.raw_activity_name.ilike(f"%{tok}%"))
                         if division_code:
-                            q3 = q3.filter(
-                                HistoricalRateObservation.division_code == division_code
-                            )
+                            q3 = q3.filter(HistoricalRateObservation.division_code == division_code)
                         observations = q3.all()
 
         if not observations:
@@ -247,16 +249,19 @@ class DecisionBenchmarkEngine:
 
         # Context quality metrics
         sims = [sim_by_id.get(o.comparable_project_id, 0.0) for o in observations]
-        rec = [_recency_score(next((c for c, _ in comparable_projects if c.id == o.comparable_project_id), comparable_projects[0][0])) for o in observations]
+        rec = [
+            _recency_score(
+                next((c for c, _ in comparable_projects if c.id == o.comparable_project_id), comparable_projects[0][0])
+            )
+            for o in observations
+        ]
         dqs = [o.data_quality_score or 0.5 for o in observations]
 
         avg_sim = sum(sims) / len(sims)
         avg_rec = sum(rec) / len(rec)
         avg_dq = sum(dqs) / len(dqs)
 
-        confidence_score, confidence_label = compute_confidence(
-            n, std_dev, mean_val, avg_sim, avg_rec, avg_dq
-        )
+        confidence_score, confidence_label = compute_confidence(n, std_dev, mean_val, avg_sim, avg_rec, avg_dq)
 
         return {
             "activity_name": activity_name,

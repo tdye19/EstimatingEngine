@@ -2,8 +2,9 @@
 
 import logging
 import os
+
 from sqlalchemy import create_engine, event, text
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 _db_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _default_db = f"sqlite:///{os.path.join(_db_dir, 'apex.db')}"
@@ -27,11 +28,13 @@ engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False, **en
 # Enable WAL mode for SQLite to allow concurrent reads alongside a single writer,
 # which is a prerequisite for safe parallel agent execution (Agents 3 & 4).
 if DATABASE_URL.startswith("sqlite"):
+
     @event.listens_for(engine, "connect")
     def _set_wal_mode(dbapi_conn, connection_record):
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.close()
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -63,22 +66,20 @@ def ensure_project_context_columns(eng) -> None:
     (SQLite raises OperationalError when a column already exists).
     """
     new_columns = [
-        ("project_type",     "VARCHAR(100)"),
-        ("market_sector",    "VARCHAR(100)"),
-        ("region",           "VARCHAR(100)"),
-        ("delivery_method",  "VARCHAR(50)"),
-        ("contract_type",    "VARCHAR(50)"),
+        ("project_type", "VARCHAR(100)"),
+        ("market_sector", "VARCHAR(100)"),
+        ("region", "VARCHAR(100)"),
+        ("delivery_method", "VARCHAR(50)"),
+        ("contract_type", "VARCHAR(50)"),
         ("complexity_level", "VARCHAR(20)"),
-        ("schedule_pressure","VARCHAR(20)"),
-        ("size_sf",          "FLOAT"),
-        ("scope_types",      "TEXT"),
+        ("schedule_pressure", "VARCHAR(20)"),
+        ("size_sf", "FLOAT"),
+        ("scope_types", "TEXT"),
     ]
     with eng.connect() as conn:
         for col_name, col_type in new_columns:
             try:
-                conn.execute(
-                    text(f"ALTER TABLE projects ADD COLUMN {col_name} {col_type}")
-                )
+                conn.execute(text(f"ALTER TABLE projects ADD COLUMN {col_name} {col_type}"))
                 conn.commit()
                 logger.debug("Added column projects.%s", col_name)
             except Exception:

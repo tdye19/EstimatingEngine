@@ -5,6 +5,7 @@ Separate from seed.py (demo data). Safe to run multiple times; skips if already 
 
 import logging
 import os
+
 from apex.backend.db.database import Base, SessionLocal
 from apex.backend.models.decision_models import (
     CanonicalActivity,
@@ -18,30 +19,30 @@ logger = logging.getLogger("apex.seed_decision")
 # Canonical ontology — 24 activities
 # ---------------------------------------------------------------------------
 _CANONICAL_ACTIVITIES = [
-    ("CIP Concrete Foundation",         "03 30 00", "CY",  "concrete"),
-    ("CIP Concrete Slab on Grade",       "03 30 00", "CY",  "concrete"),
-    ("CIP Concrete Wall",               "03 30 00", "CY",  "concrete"),
-    ("Formwork — Foundation",           "03 10 00", "SF",  "concrete"),
-    ("Formwork — Wall",                 "03 10 00", "SF",  "concrete"),
-    ("Formwork — Slab Edge",            "03 10 00", "LF",  "concrete"),
-    ("Rebar — Foundations",             "03 20 00", "TON", "concrete"),
-    ("Rebar — Slabs",                   "03 20 00", "TON", "concrete"),
-    ("Rebar — Walls",                   "03 20 00", "TON", "concrete"),
-    ("Concrete Placement — Pump",       "03 30 00", "CY",  "concrete"),
-    ("Concrete Placement — Direct",     "03 30 00", "CY",  "concrete"),
-    ("Concrete Finishing — Broom",      "03 35 00", "SF",  "concrete"),
-    ("Concrete Finishing — Trowel",     "03 35 00", "SF",  "concrete"),
-    ("Concrete Curing",                 "03 39 00", "SF",  "concrete"),
-    ("Sawcutting",                      "03 35 00", "LF",  "concrete"),
-    ("Excavation — Machine",            "31 23 00", "CY",  "sitework"),
-    ("Backfill",                        "31 23 00", "CY",  "sitework"),
-    ("Fine Grade — Hand",               "31 22 00", "SF",  "sitework"),
-    ("Fine Grade — Machine",            "31 22 00", "SF",  "sitework"),
-    ("Embeds / Anchor Bolts",           "03 15 00", "EA",  "concrete"),
-    ("Waterstop",                       "03 15 00", "LF",  "concrete"),
-    ("Expansion Joints",                "03 15 00", "LF",  "concrete"),
-    ("Dampproofing",                    "07 11 00", "SF",  "waterproofing"),
-    ("Vapor Barrier",                   "07 26 00", "SF",  "concrete"),
+    ("CIP Concrete Foundation", "03 30 00", "CY", "concrete"),
+    ("CIP Concrete Slab on Grade", "03 30 00", "CY", "concrete"),
+    ("CIP Concrete Wall", "03 30 00", "CY", "concrete"),
+    ("Formwork — Foundation", "03 10 00", "SF", "concrete"),
+    ("Formwork — Wall", "03 10 00", "SF", "concrete"),
+    ("Formwork — Slab Edge", "03 10 00", "LF", "concrete"),
+    ("Rebar — Foundations", "03 20 00", "TON", "concrete"),
+    ("Rebar — Slabs", "03 20 00", "TON", "concrete"),
+    ("Rebar — Walls", "03 20 00", "TON", "concrete"),
+    ("Concrete Placement — Pump", "03 30 00", "CY", "concrete"),
+    ("Concrete Placement — Direct", "03 30 00", "CY", "concrete"),
+    ("Concrete Finishing — Broom", "03 35 00", "SF", "concrete"),
+    ("Concrete Finishing — Trowel", "03 35 00", "SF", "concrete"),
+    ("Concrete Curing", "03 39 00", "SF", "concrete"),
+    ("Sawcutting", "03 35 00", "LF", "concrete"),
+    ("Excavation — Machine", "31 23 00", "CY", "sitework"),
+    ("Backfill", "31 23 00", "CY", "sitework"),
+    ("Fine Grade — Hand", "31 22 00", "SF", "sitework"),
+    ("Fine Grade — Machine", "31 22 00", "SF", "sitework"),
+    ("Embeds / Anchor Bolts", "03 15 00", "EA", "concrete"),
+    ("Waterstop", "03 15 00", "LF", "concrete"),
+    ("Expansion Joints", "03 15 00", "LF", "concrete"),
+    ("Dampproofing", "07 11 00", "SF", "waterproofing"),
+    ("Vapor Barrier", "07 26 00", "SF", "concrete"),
 ]
 
 
@@ -51,12 +52,14 @@ def seed_canonical_ontology(db):
     added = 0
     for name, division_code, expected_unit, scope_family in _CANONICAL_ACTIVITIES:
         if name not in existing_names:
-            db.add(CanonicalActivity(
-                name=name,
-                division_code=division_code,
-                expected_unit=expected_unit,
-                scope_family=scope_family,
-            ))
+            db.add(
+                CanonicalActivity(
+                    name=name,
+                    division_code=division_code,
+                    expected_unit=expected_unit,
+                    scope_family=scope_family,
+                )
+            )
             added += 1
     db.flush()
     logger.info("Canonical ontology: added %d activities", added)
@@ -99,10 +102,10 @@ def _wbs_to_division(wbs: str) -> str:
 # CityGate loader
 # ---------------------------------------------------------------------------
 _CITYGATE_PROJECTS = [
-    ("Flint City Gate",   "Flint"),
-    ("Bancroft City Gate","Bancroft"),
+    ("Flint City Gate", "Flint"),
+    ("Bancroft City Gate", "Bancroft"),
     ("Hanover City Gate", "Hanover"),
-    ("Highland City Gate","Highland"),
+    ("Highland City Gate", "Highland"),
 ]
 
 _CITYGATE_COL_OFFSET = 5  # columns 5-8 → project data
@@ -154,7 +157,7 @@ def load_citygate_rates(db, data_dir: str):
         col0 = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
         col1 = row.iloc[1]
         col2 = str(row.iloc[2]).strip() if pd.notna(row.iloc[2]) else ""
-        col3 = str(row.iloc[3]).strip() if pd.notna(row.iloc[3]) else ""
+        str(row.iloc[3]).strip() if pd.notna(row.iloc[3]) else ""
 
         # Track WBS area
         if pd.isna(col1) and col0:
@@ -195,7 +198,7 @@ def load_citygate_rates(db, data_dir: str):
         elif avg_prod and avg_prod > 0:
             unit_cost = round(85.0 / avg_prod, 4)
 
-        for proj_idx, (proj_obj, (_, _loc)) in enumerate(zip(projects, _CITYGATE_PROJECTS)):
+        for proj_idx, (proj_obj, (_, _loc)) in enumerate(zip(projects, _CITYGATE_PROJECTS, strict=False)):
             col_idx = _CITYGATE_COL_OFFSET + proj_idx
             try:
                 prod_val = float(str(row.iloc[col_idx]).replace(",", "").strip())
@@ -223,7 +226,7 @@ def load_citygate_rates(db, data_dir: str):
 # Leonidas + Spring Arbor loader
 # ---------------------------------------------------------------------------
 _LEONIDAS_PROJECTS = [
-    ("Leonidas",     "Leonidas"),
+    ("Leonidas", "Leonidas"),
     ("Spring Arbor", "Spring Arbor"),
 ]
 
@@ -322,6 +325,7 @@ def load_leonidas_spring_arbor(db, data_dir: str):
 # Estimation history loader
 # ---------------------------------------------------------------------------
 
+
 def load_estimation_history(db, data_dir: str):
     """Parse EstimationHistory_Enhanced.xlsx → one ComparableProject per row."""
     try:
@@ -340,9 +344,12 @@ def load_estimation_history(db, data_dir: str):
     proj_count = 0
 
     for _, row in df.iterrows():
+
         def _safe(col):
             v = row.get(col)
-            return str(v).strip() if v is not None and not (isinstance(v, float) and __import__('math').isnan(v)) else None
+            return (
+                str(v).strip() if v is not None and not (isinstance(v, float) and __import__("math").isnan(v)) else None
+            )
 
         name = _safe("Name") or f"Estimation History #{proj_count + 1}"
         region = (_safe("Region") or "unknown").lower().replace(" ", "_")
@@ -393,6 +400,7 @@ def load_estimation_history(db, data_dir: str):
 # Main entry point
 # ---------------------------------------------------------------------------
 
+
 def run_decision_seed(data_dir: str = None):
     """Find data directory, create tables, skip if already seeded, then run loaders."""
     # Resolve data directory
@@ -411,7 +419,7 @@ def run_decision_seed(data_dir: str = None):
         data_dir = os.path.join(os.path.dirname(__file__), "data")
 
     # Create all decision system tables
-    Base.metadata.create_all(bind=__import__('apex.backend.db.database', fromlist=['engine']).engine)
+    Base.metadata.create_all(bind=__import__("apex.backend.db.database", fromlist=["engine"]).engine)
 
     db = SessionLocal()
     try:
@@ -422,9 +430,9 @@ def run_decision_seed(data_dir: str = None):
 
         logger.info("Seeding decision system from %s", data_dir)
         seed_canonical_ontology(db)
-        citygate_obs = load_citygate_rates(db, data_dir)
-        leonidas_obs = load_leonidas_spring_arbor(db, data_dir)
-        hist_projs = load_estimation_history(db, data_dir)
+        load_citygate_rates(db, data_dir)
+        load_leonidas_spring_arbor(db, data_dir)
+        load_estimation_history(db, data_dir)
         db.commit()
 
         total_projects = db.query(ComparableProject).count()

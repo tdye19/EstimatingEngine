@@ -1,19 +1,19 @@
 """TokenUsage model — records every LLM call made during the agent pipeline."""
 
-from sqlalchemy import Column, Integer, Float, String, ForeignKey
+from sqlalchemy import Column, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+
 from apex.backend.db.database import Base
 from apex.backend.models.base import TimestampMixin
-
 
 # ---------------------------------------------------------------------------
 # Pricing table: (input_cost_per_1M_tokens, output_cost_per_1M_tokens) in USD
 # ---------------------------------------------------------------------------
 
 MODEL_PRICING: dict[str, tuple[float, float]] = {
-    "gemini-2.5-flash":            (0.30,  2.50),
-    "claude-sonnet-4-6-20260101":  (3.00, 15.00),
-    "claude-haiku-4-5-20251001":   (1.00,  5.00),
+    "gemini-2.5-flash": (0.30, 2.50),
+    "claude-sonnet-4-6-20260101": (3.00, 15.00),
+    "claude-haiku-4-5-20251001": (1.00, 5.00),
 }
 
 
@@ -72,17 +72,17 @@ class TokenUsage(Base, TimestampMixin):
 
     __tablename__ = "token_usage"
 
-    id           = Column(Integer, primary_key=True, index=True)
-    project_id   = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
-    estimate_id  = Column(Integer, ForeignKey("estimates.id"), nullable=True)
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    estimate_id = Column(Integer, ForeignKey("estimates.id"), nullable=True)
     agent_number = Column(Integer, nullable=False)
-    provider     = Column(String(50), nullable=False)
-    model        = Column(String(100), nullable=False)
-    input_tokens  = Column(Integer, default=0)
+    provider = Column(String(50), nullable=False)
+    model = Column(String(100), nullable=False)
+    input_tokens = Column(Integer, default=0)
     output_tokens = Column(Integer, default=0)
     cache_creation_tokens = Column(Integer, default=0)
-    cache_read_tokens     = Column(Integer, default=0)
+    cache_read_tokens = Column(Integer, default=0)
     estimated_cost = Column(Float, default=0.0)
 
-    project  = relationship("Project",  back_populates="token_usage_records")
+    project = relationship("Project", back_populates="token_usage_records")
     estimate = relationship("Estimate", back_populates="token_usage_records", foreign_keys=[estimate_id])

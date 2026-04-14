@@ -8,22 +8,22 @@ falls back to rule-based checklist logic if the LLM is unavailable or fails.
 import json
 import logging
 import re
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
-from apex.backend.models.spec_section import SpecSection
-from apex.backend.models.gap_report import GapReport, GapReportItem
-from apex.backend.utils.csi_utils import MASTER_SCOPE_CHECKLIST
 from apex.backend.agents.pipeline_contracts import validate_agent_output
-from apex.backend.utils.async_helper import run_async as _run_async
-from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.agents.tools.gap_tools import (
     checklist_compare_tool,
     gap_scorer_tool,
     risk_tagger_tool,
 )
+from apex.backend.models.gap_report import GapReport, GapReportItem
+from apex.backend.models.spec_section import SpecSection
+from apex.backend.services.token_tracker import log_token_usage
+from apex.backend.utils.async_helper import run_async as _run_async
+from apex.backend.utils.csi_utils import MASTER_SCOPE_CHECKLIST
 
 logger = logging.getLogger("apex.agent.gap_analysis")
 
@@ -57,9 +57,13 @@ def _spec_vs_takeoff_gaps(db, project_id, spec_sections):
     """
     from apex.backend.models.takeoff_v2 import TakeoffItemV2
 
-    rows = db.query(TakeoffItemV2).filter(
-        TakeoffItemV2.project_id == project_id,
-    ).all()
+    rows = (
+        db.query(TakeoffItemV2)
+        .filter(
+            TakeoffItemV2.project_id == project_id,
+        )
+        .all()
+    )
 
     if not rows:
         return []  # No takeoff uploaded — skip this pass
@@ -100,22 +104,24 @@ def _spec_vs_takeoff_gaps(db, project_id, spec_sections):
         has_match = any(kw in takeoff_text_blob for kw in keywords)
         if not has_match:
             div_name = _get_division_name(div)
-            gaps.append({
-                "division_number": div,
-                "section_number": None,
-                "title": f"Spec includes Division {div} ({div_name}) but takeoff has no matching items",
-                "gap_type": "spec_vs_takeoff",
-                "severity": "critical",
-                "description": (
-                    f"The project specification includes Division {div} ({div_name}) "
-                    f"but no takeoff line items match expected activities for this division. "
-                    f"Keywords checked: {', '.join(keywords[:5])}."
-                ),
-                "recommendation": (
-                    f"Review Division {div} scope and confirm whether these items are included "
-                    f"in your takeoff or intentionally excluded."
-                ),
-            })
+            gaps.append(
+                {
+                    "division_number": div,
+                    "section_number": None,
+                    "title": f"Spec includes Division {div} ({div_name}) but takeoff has no matching items",
+                    "gap_type": "spec_vs_takeoff",
+                    "severity": "critical",
+                    "description": (
+                        f"The project specification includes Division {div} ({div_name}) "
+                        f"but no takeoff line items match expected activities for this division. "
+                        f"Keywords checked: {', '.join(keywords[:5])}."
+                    ),
+                    "recommendation": (
+                        f"Review Division {div} scope and confirm whether these items are included "
+                        f"in your takeoff or intentionally excluded."
+                    ),
+                }
+            )
 
     # ── Pass 2: Activity cross-reference check ────────────────────────
     # If takeoff has an activity matching a key, check associated activities exist
@@ -128,22 +134,24 @@ def _spec_vs_takeoff_gaps(db, project_id, spec_sections):
         for companion in required_companions:
             companion_present = companion in takeoff_text_blob
             if not companion_present:
-                gaps.append({
-                    "division_number": None,
-                    "section_number": None,
-                    "title": f"Takeoff includes {scope_key} but missing associated {companion}",
-                    "gap_type": "spec_vs_takeoff",
-                    "severity": "critical",
-                    "description": (
-                        f"Your takeoff includes items related to '{scope_key}' but no line item "
-                        f"for '{companion}' was found. This is commonly required scope that may "
-                        f"be missing from your estimate."
-                    ),
-                    "recommendation": (
-                        f"Check whether '{companion}' is included elsewhere in your estimate "
-                        f"(e.g., as a sub-bid or general conditions item). If not, add it."
-                    ),
-                })
+                gaps.append(
+                    {
+                        "division_number": None,
+                        "section_number": None,
+                        "title": f"Takeoff includes {scope_key} but missing associated {companion}",
+                        "gap_type": "spec_vs_takeoff",
+                        "severity": "critical",
+                        "description": (
+                            f"Your takeoff includes items related to '{scope_key}' but no line item "
+                            f"for '{companion}' was found. This is commonly required scope that may "
+                            f"be missing from your estimate."
+                        ),
+                        "recommendation": (
+                            f"Check whether '{companion}' is included elsewhere in your estimate "
+                            f"(e.g., as a sub-bid or general conditions item). If not, add it."
+                        ),
+                    }
+                )
 
     return gaps
 
@@ -151,14 +159,29 @@ def _spec_vs_takeoff_gaps(db, project_id, spec_sections):
 def _get_division_name(div: str) -> str:
     """Short name for a CSI division number."""
     names = {
-        "01": "General Requirements", "02": "Existing Conditions", "03": "Concrete",
-        "04": "Masonry", "05": "Metals", "06": "Wood/Plastics/Composites",
-        "07": "Thermal/Moisture Protection", "08": "Openings", "09": "Finishes",
-        "10": "Specialties", "11": "Equipment", "12": "Furnishings",
-        "13": "Special Construction", "14": "Conveying Equipment",
-        "21": "Fire Suppression", "22": "Plumbing", "23": "HVAC",
-        "26": "Electrical", "27": "Communications", "28": "Electronic Safety",
-        "31": "Earthwork", "32": "Exterior Improvements", "33": "Utilities",
+        "01": "General Requirements",
+        "02": "Existing Conditions",
+        "03": "Concrete",
+        "04": "Masonry",
+        "05": "Metals",
+        "06": "Wood/Plastics/Composites",
+        "07": "Thermal/Moisture Protection",
+        "08": "Openings",
+        "09": "Finishes",
+        "10": "Specialties",
+        "11": "Equipment",
+        "12": "Furnishings",
+        "13": "Special Construction",
+        "14": "Conveying Equipment",
+        "21": "Fire Suppression",
+        "22": "Plumbing",
+        "23": "HVAC",
+        "26": "Electrical",
+        "27": "Communications",
+        "28": "Electronic Safety",
+        "31": "Earthwork",
+        "32": "Exterior Improvements",
+        "33": "Utilities",
     }
     return names.get(div, f"Division {div}")
 
@@ -167,6 +190,7 @@ def _get_division_name(div: str) -> str:
 # Pydantic contract for individual gap items returned by the LLM
 # ---------------------------------------------------------------------------
 
+
 class LLMGapItem(BaseModel):
     """Validated gap item from LLM response."""
 
@@ -174,7 +198,7 @@ class LLMGapItem(BaseModel):
     severity: Literal["critical", "high", "medium", "low"]
     affected_csi_division: str
     recommendation: str
-    gap_type: Optional[str] = "missing_division"
+    gap_type: str | None = "missing_division"
 
     @field_validator("severity", mode="before")
     @classmethod
@@ -198,20 +222,20 @@ class LLMGapItem(BaseModel):
 
 _SEVERITY_MAP: dict[str, str] = {
     "critical": "critical",
-    "high":     "critical",   # treat high as critical for DB compatibility
-    "medium":   "moderate",
-    "low":      "watch",
+    "high": "critical",  # treat high as critical for DB compatibility
+    "medium": "moderate",
+    "low": "watch",
 }
 
 _GAP_TYPE_MAP: dict[str, str] = {
-    "missing_division":  "missing",
-    "implied_scope":     "ambiguous",
-    "missing_common":    "missing",
-    "coordination_gap":  "conflicting",
+    "missing_division": "missing",
+    "implied_scope": "ambiguous",
+    "missing_common": "missing",
+    "coordination_gap": "conflicting",
     # passthrough aliases
-    "missing":           "missing",
-    "ambiguous":         "ambiguous",
-    "conflicting":       "conflicting",
+    "missing": "missing",
+    "ambiguous": "ambiguous",
+    "conflicting": "conflicting",
 }
 
 
@@ -265,9 +289,7 @@ GAP_ANALYSIS_SYSTEM_PROMPT = (
     "not caught during the bid phase.\n\n"
     "You will receive a JSON array of CSI MasterFormat spec sections that have been parsed from "
     "a project specification. Identify what is MISSING or problematic.\n\n"
-    "## CSI MasterFormat Complete Division Reference\n"
-    + _CSI_DIVISIONS_REFERENCE
-    + "\n\n"
+    "## CSI MasterFormat Complete Division Reference\n" + _CSI_DIVISIONS_REFERENCE + "\n\n"
     "## Four Gap Categories to Identify\n\n"
     "1. **missing_division** — A CSI division entirely absent from the spec that would typically "
     "be required for this building type (e.g., no Division 22 Plumbing in a commercial office "
@@ -307,12 +329,15 @@ GAP_ANALYSIS_SYSTEM_PROMPT = (
 # LLM gap analysis
 # ---------------------------------------------------------------------------
 
-def _build_user_prompt(parsed_sections: list[dict]) -> str:
+
+def _build_user_prompt(parsed_sections: list[dict], spec_context: str = "") -> str:
+    prefix = ""
+    if spec_context:
+        prefix = spec_context + "\n\n"
     return (
-        "Below are the CSI spec sections parsed from this project's specification documents. "
+        prefix + "Below are the CSI spec sections parsed from this project's specification documents. "
         "Identify all scope gaps across the four categories.\n\n"
-        "PARSED SPEC SECTIONS:\n"
-        + json.dumps(parsed_sections, indent=2)
+        "PARSED SPEC SECTIONS:\n" + json.dumps(parsed_sections, indent=2)
     )
 
 
@@ -350,13 +375,13 @@ def _parse_llm_gap_response(raw_content: str) -> list[LLMGapItem]:
 
 
 async def _llm_gap_analysis(
-    parsed_sections: list[dict], provider
+    parsed_sections: list[dict], provider, spec_context: str = ""
 ) -> tuple[list[LLMGapItem] | None, int, int]:
     """Send parsed sections to LLM for gap analysis.
 
     Returns (items, input_tokens, output_tokens). items is None on any failure.
     """
-    user_prompt = _build_user_prompt(parsed_sections)
+    user_prompt = _build_user_prompt(parsed_sections, spec_context=spec_context)
     try:
         response = await provider.complete(
             system_prompt=GAP_ANALYSIS_SYSTEM_PROMPT,
@@ -372,8 +397,11 @@ async def _llm_gap_analysis(
         items = _parse_llm_gap_response(response.content)
         logger.info(f"Agent 3 LLM: parsed {len(items)} validated gap items")
         return (
-            items, response.input_tokens, response.output_tokens,
-            response.cache_creation_input_tokens, response.cache_read_input_tokens,
+            items,
+            response.input_tokens,
+            response.output_tokens,
+            response.cache_creation_input_tokens,
+            response.cache_read_input_tokens,
         )
     except Exception as exc:
         logger.error(f"Agent 3 LLM: call failed — {exc}")
@@ -383,6 +411,7 @@ async def _llm_gap_analysis(
 # ---------------------------------------------------------------------------
 # Convert LLM items → gap dicts compatible with existing scoring tools
 # ---------------------------------------------------------------------------
+
 
 def _llm_items_to_gap_dicts(llm_items: list[LLMGapItem]) -> list[dict]:
     """Normalise LLMGapItem objects into gap dicts for gap_scorer_tool / risk_tagger_tool."""
@@ -395,21 +424,81 @@ def _llm_items_to_gap_dicts(llm_items: list[LLMGapItem]) -> list[dict]:
         # Derive a short title from the first sentence of the description
         title = (item.description.split(".")[0] or item.description)[:200]
 
-        gaps.append({
-            "division_number": item.affected_csi_division,
-            "section_number": None,
-            "title": title,
-            "gap_type": db_gap_type,
-            "severity": db_severity,
-            "description": item.description,
-            "recommendation": item.recommendation,
-        })
+        gaps.append(
+            {
+                "division_number": item.affected_csi_division,
+                "section_number": None,
+                "title": title,
+                "gap_type": db_gap_type,
+                "severity": db_severity,
+                "description": item.description,
+                "recommendation": item.recommendation,
+            }
+        )
     return gaps
+
+
+# ---------------------------------------------------------------------------
+# Spec retrieval helpers — inject real spec text into the LLM prompt
+# ---------------------------------------------------------------------------
+
+# Queries that retrieve the spec language most relevant to gap categories
+_RETRIEVAL_QUERIES = [
+    "concrete mix design compressive strength requirements",
+    "reinforcing steel bar size grade specification",
+    "formwork shoring falsework requirements",
+    "testing inspection quality control requirements",
+    "submittals shop drawings submittal schedule",
+    "waterproofing moisture protection membrane",
+    "mechanical electrical plumbing coordination",
+]
+
+
+def _retrieve_spec_context_for_gaps(project_id: int) -> str:
+    """Retrieve real spec language to ground gap analysis in project-specific requirements.
+
+    Attempts to auto-index the project if not yet indexed.
+    Returns a formatted REFERENCE MATERIAL block, or "" if retrieval is unavailable.
+    """
+    try:
+        from apex.backend.retrieval.embedder import is_available
+
+        if not is_available():
+            return ""
+
+        from apex.backend.retrieval.retriever import format_for_agent, search_multi
+        from apex.backend.retrieval.store import collection_exists
+
+        if not collection_exists(project_id):
+            logger.info(
+                f"Agent 3: project {project_id} not yet indexed — retrieval context unavailable. "
+                "Index the project via POST /api/projects/{id}/specs/index to enable spec-grounded gaps."
+            )
+            return ""
+
+        chunks = search_multi(
+            project_id,
+            queries=_RETRIEVAL_QUERIES,
+            top_k_each=2,
+            min_score=0.3,
+        )
+
+        if not chunks:
+            logger.debug(f"Agent 3: no relevant spec chunks retrieved for project {project_id}")
+            return ""
+
+        logger.info(f"Agent 3: retrieved {len(chunks)} spec chunks for gap analysis context (project {project_id})")
+        return format_for_agent(chunks, label="SPEC REFERENCE MATERIAL")
+
+    except Exception as exc:
+        logger.warning(f"Agent 3: spec retrieval failed (non-fatal, continuing without context): {exc}")
+        return ""
 
 
 # ---------------------------------------------------------------------------
 # Main agent entry point
 # ---------------------------------------------------------------------------
+
 
 def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
     """Run gap analysis comparing project specs against master checklist.
@@ -421,10 +510,14 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
     Returns dict validated against Agent3Output pipeline contract.
     """
     # Fetch all parsed spec sections for this project
-    sections = db.query(SpecSection).filter(
-        SpecSection.project_id == project_id,
-        SpecSection.is_deleted == False,  # noqa: E712
-    ).all()
+    sections = (
+        db.query(SpecSection)
+        .filter(
+            SpecSection.project_id == project_id,
+            SpecSection.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     parsed_sections = [
         {
@@ -445,6 +538,7 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
 
     try:
         from apex.backend.services.llm_provider import get_llm_provider
+
         provider = get_llm_provider(agent_number=3)
         llm_available = _run_async(provider.health_check())
         if llm_available:
@@ -453,16 +547,17 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
                 "is available — attempting LLM gap analysis"
             )
         else:
-            logger.info(
-                f"Agent 3: LLM provider '{provider.provider_name}' is unreachable — "
-                "using rule-based fallback"
-            )
+            logger.info(f"Agent 3: LLM provider '{provider.provider_name}' is unreachable — using rule-based fallback")
     except Exception as exc:
         logger.warning(f"Agent 3: could not initialise LLM provider ({exc}) — using rule-based fallback")
 
     if llm_available and provider is not None:
+        # Retrieve real spec language to ground the LLM's gap analysis
+        spec_context = _retrieve_spec_context_for_gaps(project_id)
+        if spec_context:
+            logger.info("Agent 3: injecting spec retrieval context into LLM prompt")
         llm_items, in_tok, out_tok, cache_create, cache_read = _run_async(
-            _llm_gap_analysis(parsed_sections, provider)
+            _llm_gap_analysis(parsed_sections, provider, spec_context=spec_context)
         )
         if llm_items:
             log_token_usage(
@@ -485,9 +580,7 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
                 f"(provider={provider.provider_name}, model={provider.model_name})"
             )
         else:
-            logger.warning(
-                "Agent 3: LLM returned no valid gap items — falling back to rule-based analysis"
-            )
+            logger.warning("Agent 3: LLM returned no valid gap items — falling back to rule-based analysis")
 
     # -----------------------------------------------------------------------
     # Rule-based fallback (original logic, unchanged)
@@ -497,11 +590,7 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
         project_divisions = set(s.division_number for s in sections)
         core_divisions = {"03", "05", "07", "08", "09"}
         check_divisions = project_divisions | core_divisions
-        checklist = {
-            div: items
-            for div, items in MASTER_SCOPE_CHECKLIST.items()
-            if div in check_divisions
-        }
+        checklist = {div: items for div, items in MASTER_SCOPE_CHECKLIST.items() if div in check_divisions}
         gaps = checklist_compare_tool(parsed_sections, checklist)
         for gap in gaps:
             scored_gaps.append(risk_tagger_tool(gap))
@@ -532,17 +621,19 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
     db.refresh(report)
 
     for gap in scored_gaps:
-        db.add(GapReportItem(
-            gap_report_id=report.id,
-            division_number=gap["division_number"],
-            section_number=gap.get("section_number"),
-            title=gap["title"],
-            gap_type=gap["gap_type"],
-            severity=gap["severity"],
-            description=gap.get("description"),
-            recommendation=gap.get("recommendation"),
-            risk_score=gap.get("risk_score"),
-        ))
+        db.add(
+            GapReportItem(
+                gap_report_id=report.id,
+                division_number=gap["division_number"],
+                section_number=gap.get("section_number"),
+                title=gap["title"],
+                gap_type=gap["gap_type"],
+                severity=gap["severity"],
+                description=gap.get("description"),
+                recommendation=gap.get("recommendation"),
+                risk_score=gap.get("risk_score"),
+            )
+        )
 
     db.commit()
 
@@ -555,16 +646,18 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
         svt_gaps = _spec_vs_takeoff_gaps(db, project_id, sections)
         if svt_gaps:
             for gap in svt_gaps:
-                db.add(GapReportItem(
-                    gap_report_id=report.id,
-                    division_number=gap.get("division_number"),
-                    section_number=gap.get("section_number"),
-                    title=gap["title"],
-                    gap_type=gap["gap_type"],
-                    severity=gap["severity"],
-                    description=gap.get("description"),
-                    recommendation=gap.get("recommendation"),
-                ))
+                db.add(
+                    GapReportItem(
+                        gap_report_id=report.id,
+                        division_number=gap.get("division_number"),
+                        section_number=gap.get("section_number"),
+                        title=gap["title"],
+                        gap_type=gap["gap_type"],
+                        severity=gap["severity"],
+                        description=gap.get("description"),
+                        recommendation=gap.get("recommendation"),
+                    )
+                )
             db.commit()
             svt_gap_count = len(svt_gaps)
 
@@ -574,9 +667,7 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
             report.summary = (report.summary or "") + f" Spec-vs-takeoff: {svt_gap_count} cross-reference gaps."
             db.commit()
 
-            logger.info(
-                f"Agent 3: spec-vs-takeoff pass found {svt_gap_count} additional gaps"
-            )
+            logger.info(f"Agent 3: spec-vs-takeoff pass found {svt_gap_count} additional gaps")
         else:
             logger.info("Agent 3: spec-vs-takeoff pass — no additional gaps found")
     except Exception as exc:
@@ -590,13 +681,16 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
         f"analysis_method={analysis_method}, report_id={report.id}"
     )
 
-    return validate_agent_output(3, {
-        "total_gaps": total_gaps,
-        "critical_count": critical_total,
-        "moderate_count": scores["moderate_count"],
-        "watch_count": scores["watch_count"],
-        "overall_score": scores["overall_score"],
-        "report_id": report.id,
-        "sections_analyzed": len(parsed_sections),
-        "spec_vs_takeoff_gaps": svt_gap_count,
-    })
+    return validate_agent_output(
+        3,
+        {
+            "total_gaps": total_gaps,
+            "critical_count": critical_total,
+            "moderate_count": scores["moderate_count"],
+            "watch_count": scores["watch_count"],
+            "overall_score": scores["overall_score"],
+            "report_id": report.id,
+            "sections_analyzed": len(parsed_sections),
+            "spec_vs_takeoff_gaps": svt_gap_count,
+        },
+    )

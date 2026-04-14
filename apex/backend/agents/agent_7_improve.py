@@ -21,22 +21,22 @@ import re
 
 from sqlalchemy.orm import Session
 
-from apex.backend.models.project_actual import ProjectActual
-from apex.backend.models.labor_estimate import LaborEstimate
-from apex.backend.models.takeoff_item import TakeoffItem
-from apex.backend.models.estimate import Estimate
-from apex.backend.models.gap_report import GapReport
 from apex.backend.agents.pipeline_contracts import (
     Agent7VarianceItem,
     validate_agent_output,
 )
-from apex.backend.services.token_tracker import log_token_usage
-from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.agents.tools.improve_tools import (
-    variance_calculator_tool,
     productivity_updater_tool,
     trend_analyzer_tool,
+    variance_calculator_tool,
 )
+from apex.backend.models.estimate import Estimate
+from apex.backend.models.gap_report import GapReport
+from apex.backend.models.labor_estimate import LaborEstimate
+from apex.backend.models.project_actual import ProjectActual
+from apex.backend.models.takeoff_item import TakeoffItem
+from apex.backend.services.token_tracker import log_token_usage
+from apex.backend.utils.async_helper import run_async as _run_async
 
 logger = logging.getLogger("apex.agent.improve")
 
@@ -68,6 +68,7 @@ IMPROVE_SYSTEM_PROMPT = (
 # User prompt builder
 # ---------------------------------------------------------------------------
 
+
 def _build_improve_user_prompt(
     variances: list[dict],
     actual_items: list[dict],
@@ -93,33 +94,35 @@ def _build_improve_user_prompt(
         estimated_rate = round(est_cost / est_qty, 4) if est_qty > 0 else 0.0
         actual_rate = round(act_cost / act_qty, 4) if act_qty > 0 else 0.0
 
-        comparison.append({
-            "csi_code": csi,
-            "description": est.get("description") or act.get("description") or csi,
-            "estimated_quantity": est_qty,
-            "actual_quantity": act_qty,
-            "estimated_labor_hours": est.get("estimated_labor_hours") or 0,
-            "actual_labor_hours": act.get("actual_labor_hours") or 0,
-            "estimated_cost": est_cost,
-            "actual_cost": act_cost,
-            "estimated_rate_per_unit": estimated_rate,
-            "actual_rate_per_unit": actual_rate,
-            "variance_pct": v.get("variance_pct") or 0,
-            "crew_type": act.get("crew_type") or "",
-            "work_type": act.get("work_type") or "",
-        })
+        comparison.append(
+            {
+                "csi_code": csi,
+                "description": est.get("description") or act.get("description") or csi,
+                "estimated_quantity": est_qty,
+                "actual_quantity": act_qty,
+                "estimated_labor_hours": est.get("estimated_labor_hours") or 0,
+                "actual_labor_hours": act.get("actual_labor_hours") or 0,
+                "estimated_cost": est_cost,
+                "actual_cost": act_cost,
+                "estimated_rate_per_unit": estimated_rate,
+                "actual_rate_per_unit": actual_rate,
+                "variance_pct": v.get("variance_pct") or 0,
+                "crew_type": act.get("crew_type") or "",
+                "work_type": act.get("work_type") or "",
+            }
+        )
 
     return (
         "Analyse the following estimate-vs-actual comparison and return a JSON array "
         "of variance findings as described in the system prompt.\n\n"
-        "COMPARISON DATA:\n"
-        + json.dumps(comparison, indent=2)
+        "COMPARISON DATA:\n" + json.dumps(comparison, indent=2)
     )
 
 
 # ---------------------------------------------------------------------------
 # LLM response parser + Pydantic validator
 # ---------------------------------------------------------------------------
+
 
 def _parse_llm_improve_response(raw_content: str) -> list[Agent7VarianceItem]:
     """Strip markdown fences, parse JSON, validate each item with Pydantic."""
@@ -157,6 +160,7 @@ def _parse_llm_improve_response(raw_content: str) -> list[Agent7VarianceItem]:
 # Async LLM call
 # ---------------------------------------------------------------------------
 
+
 async def _llm_variance_analysis(
     variances: list[dict],
     actual_items: list[dict],
@@ -181,8 +185,11 @@ async def _llm_variance_analysis(
         items = _parse_llm_improve_response(response.content)
         logger.info(f"Agent 7 LLM: parsed {len(items)} validated variance items")
         return (
-            items, response.input_tokens, response.output_tokens,
-            response.cache_creation_input_tokens, response.cache_read_input_tokens,
+            items,
+            response.input_tokens,
+            response.output_tokens,
+            response.cache_creation_input_tokens,
+            response.cache_read_input_tokens,
         )
     except Exception as exc:
         logger.error(f"Agent 7 LLM: call failed — {exc}")
@@ -192,6 +199,7 @@ async def _llm_variance_analysis(
 # ---------------------------------------------------------------------------
 # Statistical fallback — converts raw variance dicts to Agent7VarianceItem shape
 # ---------------------------------------------------------------------------
+
 
 def _statistical_variance_items(
     variances: list[dict],
@@ -226,15 +234,17 @@ def _statistical_variance_items(
             recommendation = "No adjustment required at this time"
             confidence = "high"
 
-        items.append(Agent7VarianceItem(
-            line_item=csi,
-            estimated_rate=estimated_rate,
-            historical_actual_rate=actual_rate,
-            variance_pct=var_pct,
-            likely_cause=cause,
-            recommendation=recommendation,
-            confidence=confidence,
-        ))
+        items.append(
+            Agent7VarianceItem(
+                line_item=csi,
+                estimated_rate=estimated_rate,
+                historical_actual_rate=actual_rate,
+                variance_pct=var_pct,
+                likely_cause=cause,
+                recommendation=recommendation,
+                confidence=confidence,
+            )
+        )
 
     return items
 
@@ -242,6 +252,7 @@ def _statistical_variance_items(
 # ---------------------------------------------------------------------------
 # Rule-based fallback — produces recommendations without an LLM
 # ---------------------------------------------------------------------------
+
 
 def _generate_fallback_recommendations(
     estimate,  # Estimate DB object (with .line_items loaded), or None
@@ -259,59 +270,69 @@ def _generate_fallback_recommendations(
 
         # Contingency checks
         if contingency_pct < 5.0:
-            items.append(Agent7VarianceItem(
-                line_item="Contingency Rate",
-                estimated_rate=contingency_pct,
-                historical_actual_rate=5.0,
-                variance_pct=round(contingency_pct - 5.0, 2),
-                likely_cause="LOW — industry standard is 5-10% for commercial",
-                recommendation="Increase contingency to at least 5% to cover unforeseen conditions",
-                confidence="medium",
-            ))
+            items.append(
+                Agent7VarianceItem(
+                    line_item="Contingency Rate",
+                    estimated_rate=contingency_pct,
+                    historical_actual_rate=5.0,
+                    variance_pct=round(contingency_pct - 5.0, 2),
+                    likely_cause="LOW — industry standard is 5-10% for commercial",
+                    recommendation="Increase contingency to at least 5% to cover unforeseen conditions",
+                    confidence="medium",
+                )
+            )
         elif contingency_pct > 15.0:
-            items.append(Agent7VarianceItem(
-                line_item="Contingency Rate",
-                estimated_rate=contingency_pct,
-                historical_actual_rate=15.0,
-                variance_pct=round(contingency_pct - 15.0, 2),
-                likely_cause="HIGH — review for over-padding",
-                recommendation="Review contingency basis; values above 15% may indicate scope uncertainty",
-                confidence="medium",
-            ))
+            items.append(
+                Agent7VarianceItem(
+                    line_item="Contingency Rate",
+                    estimated_rate=contingency_pct,
+                    historical_actual_rate=15.0,
+                    variance_pct=round(contingency_pct - 15.0, 2),
+                    likely_cause="HIGH — review for over-padding",
+                    recommendation="Review contingency basis; values above 15% may indicate scope uncertainty",
+                    confidence="medium",
+                )
+            )
 
         # Overhead check
         if overhead_pct > 20.0:
-            items.append(Agent7VarianceItem(
-                line_item="Overhead Rate",
-                estimated_rate=overhead_pct,
-                historical_actual_rate=18.0,
-                variance_pct=round(overhead_pct - 18.0, 2),
-                likely_cause="Review overhead — above typical 10-18% range",
-                recommendation="Review overhead allocation; typical commercial range is 10-18%",
-                confidence="medium",
-            ))
+            items.append(
+                Agent7VarianceItem(
+                    line_item="Overhead Rate",
+                    estimated_rate=overhead_pct,
+                    historical_actual_rate=18.0,
+                    variance_pct=round(overhead_pct - 18.0, 2),
+                    likely_cause="Review overhead — above typical 10-18% range",
+                    recommendation="Review overhead allocation; typical commercial range is 10-18%",
+                    confidence="medium",
+                )
+            )
 
         # Profit margin checks
         if profit_pct < 3.0:
-            items.append(Agent7VarianceItem(
-                line_item="Profit Margin",
-                estimated_rate=profit_pct,
-                historical_actual_rate=3.0,
-                variance_pct=round(profit_pct - 3.0, 2),
-                likely_cause="Thin margin — consider risk exposure",
-                recommendation="Review if margin covers project risk; consider raising to at least 3%",
-                confidence="medium",
-            ))
+            items.append(
+                Agent7VarianceItem(
+                    line_item="Profit Margin",
+                    estimated_rate=profit_pct,
+                    historical_actual_rate=3.0,
+                    variance_pct=round(profit_pct - 3.0, 2),
+                    likely_cause="Thin margin — consider risk exposure",
+                    recommendation="Review if margin covers project risk; consider raising to at least 3%",
+                    confidence="medium",
+                )
+            )
         elif profit_pct > 20.0:
-            items.append(Agent7VarianceItem(
-                line_item="Profit Margin",
-                estimated_rate=profit_pct,
-                historical_actual_rate=20.0,
-                variance_pct=round(profit_pct - 20.0, 2),
-                likely_cause="Aggressive margin — may reduce bid competitiveness",
-                recommendation="Verify market conditions justify margin above 20%",
-                confidence="medium",
-            ))
+            items.append(
+                Agent7VarianceItem(
+                    line_item="Profit Margin",
+                    estimated_rate=profit_pct,
+                    historical_actual_rate=20.0,
+                    variance_pct=round(profit_pct - 20.0, 2),
+                    likely_cause="Aggressive margin — may reduce bid competitiveness",
+                    recommendation="Verify market conditions justify margin above 20%",
+                    confidence="medium",
+                )
+            )
 
         # Line item concentration check — any single item > 40% of subtotal
         if total_direct_cost > 0 and line_items:
@@ -322,19 +343,19 @@ def _generate_fallback_recommendations(
                 li_pct = (li_cost / total_direct_cost) * 100.0
                 if li_pct > 40.0:
                     label = li.description or li.csi_code
-                    items.append(Agent7VarianceItem(
-                        line_item=label,
-                        estimated_rate=round(li_pct, 2),
-                        historical_actual_rate=40.0,
-                        variance_pct=round(li_pct - 40.0, 2),
-                        likely_cause=(
-                            f"Concentration risk — {label} represents {li_pct:.1f}% of estimate"
-                        ),
-                        recommendation=(
-                            "Verify scope completeness; high concentration may indicate missing line items"
-                        ),
-                        confidence="medium",
-                    ))
+                    items.append(
+                        Agent7VarianceItem(
+                            line_item=label,
+                            estimated_rate=round(li_pct, 2),
+                            historical_actual_rate=40.0,
+                            variance_pct=round(li_pct - 40.0, 2),
+                            likely_cause=(f"Concentration risk — {label} represents {li_pct:.1f}% of estimate"),
+                            recommendation=(
+                                "Verify scope completeness; high concentration may indicate missing line items"
+                            ),
+                            confidence="medium",
+                        )
+                    )
 
         # Missing CSI divisions check — expect ≥6 of divisions 1-14
         if line_items:
@@ -348,44 +369,50 @@ def _generate_fallback_recommendations(
                     pass
             n_primary = len(present_divisions)
             if n_primary < 6:
-                items.append(Agent7VarianceItem(
-                    line_item="CSI Division Coverage",
-                    estimated_rate=float(n_primary),
-                    historical_actual_rate=6.0,
-                    variance_pct=round((n_primary - 6.0) / 6.0 * 100.0, 2),
-                    likely_cause=(
-                        f"Possible missing scope — only {n_primary} of 14 primary CSI divisions represented"
-                    ),
-                    recommendation=(
-                        "Review estimate for missing divisions; typical commercial projects cover 6+ divisions"
-                    ),
-                    confidence="low",
-                ))
+                items.append(
+                    Agent7VarianceItem(
+                        line_item="CSI Division Coverage",
+                        estimated_rate=float(n_primary),
+                        historical_actual_rate=6.0,
+                        variance_pct=round((n_primary - 6.0) / 6.0 * 100.0, 2),
+                        likely_cause=(
+                            f"Possible missing scope — only {n_primary} of 14 primary CSI divisions represented"
+                        ),
+                        recommendation=(
+                            "Review estimate for missing divisions; typical commercial projects cover 6+ divisions"
+                        ),
+                        confidence="low",
+                    )
+                )
 
     # Gap coverage check — Agent 3 critical gaps
     if critical_gap_count > 5:
-        items.append(Agent7VarianceItem(
-            line_item="Scope Gap Risk",
-            estimated_rate=float(critical_gap_count),
-            historical_actual_rate=5.0,
-            variance_pct=round((critical_gap_count - 5.0) / 5.0 * 100.0, 2),
-            likely_cause=f"Scope risk — {critical_gap_count} critical gaps identified in spec analysis",
-            recommendation=(
-                "Address critical scope gaps before finalising bid; unresolved gaps increase cost risk"
-            ),
-            confidence="medium",
-        ))
+        items.append(
+            Agent7VarianceItem(
+                line_item="Scope Gap Risk",
+                estimated_rate=float(critical_gap_count),
+                historical_actual_rate=5.0,
+                variance_pct=round((critical_gap_count - 5.0) / 5.0 * 100.0, 2),
+                likely_cause=f"Scope risk — {critical_gap_count} critical gaps identified in spec analysis",
+                recommendation=(
+                    "Address critical scope gaps before finalising bid; unresolved gaps increase cost risk"
+                ),
+                confidence="medium",
+            )
+        )
 
     # Always include a note that rule-based review was used
-    items.append(Agent7VarianceItem(
-        line_item="Review Note",
-        estimated_rate=0.0,
-        historical_actual_rate=0.0,
-        variance_pct=0.0,
-        likely_cause="AI-powered review unavailable — rule-based review provided",
-        recommendation="Re-run with LLM available for enhanced variance analysis and recommendations",
-        confidence="low",
-    ))
+    items.append(
+        Agent7VarianceItem(
+            line_item="Review Note",
+            estimated_rate=0.0,
+            historical_actual_rate=0.0,
+            variance_pct=0.0,
+            likely_cause="AI-powered review unavailable — rule-based review provided",
+            recommendation="Re-run with LLM available for enhanced variance analysis and recommendations",
+            confidence="low",
+        )
+    )
 
     return items
 
@@ -394,56 +421,74 @@ def _generate_fallback_recommendations(
 # Main agent entry point
 # ---------------------------------------------------------------------------
 
+
 def run_improve_agent(db: Session, project_id: int, use_llm: bool = True) -> dict:
     """Process actuals and generate variance report, update productivity rates.
 
     Returns dict with variance analysis results validated against Agent7Output.
     """
     # Get existing actuals for this project
-    actuals = db.query(ProjectActual).filter(
-        ProjectActual.project_id == project_id,
-        ProjectActual.is_deleted == False,  # noqa: E712
-    ).all()
+    actuals = (
+        db.query(ProjectActual)
+        .filter(
+            ProjectActual.project_id == project_id,
+            ProjectActual.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     if not actuals:
-        return validate_agent_output(7, {
-            "actuals_processed": 0,
-            "variances_calculated": 0,
-            "productivity_updates": 0,
-            "accuracy_score": 0.0,
-            "total_estimated_cost": 0.0,
-            "total_actual_cost": 0.0,
-            "overall_variance_pct": 0.0,
-            "variance_method": None,
-            "variance_tokens_used": 0,
-            "variance_items": [],
-            "message": "No actuals data found for this project",
-        })
+        return validate_agent_output(
+            7,
+            {
+                "actuals_processed": 0,
+                "variances_calculated": 0,
+                "productivity_updates": 0,
+                "accuracy_score": 0.0,
+                "total_estimated_cost": 0.0,
+                "total_actual_cost": 0.0,
+                "overall_variance_pct": 0.0,
+                "variance_method": None,
+                "variance_tokens_used": 0,
+                "variance_items": [],
+                "message": "No actuals data found for this project",
+            },
+        )
 
     # Get labor estimates for comparison
-    labor_estimates = db.query(LaborEstimate).filter(
-        LaborEstimate.project_id == project_id,
-        LaborEstimate.is_deleted == False,  # noqa: E712
-    ).all()
+    labor_estimates = (
+        db.query(LaborEstimate)
+        .filter(
+            LaborEstimate.project_id == project_id,
+            LaborEstimate.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     # Get takeoff items for quantity data
-    takeoff_items = db.query(TakeoffItem).filter(
-        TakeoffItem.project_id == project_id,
-        TakeoffItem.is_deleted == False,  # noqa: E712
-    ).all()
+    takeoff_items = (
+        db.query(TakeoffItem)
+        .filter(
+            TakeoffItem.project_id == project_id,
+            TakeoffItem.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
     takeoff_map = {t.id: t for t in takeoff_items}
 
     # Build estimate items for comparison
     estimate_items = []
     for le in labor_estimates:
         takeoff = takeoff_map.get(le.takeoff_item_id)
-        estimate_items.append({
-            "csi_code": le.csi_code,
-            "description": le.work_type or "",
-            "estimated_quantity": takeoff.quantity if takeoff else le.quantity,
-            "estimated_labor_hours": le.labor_hours * le.crew_size,
-            "estimated_cost": le.total_labor_cost,
-        })
+        estimate_items.append(
+            {
+                "csi_code": le.csi_code,
+                "description": le.work_type or "",
+                "estimated_quantity": takeoff.quantity if takeoff else le.quantity,
+                "estimated_labor_hours": le.labor_hours * le.crew_size,
+                "estimated_cost": le.total_labor_cost,
+            }
+        )
 
     actual_items = [
         {
@@ -506,9 +551,7 @@ def run_improve_agent(db: Session, project_id: int, use_llm: bool = True) -> dic
     total_act = sum(v.get("actual_cost", 0) for v in variances)
     accuracy = (1 - abs(total_act - total_est) / total_est) * 100 if total_est > 0 else 0
     accuracy = max(0, min(100, accuracy))
-    overall_variance_pct = (
-        round((total_act - total_est) / total_est * 100, 2) if total_est > 0 else 0
-    )
+    overall_variance_pct = round((total_act - total_est) / total_est * 100, 2) if total_est > 0 else 0
 
     # -----------------------------------------------------------------------
     # Step 2: LLM variance analysis — explains causes, recommends adjustments
@@ -551,6 +594,7 @@ def run_improve_agent(db: Session, project_id: int, use_llm: bool = True) -> dic
     else:
         try:
             from apex.backend.services.llm_provider import get_llm_provider
+
             provider = get_llm_provider(agent_number=7)
             llm_available = _run_async(provider.health_check())
 
@@ -582,19 +626,14 @@ def run_improve_agent(db: Session, project_id: int, use_llm: bool = True) -> dic
                         f"{variance_tokens_used} tokens, method=llm"
                     )
                 else:
-                    logger.warning(
-                        "Agent 7 LLM: returned no valid items — falling back to statistical comparison"
-                    )
+                    logger.warning("Agent 7 LLM: returned no valid items — falling back to statistical comparison")
             else:
                 logger.info(
-                    f"Agent 7: LLM provider '{provider.provider_name}' unreachable — "
-                    "using statistical fallback"
+                    f"Agent 7: LLM provider '{provider.provider_name}' unreachable — using statistical fallback"
                 )
         except Exception as exc:
             # FALLBACK: Rule-based path when LLM unavailable (Sprint 8)
-            logger.warning(
-                f"Agent 7: LLM call failed ({exc}) — using rule-based fallback"
-            )
+            logger.warning(f"Agent 7: LLM call failed ({exc}) — using rule-based fallback")
             variance_items = _generate_fallback_recommendations(latest_estimate, critical_gap_count)
             variance_method = "rule_based"
 
@@ -619,6 +658,7 @@ def run_improve_agent(db: Session, project_id: int, use_llm: bool = True) -> dic
     # Try v2 path first: persist to IntelligenceReport if one exists
     try:
         from apex.backend.models.intelligence_report import IntelligenceReportModel
+
         intel_report = (
             db.query(IntelligenceReportModel)
             .filter_by(project_id=project_id)
@@ -642,10 +682,7 @@ def run_improve_agent(db: Session, project_id: int, use_llm: bool = True) -> dic
         latest_estimate.variance_report_json = variance_report
         db.commit()
         persisted_to = persisted_to or "estimate"
-        logger.info(
-            f"Agent 7: variance report stored on estimate_id={latest_estimate.id} "
-            f"(project_id={project_id})"
-        )
+        logger.info(f"Agent 7: variance report stored on estimate_id={latest_estimate.id} (project_id={project_id})")
     elif persisted_to != "intelligence_report":
         logger.warning(
             f"Agent 7: no estimate or intelligence report found for project_id={project_id} — "
@@ -657,15 +694,18 @@ def run_improve_agent(db: Session, project_id: int, use_llm: bool = True) -> dic
         f"updates={len(updates)} accuracy={accuracy:.1f}% method={variance_method}"
     )
 
-    return validate_agent_output(7, {
-        "actuals_processed": len(actuals),
-        "variances_calculated": len(variances),
-        "productivity_updates": len(updates),
-        "accuracy_score": round(accuracy, 1),
-        "total_estimated_cost": round(total_est, 2),
-        "total_actual_cost": round(total_act, 2),
-        "overall_variance_pct": overall_variance_pct,
-        "variance_method": variance_method,
-        "variance_tokens_used": variance_tokens_used,
-        "variance_items": [item.model_dump() for item in variance_items],
-    })
+    return validate_agent_output(
+        7,
+        {
+            "actuals_processed": len(actuals),
+            "variances_calculated": len(variances),
+            "productivity_updates": len(updates),
+            "accuracy_score": round(accuracy, 1),
+            "total_estimated_cost": round(total_est, 2),
+            "total_actual_cost": round(total_act, 2),
+            "overall_variance_pct": overall_variance_pct,
+            "variance_method": variance_method,
+            "variance_tokens_used": variance_tokens_used,
+            "variance_items": [item.model_dump() for item in variance_items],
+        },
+    )

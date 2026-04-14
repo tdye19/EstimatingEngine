@@ -10,12 +10,11 @@ and Google Gemini API via a unified interface.  Provider selection uses a three-
   3. Legacy env var      → LLM_PROVIDER (backwards-compatible)
 """
 
+import logging
 import os
 import time
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 import httpx
 
@@ -64,26 +63,29 @@ async def close_http_clients() -> None:
 def get_http_client(provider: str) -> httpx.AsyncClient:
     return _clients.get(provider)
 
+
 # ---------------------------------------------------------------------------
 # Response dataclass
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class LLMResponse:
-    content: str            # The text response
-    model: str              # Which model was used
-    provider: str           # "ollama", "anthropic", or "gemini"
-    input_tokens: int       # Token usage (0 if unavailable)
-    output_tokens: int      # Token usage (0 if unavailable)
-    duration_ms: float      # Wall clock time for the call
+    content: str  # The text response
+    model: str  # Which model was used
+    provider: str  # "ollama", "anthropic", or "gemini"
+    input_tokens: int  # Token usage (0 if unavailable)
+    output_tokens: int  # Token usage (0 if unavailable)
+    duration_ms: float  # Wall clock time for the call
     cache_creation_input_tokens: int = 0  # Anthropic: tokens written to cache
-    cache_read_input_tokens: int = 0      # Anthropic: tokens read from cache
-    finish_reason: str = ""               # "STOP", "MAX_TOKENS", etc.
+    cache_read_input_tokens: int = 0  # Anthropic: tokens read from cache
+    finish_reason: str = ""  # "STOP", "MAX_TOKENS", etc.
 
 
 # ---------------------------------------------------------------------------
 # Abstract base
 # ---------------------------------------------------------------------------
+
 
 class LLMProvider(ABC):
     @abstractmethod
@@ -117,11 +119,12 @@ class LLMProvider(ABC):
 # Ollama (local)
 # ---------------------------------------------------------------------------
 
+
 class OllamaProvider(LLMProvider):
     def __init__(
         self,
-        base_url: Optional[str] = None,
-        model: Optional[str] = None,
+        base_url: str | None = None,
+        model: str | None = None,
     ):
         self._base_url = (base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
         self._model = model or os.getenv("OLLAMA_MODEL", "llama3.2")
@@ -186,11 +189,12 @@ class OllamaProvider(LLMProvider):
 # Anthropic Claude
 # ---------------------------------------------------------------------------
 
+
 class AnthropicProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: Optional[str] = None,
+        model: str | None = None,
     ):
         self._api_key = api_key
         self._model = model or os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
@@ -309,6 +313,7 @@ class AnthropicProvider(LLMProvider):
 # OpenRouter (Anthropic-compatible proxy)
 # ---------------------------------------------------------------------------
 
+
 class OpenRouterProvider(AnthropicProvider):
     """Route requests through OpenRouter.
 
@@ -317,7 +322,7 @@ class OpenRouterProvider(AnthropicProvider):
     other models (Gemini, Llama, etc.).
     """
 
-    def __init__(self, api_key: str, model: Optional[str] = None):
+    def __init__(self, api_key: str, model: str | None = None):
         super().__init__(api_key=api_key.strip(), model=model)
         self._base_url = "https://openrouter.ai/api/v1"
         logger.info("OpenRouter API key loaded: %d chars", len(self._api_key))
@@ -343,10 +348,16 @@ class OpenRouterProvider(AnthropicProvider):
     ) -> LLMResponse:
         if self._is_anthropic_model():
             return await self._complete_messages(
-                system_prompt, user_prompt, temperature, max_tokens,
+                system_prompt,
+                user_prompt,
+                temperature,
+                max_tokens,
             )
         return await self._complete_chat(
-            system_prompt, user_prompt, temperature, max_tokens,
+            system_prompt,
+            user_prompt,
+            temperature,
+            max_tokens,
         )
 
     # -- Anthropic Messages API path (Claude models) -----------------------
@@ -544,6 +555,7 @@ class OpenRouterProvider(AnthropicProvider):
 # Google Gemini
 # ---------------------------------------------------------------------------
 
+
 class GeminiProvider(LLMProvider):
     """Google Gemini via REST API (generateContent endpoint).
 
@@ -556,7 +568,7 @@ class GeminiProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: Optional[str] = None,
+        model: str | None = None,
     ):
         self._api_key = api_key
         self._model = model or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -580,9 +592,7 @@ class GeminiProvider(LLMProvider):
         url = f"{self._BASE_URL}/{self._model}:generateContent"
         params = {"key": self._api_key}
         payload = {
-            "system_instruction": {
-                "parts": [{"text": system_prompt}]
-            },
+            "system_instruction": {"parts": [{"text": system_prompt}]},
             "contents": [
                 {
                     "role": "user",
@@ -605,10 +615,8 @@ class GeminiProvider(LLMProvider):
                 )
                 resp.raise_for_status()
                 data = resp.json()
-            except (httpx.TransportError, RuntimeError) as exc:
-                logger.warning(
-                    "Gemini pooled client transport closed — creating fresh client for this request"
-                )
+            except (httpx.TransportError, RuntimeError):
+                logger.warning("Gemini pooled client transport closed — creating fresh client for this request")
                 fresh = httpx.AsyncClient(timeout=300.0)
                 try:
                     resp = await fresh.post(url, json=payload, params=params)
@@ -683,7 +691,8 @@ class GeminiProvider(LLMProvider):
 # Internal builder
 # ---------------------------------------------------------------------------
 
-def _build_provider(provider_name: str, model: Optional[str]) -> LLMProvider:
+
+def _build_provider(provider_name: str, model: str | None) -> LLMProvider:
     """Instantiate a provider by name, injecting the correct API key."""
     name = provider_name.lower()
     if name == "anthropic":
@@ -711,9 +720,10 @@ def _build_provider(provider_name: str, model: Optional[str]) -> LLMProvider:
 # Public factory — three-level fallback chain
 # ---------------------------------------------------------------------------
 
+
 def get_llm_provider(
-    agent_number: Optional[int] = None,
-    suffix: Optional[str] = None,
+    agent_number: int | None = None,
+    suffix: str | None = None,
 ) -> LLMProvider:
     """Return the configured LLM provider using a three-level fallback chain.
 
@@ -784,13 +794,13 @@ def get_llm_provider(
 # Canonical agent roster for health reporting.
 # Each entry: (agent_number, suffix_or_None, label, description)
 AGENT_PROVIDER_ROSTER = [
-    (1,  None,      "agent_1_ingestion",          "Document Ingestion (Python only)"),
-    (2,  None,      "agent_2_spec_parser",         "Spec Parser"),
-    (3,  None,      "agent_3_scope_analysis",      "Scope Analysis"),
-    (4,  None,      "agent_4_rate_intelligence",   "Rate Intelligence (Python only)"),
-    (5,  None,      "agent_5_field_calibration",   "Field Calibration (Python only)"),
-    (6,  "SUMMARY", "agent_6_intelligence_report", "Intelligence Report — Executive Narrative"),
-    (7,  None,      "agent_7_improve",             "IMPROVE Feedback"),
+    (1, None, "agent_1_ingestion", "Document Ingestion (Python only)"),
+    (2, None, "agent_2_spec_parser", "Spec Parser"),
+    (3, None, "agent_3_scope_analysis", "Scope Analysis"),
+    (4, None, "agent_4_rate_intelligence", "Rate Intelligence (Python only)"),
+    (5, None, "agent_5_field_calibration", "Field Calibration (Python only)"),
+    (6, "SUMMARY", "agent_6_intelligence_report", "Intelligence Report — Executive Narrative"),
+    (7, None, "agent_7_improve", "IMPROVE Feedback"),
 ]
 
 

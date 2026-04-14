@@ -1,7 +1,8 @@
 """Agent Run Log model."""
 
-from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey, JSON, DateTime
+from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from apex.backend.db.database import Base
 from apex.backend.models.base import TimestampMixin
 

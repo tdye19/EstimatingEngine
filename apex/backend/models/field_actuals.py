@@ -1,7 +1,16 @@
 """Field Actuals models — what crews actually produced on completed projects."""
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Text, Date, DateTime, ForeignKey, Index, func,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
 )
 from sqlalchemy.orm import relationship
 
@@ -15,7 +24,7 @@ class FieldActualsProject(Base):
     name = Column(String, nullable=False)
     source_file = Column(String)
     file_hash = Column(String(32), unique=True)  # MD5 dedup
-    project_type = Column(String)      # "completed", "in_progress"
+    project_type = Column(String)  # "completed", "in_progress"
     completion_date = Column(Date)
     region = Column(String)
     notes = Column(Text)
@@ -38,7 +47,7 @@ class FieldActualsLineItem(Base):
     quantity = Column(Float)
     unit = Column(String)
     crew_trade = Column(String)
-    actual_production_rate = Column(Float)   # Unit/MH — what the crew actually did
+    actual_production_rate = Column(Float)  # Unit/MH — what the crew actually did
     actual_labor_hours = Column(Float)
     actual_labor_cost = Column(Float)
     actual_material_cost = Column(Float)

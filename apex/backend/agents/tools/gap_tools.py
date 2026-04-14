@@ -37,15 +37,17 @@ def checklist_compare_tool(parsed_sections: list[dict], master_checklist: dict) 
 
             if not found:
                 severity = "critical" if item.get("required", False) else "watch"
-                gaps.append({
-                    "division_number": div_num,
-                    "section_number": item["section"],
-                    "title": item["title"],
-                    "gap_type": "missing",
-                    "severity": severity,
-                    "description": f"Section {item['section']} ({item['title']}) not found in project specs.",
-                    "recommendation": f"Request clarification or add {'required' if item.get('required') else 'optional'} section {item['section']}.",
-                })
+                gaps.append(
+                    {
+                        "division_number": div_num,
+                        "section_number": item["section"],
+                        "title": item["title"],
+                        "gap_type": "missing",
+                        "severity": severity,
+                        "description": f"Section {item['section']} ({item['title']}) not found in project specs.",
+                        "recommendation": f"Request clarification or add {'required' if item.get('required') else 'optional'} section {item['section']}.",
+                    }
+                )
 
     return gaps
 

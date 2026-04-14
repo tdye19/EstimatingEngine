@@ -1,6 +1,6 @@
 """Change order router — create, update, and track scope changes after initial estimate."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -24,19 +24,27 @@ router = APIRouter(
 
 
 def _get_project_or_404(project_id: int, db: Session) -> Project:
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.is_deleted == False,  # noqa: E712
-    ).first()
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
 
 
 def _next_co_number(project_id: int, db: Session) -> str:
-    count = db.query(ChangeOrder).filter(
-        ChangeOrder.project_id == project_id,
-    ).count()
+    count = (
+        db.query(ChangeOrder)
+        .filter(
+            ChangeOrder.project_id == project_id,
+        )
+        .count()
+    )
     return f"CO-{count + 1:03d}"
 
 
@@ -95,11 +103,15 @@ def update_change_order(
     data: ChangeOrderUpdate,
     db: Session = Depends(get_db),
 ):
-    co = db.query(ChangeOrder).filter(
-        ChangeOrder.id == co_id,
-        ChangeOrder.project_id == project_id,
-        ChangeOrder.is_deleted == False,  # noqa: E712
-    ).first()
+    co = (
+        db.query(ChangeOrder)
+        .filter(
+            ChangeOrder.id == co_id,
+            ChangeOrder.project_id == project_id,
+            ChangeOrder.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not co:
         raise HTTPException(status_code=404, detail="Change order not found")
 
@@ -109,7 +121,7 @@ def update_change_order(
 
     # Auto-stamp approval time when status transitions to approved
     if data.status == "approved" and co.approved_at is None:
-        co.approved_at = datetime.now(timezone.utc)
+        co.approved_at = datetime.now(UTC)
 
     db.commit()
     db.refresh(co)
@@ -126,11 +138,15 @@ def delete_change_order(
     co_id: int,
     db: Session = Depends(get_db),
 ):
-    co = db.query(ChangeOrder).filter(
-        ChangeOrder.id == co_id,
-        ChangeOrder.project_id == project_id,
-        ChangeOrder.is_deleted == False,  # noqa: E712
-    ).first()
+    co = (
+        db.query(ChangeOrder)
+        .filter(
+            ChangeOrder.id == co_id,
+            ChangeOrder.project_id == project_id,
+            ChangeOrder.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
     if not co:
         raise HTTPException(status_code=404, detail="Change order not found")
     co.is_deleted = True
@@ -142,16 +158,18 @@ def delete_change_order(
 def change_order_summary(project_id: int, db: Session = Depends(get_db)):
     """Return aggregate cost and schedule impact by status."""
     _get_project_or_404(project_id, db)
-    orders = db.query(ChangeOrder).filter(
-        ChangeOrder.project_id == project_id,
-        ChangeOrder.is_deleted == False,  # noqa: E712
-    ).all()
+    orders = (
+        db.query(ChangeOrder)
+        .filter(
+            ChangeOrder.project_id == project_id,
+            ChangeOrder.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
 
     total_approved_cost = sum(co.cost_impact for co in orders if co.status == "approved")
     total_pending_cost = sum(co.cost_impact for co in orders if co.status == "pending")
-    total_schedule_impact = sum(
-        co.schedule_impact_days for co in orders if co.status == "approved"
-    )
+    total_schedule_impact = sum(co.schedule_impact_days for co in orders if co.status == "approved")
 
     by_status: dict = {}
     for co in orders:

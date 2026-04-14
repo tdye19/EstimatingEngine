@@ -9,8 +9,8 @@ Or called from seed.py during initial DB setup.
 """
 
 import json
-from sqlalchemy.orm import Session
 
+from sqlalchemy.orm import Session
 
 CANONICAL_ACTIVITIES = [
     # ── Division 01 — General Requirements ──────────────────────────────────
@@ -80,7 +80,6 @@ CANONICAL_ACTIVITIES = [
         "notes": "Final cleaning, punch list, demobilization.",
         "aliases": ["final clean", "demobilization", "closeout", "punch list"],
     },
-
     # ── Division 02 — Site Preparation ──────────────────────────────────────
     {
         "name": "Erosion Control",
@@ -134,7 +133,7 @@ CANONICAL_ACTIVITIES = [
         "scope_family": "sitework",
         "typical_cost_bucket": "direct_material",
         "common_dependencies": json.dumps(["Earthwork Excavation"]),
-        "notes": "Crushed stone base, typically 6-12\" compacted thickness.",
+        "notes": 'Crushed stone base, typically 6-12" compacted thickness.',
         "aliases": ["gravel base", "crushed stone", "ABC", "base course", "sub-base"],
     },
     {
@@ -148,7 +147,6 @@ CANONICAL_ACTIVITIES = [
         "notes": "Groundwater control during below-grade work. Often a risk allowance.",
         "aliases": ["well pointing", "pump and haul", "groundwater control"],
     },
-
     # ── Division 03 — Concrete ───────────────────────────────────────────────
     {
         "name": "Formwork",
@@ -229,7 +227,7 @@ def seed_canonical_activities(db: Session, overwrite: bool = False) -> int:
     Returns:
         Number of records inserted or updated.
     """
-    from apex.backend.models.decision_models import CanonicalActivity, ActivityAlias
+    from apex.backend.models.decision_models import ActivityAlias, CanonicalActivity
 
     count = 0
     for entry in CANONICAL_ACTIVITIES:
@@ -250,16 +248,17 @@ def seed_canonical_activities(db: Session, overwrite: bool = False) -> int:
             db.flush()
 
         # Upsert aliases
-        existing_aliases = {a.alias for a in db.query(ActivityAlias)
-                            .filter_by(canonical_activity_id=activity.id).all()}
+        existing_aliases = {a.alias for a in db.query(ActivityAlias).filter_by(canonical_activity_id=activity.id).all()}
         for alias_text in aliases_data:
             if alias_text not in existing_aliases:
-                db.add(ActivityAlias(
-                    canonical_activity_id=activity.id,
-                    alias=alias_text,
-                    source="ontology_seed",
-                    confidence=1.0,
-                ))
+                db.add(
+                    ActivityAlias(
+                        canonical_activity_id=activity.id,
+                        alias=alias_text,
+                        source="ontology_seed",
+                        confidence=1.0,
+                    )
+                )
 
         entry["aliases"] = aliases_data  # restore for idempotency
         count += 1
@@ -269,10 +268,12 @@ def seed_canonical_activities(db: Session, overwrite: bool = False) -> int:
 
 
 if __name__ == "__main__":
-    import sys, os
+    import os
+    import sys
+
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-    from apex.backend.db.database import SessionLocal
     import apex.backend.models  # noqa — ensure all tables are registered
+    from apex.backend.db.database import SessionLocal
 
     db = SessionLocal()
     try:
