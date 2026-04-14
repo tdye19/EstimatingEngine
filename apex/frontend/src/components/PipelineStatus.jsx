@@ -173,7 +173,8 @@ export default function PipelineStatus({ projectId, onComplete }) {
     // ── WebSocket primary connection ────────────────────────────────────────
     function connectWs() {
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const url   = `${proto}//${window.location.host}/ws/pipeline/${projectId}`;
+      const token = localStorage.getItem('apex_token');
+      const url   = `${proto}//${window.location.host}/ws/pipeline/${projectId}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 
       try {
         ws = new WebSocket(url);
