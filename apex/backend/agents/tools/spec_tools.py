@@ -144,8 +144,7 @@ async def llm_parse_spec_sections(document_text: str, provider) -> tuple[list[di
         )
         if finish in ("MAX_TOKENS", "max_tokens", "length"):
             logger.warning(
-                "Chunk %d/%d hit max_tokens limit — output may be truncated. "
-                "Consider smaller chunk size.",
+                "Chunk %d/%d hit max_tokens limit — output may be truncated. Consider smaller chunk size.",
                 chunk_num,
                 total_chunks,
             )

@@ -17,12 +17,8 @@ logger = logging.getLogger("apex.token_tracker")
 # Budget constants — configurable via env vars.
 # New names (PROJECT_TOKEN_LIMIT / PROJECT_COST_LIMIT) take priority;
 # old names (PROJECT_TOKEN_BUDGET / PROJECT_COST_BUDGET) are kept for back-compat.
-PROJECT_TOKEN_BUDGET = int(
-    os.getenv("PROJECT_TOKEN_LIMIT") or os.getenv("PROJECT_TOKEN_BUDGET") or str(20_000_000)
-)
-PROJECT_COST_BUDGET = float(
-    os.getenv("PROJECT_COST_LIMIT") or os.getenv("PROJECT_COST_BUDGET") or "100.0"
-)
+PROJECT_TOKEN_BUDGET = int(os.getenv("PROJECT_TOKEN_LIMIT") or os.getenv("PROJECT_TOKEN_BUDGET") or str(20_000_000))
+PROJECT_COST_BUDGET = float(os.getenv("PROJECT_COST_LIMIT") or os.getenv("PROJECT_COST_BUDGET") or "100.0")
 
 _BUDGET_WARN_THRESHOLD = 0.80  # emit WARNING when usage reaches 80% of either limit
 
