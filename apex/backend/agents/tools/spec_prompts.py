@@ -262,16 +262,36 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
             skipped_fields += 1
             continue
 
-        # Normalize section number to "XX XX XX" format
+        # Normalize section number — accept 5-8 digit CSI MasterFormat numbers.
+        # 6-digit  → "XX XX XX"       (Level 3, e.g. "03 30 00")
+        # 8-digit  → "XX XX XX.XX"    (Level 4, e.g. "26 24 13.00")
+        # 5-digit  → pad to 6, then same as 6-digit
+        # 7-digit  → pad trailing zero to 8, then same as 8-digit
+        # <5 or >8 → rejected
         raw_num = str(s["section_number"]).strip()
         digits = re.sub(r"\D", "", raw_num)
-        if 3 <= len(digits) <= 5:
-            digits = digits.zfill(6)
-        if len(digits) != 6:
+        n = len(digits)
+
+        if n < 5 or n > 8:
             skipped_numbers += 1
-            logger.warning("Skipping section with invalid number %r (digits=%r)", raw_num, digits)
+            logger.warning(
+                "Skipping section with invalid number %r (digits=%r, len=%d)",
+                raw_num, digits, n,
+            )
             continue
-        num = f"{digits[:2]} {digits[2:4]} {digits[4:6]}"
+
+        if n == 5:
+            digits = digits.zfill(6)
+            n = 6
+
+        if n == 7:
+            digits = digits + "0"
+            n = 8
+
+        if n == 6:
+            num = f"{digits[:2]} {digits[2:4]} {digits[4:6]}"
+        else:  # n == 8
+            num = f"{digits[:2]} {digits[2:4]} {digits[4:6]}.{digits[6:8]}"
 
         division = str(s.get("division", digits[:2])).strip().zfill(2)
 
@@ -296,5 +316,14 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
             skipped_numbers,
             len(sections),
         )
+
+    logger.info(
+        "Sections accepted: %d, skipped: %d (fields=%d, number=%d) of %d parsed",
+        len(validated),
+        skipped_fields + skipped_numbers,
+        skipped_fields,
+        skipped_numbers,
+        len(sections),
+    )
 
     return validated
