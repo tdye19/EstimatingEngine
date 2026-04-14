@@ -287,7 +287,15 @@ def parse_and_validate_llm_sections(raw_response: str) -> list[dict]:
             n = 6
 
         if n == 7:
-            digits = digits + "0"
+            # Ambiguous: either a "XX XX XX.X" Level-4 shorthand (right-pad),
+            # or an 8-digit division-01–09 number whose leading zero was
+            # stripped when the LLM emitted section_number as a JSON integer.
+            # Use the declared division field to pick the correct direction.
+            declared_div = str(s.get("division", "")).strip().zfill(2)
+            if declared_div.startswith("0") and digits[0] != "0":
+                digits = "0" + digits  # restore stripped leading zero
+            else:
+                digits = digits + "0"  # "XX XX XX.X" → "XX XX XX.X0"
             n = 8
 
         if n == 6:
