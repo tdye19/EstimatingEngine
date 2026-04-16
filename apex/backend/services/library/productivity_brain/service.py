@@ -5,8 +5,8 @@ from difflib import SequenceMatcher
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from apex.backend.services.productivity_brain.models import PBLineItem, PBProject
-from apex.backend.services.productivity_brain.parser import (
+from apex.backend.services.library.productivity_brain.models import PBLineItem, PBProject
+from apex.backend.services.library.productivity_brain.parser import (
     compute_file_hash,
     detect_format,
     parse_21col,

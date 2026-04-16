@@ -169,11 +169,11 @@ export const uploadFieldActuals = (file, projectName, region) => {
   form.append('file', file);
   if (projectName) form.append('project_name', projectName);
   if (region) form.append('region', region);
-  return request('/field-actuals/upload', { method: 'POST', body: form });
+  return request('/library/field-actuals/upload', { method: 'POST', body: form });
 };
 
 export const getFieldActualsStats = () =>
-  request('/field-actuals/stats');
+  request('/library/field-actuals/stats');
 
 export const updateTakeoffItem = (projectId, itemId, data) =>
   request(`/projects/${projectId}/takeoff/${itemId}`, {
@@ -497,78 +497,82 @@ export const updateDocumentAssociation = (assocId, data) =>
 export const processWinest = (assocId) =>
   request(`/batch-import/process-winest/${assocId}`, { method: 'POST' });
 
-// ── Benchmarks ────────────────────────────────────────
+// ── Benchmarks (Library) ──────────────────────────────
 export const getBenchmarks = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  return request(`/benchmarks/${qs ? `?${qs}` : ''}`);
+  return request(`/library/benchmarks/${qs ? `?${qs}` : ''}`);
 };
 
-export const getBenchmarkSummary = () => request('/benchmarks/summary');
+export const getBenchmarkSummary = () => request('/library/benchmarks/stats');
 
 export const getBenchmarkDetail = (csiCode) =>
-  request(`/benchmarks/${encodeURIComponent(csiCode)}`);
+  request(`/library/benchmarks/${encodeURIComponent(csiCode)}`);
 
 export const recomputeBenchmarks = () =>
-  request('/benchmarks/compute', { method: 'POST' });
+  request('/library/benchmarks/compute', { method: 'POST' });
 
-// ── Productivity Brain ──────────────────────────────
+// ── Productivity Brain (Library) ────────────────────
 export const pbUploadFiles = (files) => {
   const form = new FormData();
   files.forEach((f) => form.append('files', f));
-  return request('/productivity-brain/upload', { method: 'POST', body: form });
+  return request('/library/productivity-brain/upload', { method: 'POST', body: form });
 };
 
-export const pbGetStats = () => request('/productivity-brain/stats');
+export const pbGetStats = () => request('/library/productivity-brain/stats');
 
 export const pbGetRates = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  return request(`/productivity-brain/rates${qs ? `?${qs}` : ''}`);
+  return request(`/library/productivity-brain/rates${qs ? `?${qs}` : ''}`);
 };
 
 export const pbCompareEstimate = (items) =>
-  request('/productivity-brain/compare', {
+  request('/library/productivity-brain/compare', {
     method: 'POST',
     body: JSON.stringify(items),
   });
 
-export const pbGetProjects = () => request('/productivity-brain/projects');
+export const pbGetProjects = () => request('/library/productivity-brain/projects');
 
 export const pbMatchActivity = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  return request(`/productivity-brain/match${qs ? `?${qs}` : ''}`);
+  return request(`/library/productivity-brain/match${qs ? `?${qs}` : ''}`);
 };
 
-// ── Bid Intelligence ────────────────────────────────
+// ── Bid Intelligence (Library) ──────────────────────
 export const biUploadFile = (file) => {
   const form = new FormData();
   form.append('file', file);
-  return request('/bid-intelligence/upload', { method: 'POST', body: form });
+  return request('/library/bid-intelligence/upload', { method: 'POST', body: form });
 };
 
-export const biGetStats = () => request('/bid-intelligence/stats');
+export const biGetStats = () => request('/library/bid-intelligence/stats');
 
 export const biGetBenchmarks = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  return request(`/bid-intelligence/benchmarks${qs ? `?${qs}` : ''}`);
+  return request(`/library/bid-intelligence/benchmarks${qs ? `?${qs}` : ''}`);
 };
 
 export const biGetComparable = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  return request(`/bid-intelligence/comparable${qs ? `?${qs}` : ''}`);
+  return request(`/library/bid-intelligence/comparable${qs ? `?${qs}` : ''}`);
 };
 
 export const biGetEstimatorPerformance = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  return request(`/bid-intelligence/estimator-performance${qs ? `?${qs}` : ''}`);
+  return request(`/library/bid-intelligence/estimator-performance${qs ? `?${qs}` : ''}`);
 };
 
 export const biGetHitRate = (groupBy = 'market_sector') =>
-  request(`/bid-intelligence/hit-rate?group_by=${groupBy}`);
+  request(`/library/bid-intelligence/hit-rate?group_by=${groupBy}`);
 
 export const biGetEstimates = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  return request(`/bid-intelligence/estimates${qs ? `?${qs}` : ''}`);
+  return request(`/library/bid-intelligence/estimates${qs ? `?${qs}` : ''}`);
 };
+
+// ── Field Actuals (Library) ──────────────────────────
+export const faGetStats = () => request('/library/field-actuals/stats');
+export const faGetProjects = () => request('/library/field-actuals/projects');
 
 // ── Decision System ──────────────────────────────────
 export const updateProjectContext = (projectId, data) =>

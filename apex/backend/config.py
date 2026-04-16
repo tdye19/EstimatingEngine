@@ -34,6 +34,7 @@ OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.2")
 PORT: int = int(os.getenv("PORT", "8000"))
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
 APEX_DEV_MODE: bool = os.getenv("APEX_DEV_MODE", "").lower() in ("true", "1", "yes")
+APEX_DEMO_MODE: bool = os.getenv("APEX_DEMO_MODE", "").lower() in ("true", "1", "yes")
 
 _cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000")
 CORS_ORIGINS: list[str] = [o.strip() for o in _cors_env.split(",") if o.strip()]

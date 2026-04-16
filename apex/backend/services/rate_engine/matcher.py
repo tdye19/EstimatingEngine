@@ -28,7 +28,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from apex.backend.agents.pipeline_contracts import RateRecommendation, TakeoffLineItem
-from apex.backend.services.productivity_brain.models import PBLineItem
+from apex.backend.services.library.productivity_brain.models import PBLineItem
 
 
 class RateMatchingEngine:

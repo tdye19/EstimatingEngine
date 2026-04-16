@@ -1,11 +1,12 @@
 """Token usage and cost tracking API endpoints."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.models.token_usage import AGENT_LABELS, TokenUsage, calculate_cost
 from apex.backend.utils.auth import require_auth
+from apex.backend.utils.feature_flags import feature_visible
 from apex.backend.utils.schemas import APIResponse
 
 router = APIRouter(prefix="/api", tags=["token-usage"], dependencies=[Depends(require_auth)])
@@ -17,6 +18,8 @@ def get_project_token_usage(
     db: Session = Depends(get_db),
 ):
     """Return all TokenUsage records for a project, newest first."""
+    if not feature_visible("cost_tracking"):
+        raise HTTPException(404, detail="Feature not available in demo mode")
     records = (
         db.query(TokenUsage)
         .filter(
@@ -62,6 +65,8 @@ def get_token_usage_summary(
 
     Optional query param ?project_id=N filters to a single project.
     """
+    if not feature_visible("cost_tracking"):
+        raise HTTPException(404, detail="Feature not available in demo mode")
     base_q = db.query(TokenUsage).filter(TokenUsage.is_deleted == False)  # noqa: E712
     if project_id is not None:
         base_q = base_q.filter(TokenUsage.project_id == project_id)

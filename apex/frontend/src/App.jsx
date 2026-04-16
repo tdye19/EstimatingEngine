@@ -14,6 +14,13 @@ const FieldActualsPage = lazy(() => import('./pages/FieldActualsPage'));
 const ComparePage = lazy(() => import('./pages/ComparePage'));
 const BenchmarkingPage = lazy(() => import('./pages/BenchmarkingPage'));
 
+// Library surface
+const LibraryDashboard = lazy(() => import('./pages/library/LibraryDashboard'));
+const ProductivityBrainLibrary = lazy(() => import('./pages/library/ProductivityBrainLibrary'));
+const FieldActualsLibrary = lazy(() => import('./pages/library/FieldActualsLibrary'));
+const BidIntelligenceLibrary = lazy(() => import('./pages/library/BidIntelligenceLibrary'));
+const BenchmarksLibrary = lazy(() => import('./pages/library/BenchmarksLibrary'));
+
 export default function App() {
   const { token, user } = useAuth();
 
@@ -40,6 +47,12 @@ export default function App() {
             <Route path="/compare" element={<ComparePage />} />
             <Route path="/field-entry" element={<FieldActualsPage />} />
             <Route path="/benchmarking" element={<BenchmarkingPage />} />
+            {/* Library surface */}
+            <Route path="/library" element={<LibraryDashboard />} />
+            <Route path="/library/productivity-brain" element={<ProductivityBrainLibrary />} />
+            <Route path="/library/field-actuals" element={<FieldActualsLibrary />} />
+            <Route path="/library/bid-intelligence" element={<BidIntelligenceLibrary />} />
+            <Route path="/library/benchmarks" element={<BenchmarksLibrary />} />
             {user?.role === 'admin' && (
               <Route path="/admin" element={<AdminPage />} />
             )}

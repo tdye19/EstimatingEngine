@@ -9,11 +9,11 @@ from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.models.user import User
-from apex.backend.services.field_actuals.service import FieldActualsService
+from apex.backend.services.library.field_actuals.service import FieldActualsService
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
 
-router = APIRouter(prefix="/api/field-actuals", tags=["field-actuals"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/library/field-actuals", tags=["field-actuals"], dependencies=[Depends(require_auth)])
 
 
 @router.post("/upload", response_model=APIResponse)

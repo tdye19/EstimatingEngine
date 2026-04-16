@@ -60,32 +60,28 @@ const RateIntelligenceTab = lazy(() => import('../components/tabs/RateIntelligen
 const FieldCalibrationTab = lazy(() => import('../components/tabs/FieldCalibrationTab'));
 const IntelligenceReportTab = lazy(() => import('../components/tabs/IntelligenceReportTab'));
 
-const TABS = [
+const DEMO_MODE = import.meta.env.VITE_APEX_DEMO_MODE === 'true';
+
+const CORE_TABS = [
   { path: 'intelligence-report', label: 'Intelligence Report', icon: Shield },
-  { path: 'documents', label: 'Documents', icon: Files },
-  { path: 'spec-sections', label: 'Spec Sections', icon: BookOpen },
-  { path: 'gap-report', label: 'Gap Report', icon: AlertTriangle },
+  { path: 'documents', label: 'Upload', icon: Files },
   { path: 'rate-intelligence', label: 'Rate Intelligence', icon: Scale },
-  { path: 'field-calibration', label: 'Field Calibration', icon: Activity },
-  { path: 'takeoff', label: 'Takeoff', icon: Ruler },
-  { path: 'labor', label: 'Labor', icon: HardHat },
+  { path: 'gap-report', label: 'Scope Gaps', icon: AlertTriangle },
+  { path: 'spec-sections', label: 'Spec Sections', icon: BookOpen },
   { path: 'estimate', label: 'Estimate', icon: Calculator },
-  { path: 'shadow-comparison', label: 'Shadow Compare', icon: Search },
-  { path: 'estimate-versions', label: 'Versions', icon: GitBranch },
-  { path: 'bid-comparison', label: 'Bid Compare', icon: BarChart2 },
-  { path: 'sub-packages', label: 'Sub Packages', icon: Package },
-  { path: 'change-orders', label: 'Change Orders', icon: FileDiff },
-  { path: 'variance', label: 'Variance', icon: TrendingUp },
-  { path: 'schedule', label: 'Schedule', icon: Calendar },
-  { path: 'agents', label: 'Agent Logs', icon: Activity },
-  { path: 'cost-tracking', label: 'Cost Tracking', icon: DollarSign },
-  { path: 'estimate-library', label: 'Estimate Library', icon: LibraryBig },
-  { path: 'batch-import', label: 'Batch Import', icon: FolderArchive },
-  { path: 'benchmarks', label: 'Benchmarks', icon: BarChart2 },
-  { path: 'productivity-brain', label: 'Productivity Brain', icon: Brain },
-  { path: 'bid-intelligence', label: 'Bid Intelligence', icon: Target },
-  { path: 'decision-estimate', label: 'Decision Estimate', icon: TrendingDown },
 ];
+
+const ADMIN_TABS = DEMO_MODE
+  ? []
+  : [
+      { path: 'field-calibration', label: 'Field Calibration', icon: Activity },
+      { path: 'variance', label: 'IMPROVE', icon: TrendingUp },
+      { path: 'shadow-comparison', label: 'Shadow Mode', icon: Search },
+      { path: 'cost-tracking', label: 'Cost Tracking', icon: DollarSign },
+      { path: 'agents', label: 'Agent Logs', icon: Activity },
+    ];
+
+const TABS = [...CORE_TABS, ...ADMIN_TABS];
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
