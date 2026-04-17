@@ -38,7 +38,7 @@ from apex.backend.routers import material_prices as material_prices_router
 from apex.backend.routers import materials as materials_router
 from apex.backend.routers import notifications as notifications_router
 from apex.backend.routers import pdf_parser as pdf_parser_router
-from apex.backend.routers import productivity_brain as productivity_brain_router
+from apex.backend.routers.library import productivity_brain as productivity_brain_router
 from apex.backend.routers import retrieval as retrieval_router
 from apex.backend.routers import sub_bids as sub_bids_router
 from apex.backend.routers import test_pipeline as test_pipeline_router

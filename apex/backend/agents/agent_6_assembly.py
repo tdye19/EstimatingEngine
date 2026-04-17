@@ -47,7 +47,7 @@ from apex.backend.models.spec_section import SpecSection
 from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.services.bid_intelligence.models import BIEstimate
 from apex.backend.services.field_actuals.service import FieldActualsService
-from apex.backend.services.productivity_brain.models import PBLineItem, PBProject
+from apex.backend.services.library.productivity_brain.models import PBLineItem, PBProject
 from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.utils.csi_utils import parse_csi_division

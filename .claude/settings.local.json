@@ -68,7 +68,14 @@
       "Bash(PYTHONPATH=. python -m pytest apex/backend/tests/test_auth.py -v --tb=short)",
       "Bash(PYTHONPATH=. python -m pytest apex/backend/tests/test_auth.py::TestLogin::test_login_success -v --tb=long)",
       "Bash(PYTHONPATH=. python -m pytest apex/backend/tests/test_projects.py -v --tb=short)",
-      "Bash(PYTHONPATH=. python:*)"
+      "Bash(PYTHONPATH=. python:*)",
+      "Bash(mkdir -p apex/backend/services/library)",
+      "Bash(touch apex/backend/services/library/__init__.py)",
+      "Bash(mkdir -p apex/backend/routers/library)",
+      "Bash(touch apex/backend/routers/library/__init__.py)",
+      "Bash(git mv:*)",
+      "Bash(nohup python:*)",
+      "Bash(echo \"PID: $!\")"
     ]
   }
 }

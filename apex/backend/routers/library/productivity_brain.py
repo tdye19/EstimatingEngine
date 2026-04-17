@@ -8,13 +8,13 @@ from sqlalchemy.orm import Session
 
 from apex.backend.config import UPLOAD_DIR
 from apex.backend.db.database import get_db
-from apex.backend.services.productivity_brain.models import PBProject
-from apex.backend.services.productivity_brain.service import ProductivityBrainService
+from apex.backend.services.library.productivity_brain.models import PBProject
+from apex.backend.services.library.productivity_brain.service import ProductivityBrainService
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
 
 router = APIRouter(
-    prefix="/api/productivity-brain",
+    prefix="/api/library/productivity-brain",
     tags=["productivity-brain"],
     dependencies=[Depends(require_auth)],
 )
