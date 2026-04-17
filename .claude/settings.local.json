@@ -88,7 +88,10 @@
       "Bash(sed -i 's|/benchmarks/|/library/benchmarks/|g' apex/frontend/src/api.js)",
       "Read(//workspaces/**)",
       "Bash(echo \"Backend PID: $!\" sleep 8 grep -E \"Application startup complete|ERROR|Traceback\" /tmp/uvicorn-17-1d1.log)",
-      "Bash(pkill -f \"uvicorn apex.backend.main:app\" sleep 2 ps -ef)"
+      "Bash(pkill -f \"uvicorn apex.backend.main:app\" sleep 2 ps -ef)",
+      "Bash(env)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(python -m uvicorn apex.backend.main:app --port 8000)"
     ]
   }
 }

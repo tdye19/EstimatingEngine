@@ -23,6 +23,7 @@ from apex.backend.models.upload_session import UploadSession
 from apex.backend.models.user import User
 from apex.backend.services.crew_orchestrator import get_orchestrator
 from apex.backend.utils.auth import ALGORITHM, SECRET_KEY, get_authorized_project, get_current_user, require_auth
+from apex.backend.utils.feature_flags import feature_visible
 from apex.backend.utils.schemas import (
     AgentStepStatus,
     APIResponse,
@@ -186,6 +187,9 @@ def get_shadow_comparison(
     user: User = Depends(require_auth),
 ):
     """Return shadow comparison data: APEX estimate vs manual estimate."""
+    if not feature_visible("shadow_comparison"):
+        raise HTTPException(status_code=404, detail="Feature not available in demo mode")
+
     from apex.backend.models.estimate import Estimate, EstimateLineItem
 
     project = get_authorized_project(project_id, user, db)

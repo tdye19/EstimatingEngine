@@ -60,6 +60,17 @@ const RateIntelligenceTab = lazy(() => import('../components/tabs/RateIntelligen
 const FieldCalibrationTab = lazy(() => import('../components/tabs/FieldCalibrationTab'));
 const IntelligenceReportTab = lazy(() => import('../components/tabs/IntelligenceReportTab'));
 
+const DEMO_MODE = import.meta.env.VITE_APEX_DEMO_MODE === 'true';
+
+const HIDDEN_IN_DEMO = new Set([
+  'productivity-brain',
+  'bid-intelligence',
+  'benchmarks',
+  'field-calibration',
+  'cost-tracking',
+  'shadow-comparison',
+]);
+
 const TABS = [
   { path: 'intelligence-report', label: 'Intelligence Report', icon: Shield },
   { path: 'documents', label: 'Documents', icon: Files },
@@ -285,7 +296,7 @@ export default function ProjectDetailPage() {
 
       {/* Tabs nav */}
       <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
-        {TABS.map(({ path, label, icon: Icon }) => (
+        {TABS.filter(({ path }) => !(DEMO_MODE && HIDDEN_IN_DEMO.has(path))).map(({ path, label, icon: Icon }) => (
           <NavLink
             key={path}
             to={`/projects/${id}/${path}`}

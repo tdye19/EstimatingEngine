@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   Library,
+  LibraryBig,
   LogOut,
   Zap,
   Shield,
@@ -15,6 +16,7 @@ import LLMStatus from './LLMStatus';
 
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/library', icon: LibraryBig, label: 'Library' },
   { to: '/productivity', icon: Library, label: 'Productivity Library' },
   { to: '/materials', icon: DollarSign, label: 'Material Prices' },
   { to: '/compare', icon: ArrowLeftRight, label: 'Compare' },

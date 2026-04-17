@@ -17,6 +17,7 @@ from apex.backend.models.takeoff_item import TakeoffItem
 from apex.backend.models.user import User
 from apex.backend.utils.auth import get_authorized_project, require_auth
 from apex.backend.utils.csi_utils import parse_csi_division
+from apex.backend.utils.feature_flags import feature_visible
 from apex.backend.utils.schemas import (
     AgentRunLogOut,
     APIResponse,
@@ -295,6 +296,9 @@ def get_rate_intelligence(project_id: int, db: Session = Depends(get_db), user: 
 @router.get("/{project_id}/field-calibration", response_model=APIResponse)
 def get_field_calibration(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
     """Return Agent 5 v2 field actuals comparisons for this project."""
+    if not feature_visible("field_calibration"):
+        raise HTTPException(status_code=404, detail="Feature not available in demo mode")
+
     from apex.backend.models.takeoff_v2 import TakeoffItemV2
     from apex.backend.services.library.field_actuals.service import FieldActualsService
 
