@@ -75,7 +75,13 @@
       "Bash(touch apex/backend/routers/library/__init__.py)",
       "Bash(git mv:*)",
       "Bash(nohup python:*)",
-      "Bash(echo \"PID: $!\")"
+      "Bash(echo \"PID: $!\")",
+      "Bash(sed -i 's|apex\\\\.backend\\\\.services\\\\.bid_intelligence|apex.backend.services.library.bid_intelligence|g' apex/backend/routers/library/bid_intelligence.py)",
+      "Bash(sed -i 's|apex\\\\.backend\\\\.services\\\\.benchmark_engine|apex.backend.services.library.benchmark_engine|g' apex/backend/routers/library/bid_intelligence.py)",
+      "Bash(sed -i 's|apex\\\\.backend\\\\.services\\\\.benchmark_engine|apex.backend.services.library.benchmark_engine|g' apex/backend/routers/library/benchmarks.py)",
+      "Bash(sed -i 's|apex\\\\.backend\\\\.services\\\\.bid_intelligence|apex.backend.services.library.bid_intelligence|g' apex/backend/routers/library/benchmarks.py)",
+      "Bash(sed -i 's|from apex\\\\.backend\\\\.routers import bid_intelligence as bid_intelligence_router|from apex.backend.routers.library import bid_intelligence as bid_intelligence_router|g' apex/backend/main.py)",
+      "Bash(sed -i 's|from apex\\\\.backend\\\\.routers import benchmarks as benchmarks_router|from apex.backend.routers.library import benchmarks as benchmarks_router|g' apex/backend/main.py)"
     ]
   }
 }

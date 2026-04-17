@@ -25,9 +25,9 @@ from apex.backend.routers import admin as admin_router
 from apex.backend.routers import auth, exports, productivity, projects, reports
 from apex.backend.routers import batch_import as batch_import_router
 from apex.backend.routers import benchmarking as benchmarking_router
-from apex.backend.routers import benchmarks as benchmarks_router
+from apex.backend.routers.library import benchmarks as benchmarks_router
 from apex.backend.routers import bid_comparison as bid_comparison_router
-from apex.backend.routers import bid_intelligence as bid_intelligence_router
+from apex.backend.routers.library import bid_intelligence as bid_intelligence_router
 from apex.backend.routers import change_orders as change_orders_router
 from apex.backend.routers import dashboard as dashboard_router
 from apex.backend.routers import decision as decision_router

@@ -6,12 +6,12 @@ from sqlalchemy.orm import Session
 from apex.backend.db.database import get_db
 from apex.backend.models.productivity_benchmark import ProductivityBenchmark
 from apex.backend.models.user import User
-from apex.backend.services.benchmark_engine import compute_benchmarks, get_benchmark_summary
+from apex.backend.services.library.benchmark_engine import compute_benchmarks, get_benchmark_summary
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
 
 router = APIRouter(
-    prefix="/api/benchmarks",
+    prefix="/api/library/benchmarks",
     tags=["benchmarks"],
     dependencies=[Depends(require_auth)],
 )

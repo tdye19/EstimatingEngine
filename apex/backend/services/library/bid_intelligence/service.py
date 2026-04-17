@@ -3,8 +3,8 @@
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from apex.backend.services.bid_intelligence.models import BIEstimate
-from apex.backend.services.bid_intelligence.parser import parse_estimation_history
+from apex.backend.services.library.bid_intelligence.models import BIEstimate
+from apex.backend.services.library.bid_intelligence.parser import parse_estimation_history
 
 
 class BidIntelligenceService:

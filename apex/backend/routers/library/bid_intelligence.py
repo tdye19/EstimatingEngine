@@ -8,13 +8,13 @@ from sqlalchemy.orm import Session
 
 from apex.backend.config import UPLOAD_DIR
 from apex.backend.db.database import get_db
-from apex.backend.services.bid_intelligence.models import BIEstimate
-from apex.backend.services.bid_intelligence.service import BidIntelligenceService
+from apex.backend.services.library.bid_intelligence.models import BIEstimate
+from apex.backend.services.library.bid_intelligence.service import BidIntelligenceService
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
 
 router = APIRouter(
-    prefix="/api/bid-intelligence",
+    prefix="/api/library/bid-intelligence",
     tags=["bid-intelligence"],
     dependencies=[Depends(require_auth)],
 )
