@@ -33,7 +33,7 @@ from apex.backend.routers import dashboard as dashboard_router
 from apex.backend.routers import decision as decision_router
 from apex.backend.routers import decision_system as decision_system_router
 from apex.backend.routers import estimate_library as estimate_library_router
-from apex.backend.routers import field_actuals as field_actuals_router
+from apex.backend.routers.library import field_actuals as field_actuals_router
 from apex.backend.routers import material_prices as material_prices_router
 from apex.backend.routers import materials as materials_router
 from apex.backend.routers import notifications as notifications_router

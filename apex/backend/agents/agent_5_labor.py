@@ -29,7 +29,7 @@ from apex.backend.agents.pipeline_contracts import (
     validate_agent_output,
 )
 from apex.backend.models.takeoff_v2 import TakeoffItemV2
-from apex.backend.services.field_actuals.service import FieldActualsService
+from apex.backend.services.library.field_actuals.service import FieldActualsService
 
 logger = logging.getLogger("apex.agent.labor")
 

@@ -296,7 +296,7 @@ def get_rate_intelligence(project_id: int, db: Session = Depends(get_db), user: 
 def get_field_calibration(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
     """Return Agent 5 v2 field actuals comparisons for this project."""
     from apex.backend.models.takeoff_v2 import TakeoffItemV2
-    from apex.backend.services.field_actuals.service import FieldActualsService
+    from apex.backend.services.library.field_actuals.service import FieldActualsService
 
     get_authorized_project(project_id, user, db)
 
