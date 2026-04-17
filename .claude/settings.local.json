@@ -91,7 +91,8 @@
       "Bash(pkill -f \"uvicorn apex.backend.main:app\" sleep 2 ps -ef)",
       "Bash(env)",
       "Bash(pkill -f \"vite\")",
-      "Bash(python -m uvicorn apex.backend.main:app --port 8000)"
+      "Bash(python -m uvicorn apex.backend.main:app --port 8000)",
+      "Bash(disown)"
     ]
   }
 }

@@ -19,6 +19,7 @@ from apex.backend.agents.tools.gap_tools import (
     gap_scorer_tool,
     risk_tagger_tool,
 )
+from apex.backend.agents.tools.domain_gap_rules import run_domain_rules
 from apex.backend.models.gap_report import GapReport, GapReportItem
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.services.token_tracker import log_token_usage
@@ -583,17 +584,39 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
             logger.warning("Agent 3: LLM returned no valid gap items — falling back to rule-based analysis")
 
     # -----------------------------------------------------------------------
-    # Rule-based fallback (original logic, unchanged)
+    # Rule-based fallback — Sprint 17.2-v2: domain rules Priority 1, generic Priority 2
     # -----------------------------------------------------------------------
     if analysis_method == "rule_based":
-        logger.info("Agent 3: using rule-based checklist comparison (fallback path)")
-        project_divisions = set(s.division_number for s in sections)
-        core_divisions = {"03", "05", "07", "08", "09"}
-        check_divisions = project_divisions | core_divisions
-        checklist = {div: items for div, items in MASTER_SCOPE_CHECKLIST.items() if div in check_divisions}
-        gaps = checklist_compare_tool(parsed_sections, checklist)
-        for gap in gaps:
-            scored_gaps.append(risk_tagger_tool(gap))
+        spec_text_parts = []
+        for s in sections:
+            for field in ("raw_text", "work_description", "execution_requirements", "submittal_requirements"):
+                v = getattr(s, field, None)
+                if v:
+                    spec_text_parts.append(str(v))
+        spec_text = " ".join(spec_text_parts)
+
+        domain_gaps: list[dict] = []
+        try:
+            domain_gaps = run_domain_rules(parsed_sections, spec_content_text=spec_text)
+        except Exception as exc:
+            logger.warning(f"Agent 3: domain rules engine failed ({exc}) — continuing to generic checklist")
+            domain_gaps = []
+
+        if domain_gaps:
+            logger.info(
+                f"Agent 3: domain rules fired {len(domain_gaps)} findings — using as primary fallback output"
+            )
+            for gap in domain_gaps:
+                scored_gaps.append(risk_tagger_tool(gap))
+        else:
+            logger.info("Agent 3: no domain rules triggered — falling back to generic CSI checklist")
+            project_divisions = set(s.division_number for s in sections)
+            core_divisions = {"03", "05", "07", "08", "09"}
+            check_divisions = project_divisions | core_divisions
+            checklist = {div: items for div, items in MASTER_SCOPE_CHECKLIST.items() if div in check_divisions}
+            gaps = checklist_compare_tool(parsed_sections, checklist)
+            for gap in gaps:
+                scored_gaps.append(risk_tagger_tool(gap))
 
     # -----------------------------------------------------------------------
     # Score, persist, and return
@@ -621,6 +644,23 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
     db.refresh(report)
 
     for gap in scored_gaps:
+        base_description = gap.get("description") or ""
+        extra_blocks: list[str] = []
+        if gap.get("typical_responsibility"):
+            extra_blocks.append(f"[Typical responsibility]\n{gap['typical_responsibility']}")
+        if gap.get("cost_impact_description"):
+            cost_line = gap["cost_impact_description"]
+            if gap.get("cost_unit"):
+                cost_line = f"{cost_line}  [unit: {gap['cost_unit']}]"
+            extra_blocks.append(f"[Cost impact]\n{cost_line}")
+        if gap.get("rfi_language"):
+            extra_blocks.append(f"[Recommended RFI]\n{gap['rfi_language']}")
+        if gap.get("rule_id"):
+            extra_blocks.append(f"[Rule ID: {gap['rule_id']}]")
+        full_description = base_description
+        if extra_blocks:
+            full_description = base_description + "\n\n" + "\n\n".join(extra_blocks)
+
         db.add(
             GapReportItem(
                 gap_report_id=report.id,
@@ -629,7 +669,7 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
                 title=gap["title"],
                 gap_type=gap["gap_type"],
                 severity=gap["severity"],
-                description=gap.get("description"),
+                description=full_description or None,
                 recommendation=gap.get("recommendation"),
                 risk_score=gap.get("risk_score"),
             )

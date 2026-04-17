@@ -33,6 +33,7 @@ class DomainGapRule(BaseModel):
     recommendation: str = ""
     typical_responsibility: str = ""
     cost_impact_description: str = ""
+    cost_unit: str = "each"  # Unit: "SF", "CY", "LF", "SY", "each", "splice", "project"
     cost_impact_low: float | None = None
     cost_impact_high: float | None = None
     rfi_language: str = ""
@@ -64,6 +65,7 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Varies — often installed by concrete crew, sometimes by waterproofing sub",
         cost_impact_description="$0.50–$1.50/SF of SOG area",
+        cost_unit="SF",
         cost_impact_low=0.50,
         cost_impact_high=1.50,
         recommendation=(
@@ -100,9 +102,10 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "places, and who is responsible for layout accuracy."
         ),
         typical_responsibility="Furnished by steel fabricator, placed by concrete contractor, layout by surveyor",
-        cost_impact_description="Material: $2–$15/embed; Labor: 0.25–1.0 hr/embed; Layout: LS",
-        cost_impact_low=500,
-        cost_impact_high=15000,
+        cost_impact_description="$2–$50 per embed (material + labor + layout, per-unit)",
+        cost_unit="each",
+        cost_impact_low=2,
+        cost_impact_high=50,
         recommendation=(
             "Include placement labor in your scope. Exclude material (furnished by others). "
             "Qualify layout responsibility."
@@ -140,6 +143,7 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Concrete contractor / rebar sub",
         cost_impact_description="Epoxy: +$0.08–$0.15/lb; Galv: +$0.15–$0.30/lb; Stainless: +$2.00–$4.00/lb",
+        cost_unit="SF",
         cost_impact_low=0.08,
         cost_impact_high=4.00,
         recommendation=(
@@ -177,9 +181,10 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "and concrete mockup panels. This can increase forming costs 2–5x over standard."
         ),
         typical_responsibility="Concrete contractor — but commonly underpriced or missed entirely",
-        cost_impact_description="2–5x standard forming cost; mockup: $5,000–$25,000 each",
-        cost_impact_low=5000,
-        cost_impact_high=100000,
+        cost_impact_description="$2–$25/SF of architectural concrete face (2–5x standard forming; mockups billed separately)",
+        cost_unit="SF",
+        cost_impact_low=2,
+        cost_impact_high=25,
         recommendation=(
             "Add architectural concrete line items. Verify mockup requirements. "
             "Price form liners as a separate material item."
@@ -212,9 +217,10 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "be included in the ready-mix price. Verify who provides and pays for the pump."
         ),
         typical_responsibility="Usually concrete contractor arranges and pays for pump",
-        cost_impact_description="Line pump: $1,500–$3,500/day; Boom pump: $2,500–$6,000/day",
-        cost_impact_low=1500,
-        cost_impact_high=30000,
+        cost_impact_description="$15–$40/CY pumped (line/boom pump; premium for long reach or high-rise)",
+        cost_unit="CY",
+        cost_impact_low=15,
+        cost_impact_high=40,
         recommendation=("Include pump costs. Estimate number of pump days based on pour volumes and schedule."),
         affected_csi_codes=["03 30 00"],
     ),
@@ -247,9 +253,10 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "retarders, shade structures, and night pours."
         ),
         typical_responsibility="Concrete contractor — often carried as separate line item or allowance",
-        cost_impact_description=("Winter: $2–$8/SF enclosure + $500–$2,000/day heating; Hot weather: $1–$3/CY"),
-        cost_impact_low=5000,
-        cost_impact_high=100000,
+        cost_impact_description="$8–$35/CY of cold/hot weather placement (blankets, enclosures, heating, admixtures)",
+        cost_unit="CY",
+        cost_impact_low=8,
+        cost_impact_high=35,
         recommendation="Carry as separate allowance. Review project schedule vs. weather windows.",
         affected_csi_codes=["03 30 00"],
     ),
@@ -278,6 +285,7 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Concrete contractor — material + installation",
         cost_impact_description="PVC: $3–$8/LF installed; Hydrophilic: $5–$12/LF installed",
+        cost_unit="LF",
         cost_impact_low=3,
         cost_impact_high=12,
         recommendation=("Add waterstop to scope. Calculate total LF of construction joints in below-grade walls."),
@@ -311,6 +319,7 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Subcontracted to PT specialty contractor; coordinated by concrete contractor",
         cost_impact_description="PT system: $3–$8/SF of PT slab; coordination: LS",
+        cost_unit="SF",
         cost_impact_low=3,
         cost_impact_high=8,
         recommendation=("Get PT sub quote. Include coordination effort and potential schedule impact in your scope."),
@@ -347,7 +356,8 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "holding pours for testing, and casting cylinders."
         ),
         typical_responsibility="Owner/CM pays testing agency. Contractor provides access and cast cylinders.",
-        cost_impact_description="$3,000–$15,000 if contractor-responsible",
+        cost_impact_description="$3,000–$15,000 if contractor-responsible (project lump sum)",
+        cost_unit="project",
         cost_impact_low=0,
         cost_impact_high=15000,
         recommendation="Review Division 01 for testing requirements. Include in bid qualifications.",
@@ -372,10 +382,6 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "SCC",
             "low heat",
             "supplementary cementitious",
-            "fly ash",
-            "slag cement",
-            "silica fume",
-            "GGBFS",
         ],
         title="High-Strength or Specialty Concrete Mix",
         description=(
@@ -386,6 +392,7 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Concrete contractor prices mix; ready-mix supplier develops mix design",
         cost_impact_description="6000 PSI: +$15–$30/CY; 8000+ PSI: +$40–$80/CY; SCC: +$30–$50/CY",
+        cost_unit="CY",
         cost_impact_low=15,
         cost_impact_high=80,
         recommendation="Get ready-mix quotes for all specified mixes. Carry premium per CY.",
@@ -418,6 +425,7 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Concrete contractor / rebar sub furnishes and installs",
         cost_impact_description="$5–$50 per splice depending on bar size and type",
+        cost_unit="splice",
         cost_impact_low=5,
         cost_impact_high=50,
         recommendation=("Count splices on drawings. Get supplier quote for specific coupler type and bar sizes."),
@@ -447,6 +455,7 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Concrete contractor",
         cost_impact_description="$0.75–$2.00/LF sawcut",
+        cost_unit="LF",
         cost_impact_low=0.75,
         cost_impact_high=2.00,
         recommendation=("Calculate total LF of sawcuts based on joint spacing and slab area. Include in scope."),
@@ -457,7 +466,7 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
         name="Special Curing Requirements",
         gap_type="missing",
         severity="moderate",
-        scope_includes_any=["03 35 00", "03 31 00"],
+        scope_includes_any=["03 35 00"],
         scope_excludes_all=[],
         spec_keywords=[
             "wet cure",
@@ -481,7 +490,8 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "cost and can impact the schedule. Verify curing requirements for each concrete element."
         ),
         typical_responsibility="Concrete contractor",
-        cost_impact_description=("Standard cure: $0.10–$0.20/SF; Wet cure: $0.50–$1.50/SF; Extended: +$/day"),
+        cost_impact_description="Standard cure: $0.10–$0.20/SF; Wet cure: $0.50–$1.50/SF; Extended: +$/day",
+        cost_unit="SF",
         cost_impact_low=0.10,
         cost_impact_high=1.50,
         recommendation=("Identify elements requiring special curing. Add labor for daily wet cure maintenance."),
@@ -511,7 +521,8 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "or furnished by the contractor. Verify type, dosage, and responsibility."
         ),
         typical_responsibility="Usually specified as ready-mix additive; contractor pays upcharge",
-        cost_impact_description=("Micro synthetic: $3–$6/CY; Macro synthetic: $8–$15/CY; Steel: $20–$45/CY"),
+        cost_impact_description="Micro synthetic: $3–$6/CY; Macro synthetic: $8–$15/CY; Steel: $20–$45/CY",
+        cost_unit="CY",
         cost_impact_low=3,
         cost_impact_high=45,
         recommendation=("Get ready-mix pricing with fiber dosage. May replace or supplement WWR — verify."),
@@ -543,7 +554,8 @@ CONCRETE_GAP_RULES: list[DomainGapRule] = [
             "strip times affect schedule."
         ),
         typical_responsibility="Concrete contractor per structural engineer's shoring plan",
-        cost_impact_description=("Each additional level of reshoring: $1.50–$3.00/SF; Extended strip: schedule impact"),
+        cost_impact_description="Each additional level of reshoring: $1.50–$3.00/SF; Extended strip: schedule impact",
+        cost_unit="SF",
         cost_impact_low=1.50,
         cost_impact_high=3.00,
         recommendation=("Get or develop shoring plan early. Price reshoring materials and extended rental."),
@@ -578,9 +590,10 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
             "excavations."
         ),
         typical_responsibility="Civil contractor or specialty dewatering sub",
-        cost_impact_description="$5,000–$50,000+ depending on conditions and duration",
+        cost_impact_description="$5,000–$250,000+ depending on conditions and duration (Christman-scale data centers / deep excavations can exceed $150K)",
+        cost_unit="project",
         cost_impact_low=5000,
-        cost_impact_high=50000,
+        cost_impact_high=250000,
         recommendation="Review geotech boring logs for water table elevation. Price as alternate if not included.",
         rfi_language=(
             "Geotech report indicates water table at elevation ___. Please confirm dewatering "
@@ -616,6 +629,7 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Civil contractor — often unit price alternate",
         cost_impact_description="$15–$50/CY for mechanical removal; $5–$20/CY for blasting",
+        cost_unit="CY",
         cost_impact_low=15,
         cost_impact_high=50,
         recommendation="Carry rock excavation as unit price alternate in bid. Review geotech borings.",
@@ -651,7 +665,8 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
             "budget if not properly addressed."
         ),
         typical_responsibility="Varies — often owner risk with contractor handling. Verify contract terms.",
-        cost_impact_description=("Clean disposal: $10–$25/CY; Contaminated: $50–$300+/CY; Hazardous: $200–$1,000+/CY"),
+        cost_impact_description="Clean disposal: $10–$25/CY; Contaminated: $50–$300+/CY; Hazardous: $200–$1,000+/CY",
+        cost_unit="CY",
         cost_impact_low=50,
         cost_impact_high=300,
         recommendation=(
@@ -691,6 +706,7 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Civil contractor",
         cost_impact_description="Haul: $8–$20/CY depending on distance; Import fill: $12–$25/CY delivered",
+        cost_unit="CY",
         cost_impact_low=8,
         cost_impact_high=25,
         recommendation="Calculate cut/fill balance from grading plan. Get haul distance and disposal/source quotes.",
@@ -726,7 +742,8 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         typical_responsibility=(
             "Varies — initial install by civil; maintenance may be GC or civil depending on contract"
         ),
-        cost_impact_description="Maintenance: $500–$2,000/month; Repairs: $2,000–$10,000 per event",
+        cost_impact_description="Maintenance: $500–$2,000/month; Repairs: $2,000–$10,000 per event (project allowance)",
+        cost_unit="project",
         cost_impact_low=500,
         cost_impact_high=25000,
         recommendation="Clarify maintenance duration and responsibility in bid. Include monthly allowance.",
@@ -759,8 +776,9 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Civil contractor; relocations may be by utility company",
         cost_impact_description=(
-            "Test pits: $500–$1,500/each; Protection: $1,000–$5,000/crossing; Relocation: $5,000–$50,000+"
+            "Test pits: $500–$1,500/each; Protection: $1,000–$5,000/crossing; Relocation: $5,000–$50,000+ (project allowance)"
         ),
+        cost_unit="project",
         cost_impact_low=500,
         cost_impact_high=50000,
         recommendation=(
@@ -792,7 +810,8 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
             "mean rework costs for the contractor."
         ),
         typical_responsibility="Owner/CM pays for testing; contractor pays for rework if failing",
-        cost_impact_description="Testing: $2,000–$10,000 if contractor-responsible; Rework: $5–$15/CY",
+        cost_impact_description="Testing: $2,000–$10,000 if contractor-responsible; Rework: $5–$15/CY (project allowance)",
+        cost_unit="project",
         cost_impact_low=0,
         cost_impact_high=10000,
         recommendation="Verify testing responsibility in Division 01. Budget for potential rework.",
@@ -825,9 +844,10 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
             "or sloping costs."
         ),
         typical_responsibility="Civil contractor — mandatory regardless of spec",
-        cost_impact_description="Trench box rental: $500–$2,000/month; Sloping: additional excavation volume",
-        cost_impact_low=500,
-        cost_impact_high=10000,
+        cost_impact_description="Trench protection: $0–$15/LF of trench (shoring/box rental + sloping cut volume)",
+        cost_unit="LF",
+        cost_impact_low=0,
+        cost_impact_high=15,
         recommendation="Budget trench box rental for duration of utility work. Always required >5 ft depth.",
         affected_csi_codes=["31 54 00"],
     ),
@@ -858,6 +878,7 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
         ),
         typical_responsibility="Usually civil prepares to rough subgrade; concrete/paving does final prep",
         cost_impact_description="Lime/cement stabilization: $3–$8/SY; Geogrid: $1.50–$4.00/SY",
+        cost_unit="SY",
         cost_impact_low=1.50,
         cost_impact_high=8.00,
         recommendation="Define handoff tolerance clearly. Include in bid qualifications.",
@@ -889,7 +910,8 @@ CIVIL_GAP_RULES: list[DomainGapRule] = [
             "performs the actual connection to existing mains — utility company or contractor."
         ),
         typical_responsibility=("Owner typically pays fees; contractor performs connections (varies by municipality)"),
-        cost_impact_description=("Tap fees: $500–$10,000+ per connection; Road cut: $2,000–$15,000 per opening"),
+        cost_impact_description="Tap fees: $500–$10,000+ per connection; Road cut: $2,000–$15,000 per opening (project total)",
+        cost_unit="project",
         cost_impact_low=500,
         cost_impact_high=25000,
         recommendation=(
@@ -981,6 +1003,7 @@ def run_domain_rules(
                 "cost_impact_description": rule.cost_impact_description,
                 "cost_impact_low": rule.cost_impact_low,
                 "cost_impact_high": rule.cost_impact_high,
+                "cost_unit": rule.cost_unit,
                 "typical_responsibility": rule.typical_responsibility,
                 "rfi_language": rule.rfi_language,
                 "rule_id": rule.id,
