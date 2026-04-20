@@ -22,6 +22,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 from apex.backend.config import APEX_DEV_MODE, CORS_ORIGINS, GLOBAL_RATE_LIMIT, LOG_LEVEL
 from apex.backend.db.database import init_db
 from apex.backend.routers import admin as admin_router
+from apex.backend.routers import agent_run_logs as agent_run_logs_router
 from apex.backend.routers import auth, exports, productivity, projects, reports
 from apex.backend.routers import batch_import as batch_import_router
 from apex.backend.routers import benchmarking as benchmarking_router
@@ -177,6 +178,7 @@ app.include_router(sub_bids_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(retrieval_router.router)
 app.include_router(work_categories_router.router)
+app.include_router(agent_run_logs_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
 if _is_dev:

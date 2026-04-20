@@ -122,10 +122,16 @@ def _enrich_division_03_parameters(
     )
 
     for idx, section in enumerate(div_03_sections, start=1):
-        text = section.raw_text or ""
-        if not text.strip():
+        # HF-20: Sprint 18.2.3 read raw_text, but the v2 LLM parser
+        # (llm_parse_spec_sections) populates work_description and leaves
+        # raw_text empty. work_description is the authoritative per-section
+        # content field today. raw_text is kept as a secondary fallback for
+        # any alternate parse path (e.g., regex) that might populate it.
+        text = (section.work_description or section.raw_text or "").strip()
+        if not text:
             warnings.append(
-                f"Section {section.section_number} (id={section.id}) has empty text; skipped."
+                f"Section {section.section_number} (id={section.id}) "
+                f"has empty work_description and raw_text; skipped."
             )
         else:
             try:
