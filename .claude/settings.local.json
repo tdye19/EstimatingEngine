@@ -92,7 +92,12 @@
       "Bash(env)",
       "Bash(pkill -f \"vite\")",
       "Bash(python -m uvicorn apex.backend.main:app --port 8000)",
-      "Bash(disown)"
+      "Bash(disown)",
+      "Bash(alembic current *)",
+      "Bash(alembic history *)",
+      "Bash(alembic heads *)",
+      "Bash(alembic revision *)",
+      "Bash(alembic upgrade *)"
     ]
   }
 }

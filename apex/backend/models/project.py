@@ -51,3 +51,9 @@ class Project(Base, TimestampMixin):
     token_usage_records = relationship("TokenUsage", back_populates="project", cascade="all, delete-orphan")
     bid_comparisons = relationship("BidComparison", back_populates="project", cascade="all, delete-orphan")
     change_orders = relationship("ChangeOrder", back_populates="project", cascade="all, delete-orphan")
+    work_categories = relationship(
+        "WorkCategory",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="WorkCategory.wc_number",
+    )

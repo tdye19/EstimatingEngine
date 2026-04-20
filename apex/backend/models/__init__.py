@@ -45,6 +45,7 @@ from apex.backend.models.token_usage import TokenUsage
 from apex.backend.models.upload_chunk import UploadChunk
 from apex.backend.models.upload_session import UploadSession
 from apex.backend.models.user import User
+from apex.backend.models.work_category import WorkCategory
 from apex.backend.services.library.bid_intelligence.models import BIEstimate
 from apex.backend.services.library.productivity_brain.models import PBLineItem, PBProject
 
@@ -84,6 +85,7 @@ __all__ = [
     "FieldActualsProject",
     "FieldActualsLineItem",
     "IntelligenceReportModel",
+    "WorkCategory",
     # Decision system models
     "ComparableProject",
     "HistoricalRateObservation",
