@@ -175,6 +175,14 @@ async def llm_parse_spec_sections(document_text: str, provider) -> tuple[list[di
             key = s["section_number"]
             if key not in all_sections:
                 all_sections[key] = s
+            else:
+                # Longest-content-wins: later chunks often carry the rich section body
+                # while earlier chunks only see the TOC stub. Keep whichever side has
+                # more content; guard against None or missing content fields.
+                new_content = s.get("content") or ""
+                existing_content = all_sections[key].get("content") or ""
+                if len(new_content) > len(existing_content):
+                    all_sections[key] = s
 
     # Normalize to v2 dict shape (spec parameters, no content/quantities)
     result = []
