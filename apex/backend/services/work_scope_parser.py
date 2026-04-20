@@ -167,11 +167,14 @@ WC 00 is always "General Requirements for All Subcontractors" — it may lack Wo
 
 
 async def _llm_complete(text: str, provider: LLMProvider) -> str:
+    # KCCU-scale documents (~70K chars, 8 WCs) produce ~10K-tokens of JSON.
+    # 8192 truncates mid-string; 32000 leaves headroom for larger
+    # Work Scopes documents without chunking.
     resp = await provider.complete(
         system_prompt=_LLM_SYSTEM_PROMPT,
         user_prompt=text,
         temperature=0.0,
-        max_tokens=8192,
+        max_tokens=32000,
     )
     return resp.content
 

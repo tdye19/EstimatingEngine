@@ -203,6 +203,43 @@ def test_alternate_price_type_inference():
 # ---------------------------------------------------------------------------
 
 
+def test_llm_invalid_json_falls_back_to_regex():
+    """HF-19b regression: truncated/invalid JSON must fall back, not crash.
+
+    A too-low max_tokens caused Claude to truncate mid-string on KCCU-scale
+    input. The fallback path must surface the JSON error as a warning and
+    still deliver regex-parsed WCs.
+    """
+    text = (
+        "WC 02 - Earthwork\n"
+        "Work Included:\n"
+        "- Excavation\n"
+        "\n"
+        "WC 03 - Concrete\n"
+        "Work Included:\n"
+        "- Slab on grade\n"
+    )
+
+    # Simulate Claude returning a truncated (unterminated) JSON string
+    truncated_body = (
+        '{"work_categories": [{"wc_number": "WC 02", '
+        '"title": "Earthwork", "work_included_items": ["Excavati'
+    )
+    fake_resp = MagicMock()
+    fake_resp.content = truncated_body
+
+    provider = MagicMock()
+    provider.complete = AsyncMock(return_value=fake_resp)
+
+    with patch.object(wsp, "get_llm_provider", return_value=provider):
+        result = wsp.parse_work_scopes(text, use_llm=True)
+
+    assert result["parse_method"] == "regex_fallback"
+    assert any("invalid JSON" in w for w in result["warnings"])
+    nums = [wc["wc_number"] for wc in result["work_categories"]]
+    assert nums == ["WC 02", "WC 03"]
+
+
 def test_llm_failure_falls_back_to_regex():
     text = (
         "WC 02 - Earthwork\n"
