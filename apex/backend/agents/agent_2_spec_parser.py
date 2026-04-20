@@ -8,6 +8,7 @@ Uses LLM parsing when a provider is available; falls back to regex.
 """
 
 import logging
+import time
 
 from sqlalchemy.orm import Session
 
@@ -20,7 +21,12 @@ from apex.backend.agents.tools.spec_tools import (
 )
 from apex.backend.models.document import Document
 from apex.backend.models.spec_section import SpecSection
+from apex.backend.services.assembly_parameter_extractor import (
+    extract_assembly_parameters,
+    is_division_03_section,
+)
 from apex.backend.services.token_tracker import TokenBudgetExceeded, log_token_usage
+from apex.backend.services.ws_manager import ws_manager
 from apex.backend.utils.async_helper import run_async as _run_async
 
 logger = logging.getLogger("apex.agent.spec_parser")
@@ -61,6 +67,132 @@ def _build_work_description(section_data: dict) -> str:
         parts.append("Quality: " + "; ".join(quals[:5]))
 
     return "\n".join(parts) if parts else ""
+
+
+def _enrich_division_03_parameters(
+    db: Session,
+    project_id: int,
+    use_llm: bool = True,
+) -> dict:
+    """Run assembly parameter extraction on all Division 03 sections.
+
+    Post-parse enrichment phase (Sprint 18.2.3). Called after SpecSection
+    rows are committed. Each Division 03 section gets one LLM call for
+    parameter extraction. Per-section failures are captured in warnings —
+    never re-raised — so downstream agents keep running.
+
+    Returns an AssemblyParameterEnrichment-shaped dict.
+    """
+    start = time.monotonic()
+    warnings: list[str] = []
+    extraction_methods: dict[str, int] = {}
+    enriched = 0
+
+    all_sections = (
+        db.query(SpecSection)
+        .filter(
+            SpecSection.project_id == project_id,
+            SpecSection.is_deleted == False,  # noqa: E712
+        )
+        .all()
+    )
+    div_03_sections = [
+        s for s in all_sections if is_division_03_section(s.section_number)
+    ]
+    total = len(div_03_sections)
+
+    if total == 0:
+        return {
+            "division_03_count": 0,
+            "enriched": 0,
+            "extraction_methods": {},
+            "warnings": [],
+            "duration_ms": (time.monotonic() - start) * 1000,
+        }
+
+    ws_manager.broadcast_sync(
+        project_id,
+        {
+            "type": "assembly_params_update",
+            "project_id": project_id,
+            "status": "running",
+            "message": f"Extracting assembly parameters from {total} concrete sections...",
+            "progress": {"current": 0, "total": total},
+        },
+    )
+
+    for idx, section in enumerate(div_03_sections, start=1):
+        text = section.raw_text or ""
+        if not text.strip():
+            warnings.append(
+                f"Section {section.section_number} (id={section.id}) has empty text; skipped."
+            )
+        else:
+            try:
+                result = extract_assembly_parameters(
+                    text,
+                    csi_code=section.section_number,
+                    use_llm=use_llm,
+                )
+                # Persist only the schema documented in spec_section.py.
+                # warnings + source_text_length are runtime data, not stored.
+                section.assembly_parameters_json = {
+                    "parameters": result["parameters"],
+                    "extracted_at": result["extracted_at"],
+                    "extraction_method": result["extraction_method"],
+                }
+                method = result["extraction_method"]
+                extraction_methods[method] = extraction_methods.get(method, 0) + 1
+                enriched += 1
+
+                for w in result.get("warnings", []):
+                    warnings.append(f"[{section.section_number}] {w}")
+
+            except Exception as exc:
+                # Non-swallow: one section's failure never blocks the rest.
+                warnings.append(
+                    f"Extraction failed for section {section.section_number} "
+                    f"(id={section.id}): {exc}"
+                )
+                logger.exception(
+                    "Assembly parameter extraction failed for section %d",
+                    section.id,
+                )
+
+        ws_manager.broadcast_sync(
+            project_id,
+            {
+                "type": "assembly_params_update",
+                "project_id": project_id,
+                "status": "running",
+                "message": f"Enriched {idx}/{total}: {section.section_number}",
+                "progress": {"current": idx, "total": total},
+            },
+        )
+
+    db.commit()
+
+    duration_ms = (time.monotonic() - start) * 1000
+    ws_manager.broadcast_sync(
+        project_id,
+        {
+            "type": "assembly_params_update",
+            "project_id": project_id,
+            "status": "complete",
+            "message": (
+                f"Parameter extraction complete: {enriched}/{total} sections enriched."
+            ),
+            "progress": {"current": total, "total": total},
+        },
+    )
+
+    return {
+        "division_03_count": total,
+        "enriched": enriched,
+        "extraction_methods": extraction_methods,
+        "warnings": warnings,
+        "duration_ms": duration_ms,
+    }
 
 
 def run_spec_parser_agent(db: Session, project_id: int) -> dict:
@@ -227,6 +359,22 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     overall_parse_method = "llm" if "llm" in run_parse_methods else "regex"
     logger.info(f"Agent 2 complete: {total_sections} sections parsed via {overall_parse_method}")
 
+    # Sprint 18.2.3: Division 03 assembly parameter enrichment.
+    # Defense in depth — enrichment must never break Agent 2's existing contract.
+    try:
+        enrichment_result = _enrich_division_03_parameters(
+            db, project_id, use_llm=True
+        )
+    except Exception as exc:
+        logger.exception("Assembly parameter enrichment phase failed wholesale")
+        enrichment_result = {
+            "division_03_count": 0,
+            "enriched": 0,
+            "extraction_methods": {},
+            "warnings": [f"Enrichment phase crashed: {exc}"],
+            "duration_ms": 0.0,
+        }
+
     return validate_agent_output(
         2,
         {
@@ -234,5 +382,6 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
             "documents_processed": len(all_docs),
             "parse_method": overall_parse_method,
             "results": doc_results,
+            "assembly_parameters": enrichment_result,
         },
     )

@@ -154,6 +154,7 @@ class SpecSectionOut(BaseModel):
     execution_requirements: str | None = None
     submittal_requirements: str | None = None
     keywords: list | None = None
+    assembly_parameters_json: dict | None = None  # Sprint 18.2 — Division 03 only
 
 
 # --- Gap Report ---

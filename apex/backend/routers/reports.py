@@ -110,6 +110,44 @@ def get_spec_sections(project_id: int, db: Session = Depends(get_db), user: User
     return APIResponse(success=True, data=data)
 
 
+@router.get(
+    "/{project_id}/spec-sections/{section_id}/assembly-parameters",
+    response_model=APIResponse,
+)
+def get_assembly_parameters(
+    project_id: int,
+    section_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """Return the extracted WinEst assembly parameters for one spec section.
+
+    404 if section not found, belongs to a different project, or hasn't been
+    enriched yet (non-Division-03 sections stay null forever).
+    """
+    get_authorized_project(project_id, user, db)
+    section = (
+        db.query(SpecSection)
+        .filter(
+            SpecSection.id == section_id,
+            SpecSection.project_id == project_id,
+            SpecSection.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
+    if not section:
+        raise HTTPException(status_code=404, detail="Spec section not found")
+    if not section.assembly_parameters_json:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No assembly parameters for this section "
+                "(not Division 03, or not yet extracted)"
+            ),
+        )
+    return APIResponse(success=True, data=section.assembly_parameters_json)
+
+
 @router.get("/{project_id}/gap-report", response_model=APIResponse)
 def get_gap_report(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
     get_authorized_project(project_id, user, db)

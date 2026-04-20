@@ -80,11 +80,27 @@ class Agent2DocResult(BaseModel):
     error: str | None = None
 
 
+class AssemblyParameterEnrichment(BaseModel):
+    """Agent 2 post-parse enrichment summary (Sprint 18.2.3).
+
+    Produced by _enrich_division_03_parameters after SpecSection rows are
+    committed. Failures are captured in warnings; extraction is per-section,
+    so one section's failure never blocks others.
+    """
+
+    division_03_count: int = Field(ge=0)
+    enriched: int = Field(ge=0)
+    extraction_methods: dict[str, int] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    duration_ms: float = Field(ge=0)
+
+
 class Agent2Output(BaseModel):
     sections_parsed: int = Field(ge=0)
     documents_processed: int = Field(ge=0)
     parse_method: str
     results: list[Agent2DocResult] = []
+    assembly_parameters: AssemblyParameterEnrichment | None = None  # Sprint 18.2.3
 
 
 # ---------------------------------------------------------------------------
