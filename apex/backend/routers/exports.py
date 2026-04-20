@@ -881,7 +881,7 @@ def list_subcontractor_packages(
     current_user: User = Depends(require_auth),
 ):
     """Return the trade breakdown without generating PDFs — for the UI table."""
-    project, estimate, org = _get_estimate_or_404(project_id, db)
+    project, estimate, org = _get_estimate_or_404(project_id, db, current_user)
 
     trades: dict[str, dict] = {}
     for li in estimate.line_items or []:
@@ -913,7 +913,7 @@ def export_subcontractor_package_pdf(
     from reportlab.lib.units import inch
     from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-    project, estimate, org = _get_estimate_or_404(project_id, db)
+    project, estimate, org = _get_estimate_or_404(project_id, db, current_user)
 
     trade_decoded = trade.replace("-", " ").title()
 
