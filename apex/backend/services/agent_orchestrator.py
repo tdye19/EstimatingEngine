@@ -437,6 +437,21 @@ class AgentOrchestrator:
                 )
                 _broadcast("running", agent_num)
 
+            # -----------------------------------------------------------------
+            # Agent 2B (Work Scope Parser) — Sprint 18.1
+            # Runs right after Agent 2 completes. Additive intelligence:
+            # a failure must not block Agents 3/4/5/6/7.
+            # -----------------------------------------------------------------
+            if agent_num == 2 and last_error is None and effective_mode != "winest_import":
+                try:
+                    from apex.backend.agents.agent_2b_work_scopes import run_work_scope_agent
+                    results["agent_2b"] = run_work_scope_agent(
+                        self.db, self.project_id, use_llm=True
+                    )
+                except Exception as exc:
+                    logger.exception("Agent 2B failed for project %d", self.project_id)
+                    results["agent_2b"] = {"error": str(exc), "status": "failed"}
+
         # Update project status
         project = self.db.query(Project).filter(Project.id == self.project_id).first()
         if project:

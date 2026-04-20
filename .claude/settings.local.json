@@ -97,7 +97,14 @@
       "Bash(alembic history *)",
       "Bash(alembic heads *)",
       "Bash(alembic revision *)",
-      "Bash(alembic upgrade *)"
+      "Bash(alembic upgrade *)",
+      "Read(//home/vscode/**)",
+      "Bash(cat)",
+      "Bash(export LLM_PROVIDER=openrouter)",
+      "Bash(export DEFAULT_LLM_PROVIDER=openrouter)",
+      "Bash(export DEFAULT_LLM_MODEL=anthropic/claude-sonnet-4.6)",
+      "Bash(export AGENT_2_PROVIDER=openrouter)",
+      "Bash(export AGENT_2_MODEL=anthropic/claude-sonnet-4.6)"
     ]
   }
 }

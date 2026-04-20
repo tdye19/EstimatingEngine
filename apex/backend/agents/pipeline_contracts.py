@@ -88,6 +88,30 @@ class Agent2Output(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Agent 2B — Work Scope Parser (Sprint 18.1)
+# ---------------------------------------------------------------------------
+
+
+class Agent2BOutput(BaseModel):
+    """Agent 2B — Work Scope Parser output contract.
+
+    Runs after Agent 2. Classifies every project document and parses docs
+    identified as standalone_work_scope or embedded_work_scope into
+    WorkCategory rows keyed on (project_id, wc_number).
+    """
+
+    project_id: int
+    documents_examined: int = Field(ge=0)
+    documents_parsed: int = Field(ge=0)
+    work_categories_created: int = Field(ge=0)
+    work_categories_updated: int = Field(ge=0)
+    parse_methods: dict[str, int] = Field(default_factory=dict)
+    classification_summary: dict[str, int] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    duration_ms: float = Field(ge=0)
+
+
+# ---------------------------------------------------------------------------
 # Agent 3 — Gap Analysis
 # ---------------------------------------------------------------------------
 

@@ -796,6 +796,7 @@ def get_llm_provider(
 AGENT_PROVIDER_ROSTER = [
     (1, None, "agent_1_ingestion", "Document Ingestion (Python only)"),
     (2, None, "agent_2_spec_parser", "Spec Parser"),
+    (2, "B", "agent_2b_work_scopes", "Work Scope Parser"),  # Sprint 18.1
     (3, None, "agent_3_scope_analysis", "Scope Analysis"),
     (4, None, "agent_4_rate_intelligence", "Rate Intelligence (Python only)"),
     (5, None, "agent_5_field_calibration", "Field Calibration (Python only)"),

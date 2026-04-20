@@ -45,6 +45,7 @@ from apex.backend.routers import test_pipeline as test_pipeline_router
 from apex.backend.routers import token_usage as token_usage_router
 from apex.backend.routers import users as users_router
 from apex.backend.routers import websocket as ws_router
+from apex.backend.routers import work_categories as work_categories_router
 from apex.backend.services.ws_manager import ws_manager
 
 # Logging — honour LOG_LEVEL env var
@@ -175,6 +176,7 @@ app.include_router(pdf_parser_router.router)
 app.include_router(sub_bids_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(retrieval_router.router)
+app.include_router(work_categories_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
 if _is_dev:

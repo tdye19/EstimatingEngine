@@ -522,6 +522,28 @@ class CrewOrchestrator:
                 # Task lifecycle — ON FAILURE → broadcast "failed"
                 _broadcast("running", agent_num)
 
+            # -----------------------------------------------------------
+            # Agent 2B (Work Scope Parser) — Sprint 18.1
+            # Runs right after Agent 2 completes. Additive intelligence:
+            # a failure must not block downstream agents.
+            # -----------------------------------------------------------
+            if (
+                agent_num == 2
+                and results.get(key, {}).get("status") != "failed"
+                and effective_mode != "winest_import"
+            ):
+                try:
+                    from apex.backend.agents.agent_2b_work_scopes import run_work_scope_agent
+                    results["agent_2b"] = run_work_scope_agent(
+                        self.db, self.project_id, use_llm=True
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        "CrewOrchestrator: Agent 2B failed for project %d",
+                        self.project_id,
+                    )
+                    results["agent_2b"] = {"error": str(exc), "status": "failed"}
+
         # -----------------------------------------------------------------
         # Update project status
         # -----------------------------------------------------------------
