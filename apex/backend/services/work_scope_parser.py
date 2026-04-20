@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections import Counter
 from typing import Any
 
 from apex.backend.services.llm_provider import LLMProvider, get_llm_provider
@@ -502,9 +503,30 @@ _SUBSECTION_PATTERNS: dict[str, re.Pattern] = {
     ),
 }
 
-_BLOCK_HEADER_RE = re.compile(
+# Primary: first-page-of-section marker (KCCU/Christman PDF format).
+# The "-1" suffix identifies page 1 of section XX, signaling section start.
+# Tolerates optional whitespace before the dash — pdfplumber extracts both
+# "WC 00-1" and "WC 02 -1" depending on source layout.
+_FIRST_PAGE_RE = re.compile(
+    r"\bWC\s+(?P<num>\d{1,2}[A-Z]?)\s*-\s*1\b",
+    re.IGNORECASE,
+)
+
+# Secondary: standalone WC header (synthetic/clean-PDF format).
+# Matches "WC XX" or "WC XX - Title" on its own line.
+_STANDALONE_HEADER_RE = re.compile(
     r"^\s*WC\s+(?P<num>\d{1,2}[A-Z]?)"
-    r"(?:\s*[-:\u2014\u2013]\s*(?P<title>.+?))?\s*$",
+    r"(?:\s*[-:\u2014\u2013]\s*(?P<title>.+?))?"
+    r"\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+# Title extractor for KCCU-format first-page running header.
+# Header line format: "... WC XX-1 WC XX <title>" (with optional space
+# before the "-1"). The trailing "Page WC XX -1 WC XX <title>" variant
+# also appears in KCCU — the prefix is absorbed by the leading .*? context.
+_KCCU_TITLE_RE = re.compile(
+    r"\bWC\s+(?P<num>\d{1,2}[A-Z]?)\s*-\s*1\s+WC\s+\d{1,2}[A-Z]?\s+(?P<title>.+?)$",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -539,8 +561,11 @@ def _regex_parse(
             parse_method="regex",
             parse_confidence=0.45,
         )
-        wc["title"] = b["title"] or _first_content_line(b["block"])
-        sections = _extract_subsections(b["block"])
+        # HF-19: strip running headers BEFORE subsection extraction
+        # (title already extracted into b["title"] by block splitter)
+        cleaned_block = _strip_running_boilerplate(b["block"])
+        wc["title"] = b["title"] or _first_content_line(cleaned_block)
+        sections = _extract_subsections(cleaned_block)
 
         wc["work_included_items"] = _bulleted(sections.get("work_included_items", ""))
         notes = sections.get("work_category_notes", "").strip()
@@ -560,23 +585,130 @@ def _regex_parse(
             sections.get("unit_prices", ""), b["wc_number"], warnings
         )
         wc["referenced_spec_sections"] = _regex_csi_codes(
-            b["block"], b["wc_number"], warnings
+            cleaned_block, b["wc_number"], warnings
         )
         out.append(wc)
     return out
 
 
 def _split_into_wc_blocks(text: str) -> list[dict]:
-    matches = list(_BLOCK_HEADER_RE.finditer(text))
+    """Split text into per-WC blocks.
+
+    Primary: find "WC XX-1" first-page markers (KCCU/Christman PDF format).
+    Fallback: find standalone "WC XX" line headers (synthetic/clean format).
+
+    Returns list of {"wc_number": "WC XX", "title": str, "block": str}.
+    """
+    if not text:
+        return []
+
+    # KCCU mode requires >=2 first-page markers (guards against synthetic
+    # inputs that might coincidentally contain one "WC 01-1"-like string).
+    kccu_matches = list(_FIRST_PAGE_RE.finditer(text))
+    if len(kccu_matches) >= 2:
+        return _blocks_from_kccu_markers(text, kccu_matches)
+
+    std_matches = list(_STANDALONE_HEADER_RE.finditer(text))
+    if std_matches:
+        return _blocks_from_standalone_headers(text, std_matches)
+
+    return []
+
+
+def _blocks_from_kccu_markers(text: str, matches: list) -> list[dict]:
+    """Extract blocks using KCCU 'WC XX-1' first-page markers.
+
+    Dedupes by WC number — the running header repeats the section's
+    first-page marker on every page, but only the first occurrence
+    defines the section boundary.
+    """
+    seen_nums: set[str] = set()
+    unique_matches = []
+    for m in matches:
+        num = m.group("num").upper()
+        if num not in seen_nums:
+            seen_nums.add(num)
+            unique_matches.append(m)
+
+    blocks = []
+    for i, m in enumerate(unique_matches):
+        num = m.group("num").upper()
+        # Block starts at start of line containing this match
+        line_start = text.rfind("\n", 0, m.start()) + 1
+        # Block ends at start of line containing next match, or EOF
+        if i + 1 < len(unique_matches):
+            next_start = unique_matches[i + 1].start()
+            line_end = text.rfind("\n", 0, next_start) + 1
+        else:
+            line_end = len(text)
+        raw = text[line_start:line_end]
+        title = _extract_kccu_title(raw, num)
+        blocks.append({
+            "wc_number": f"WC {num}",
+            "title": title,
+            "block": raw,
+        })
+    return blocks
+
+
+def _blocks_from_standalone_headers(text: str, matches: list) -> list[dict]:
+    """Extract blocks from standalone 'WC XX' line headers (clean format)."""
     blocks = []
     for i, m in enumerate(matches):
+        num = m.group("num").upper()
+        title = (m.group("title") or "").strip()
         start = m.start()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         raw = text[start:end]
-        wc_num = f"WC {m.group('num').upper()}"
-        title = (m.group("title") or "").strip()
-        blocks.append({"wc_number": wc_num, "title": title, "block": raw})
+        blocks.append({
+            "wc_number": f"WC {num}",
+            "title": title,
+            "block": raw,
+        })
     return blocks
+
+
+def _extract_kccu_title(block: str, num: str) -> str:
+    """Extract WC title from the first 'WC XX-1 WC XX <title>' in block.
+
+    Returns first-line title only — multi-line titles are truncated to the
+    first line. Acceptable imperfection; LLM path recovers accurate titles
+    when the LLM is available.
+    """
+    for m in _KCCU_TITLE_RE.finditer(block):
+        if m.group("num").upper() == num:
+            return m.group("title").strip()
+    return ""
+
+
+def _strip_running_boilerplate(text: str, threshold: int = 3) -> str:
+    """Strip lines that repeat >=threshold times after digit normalization.
+
+    Catches running page headers (same text except page numbers) and static
+    repeated boilerplate (project name, location tags, running footers).
+    Preserves non-repeating body content.
+
+    Digit normalization is key: "WC 00-1 ..." and "WC 00-2 ..." normalize
+    to identical strings and are detected as repeats.
+    """
+    lines = text.splitlines(keepends=False)
+    if not lines:
+        return text
+
+    def _normalize(line: str) -> str | None:
+        s = line.strip()
+        if len(s) < 5:
+            return None  # too short to meaningfully count as boilerplate
+        return re.sub(r"\d+", "#", s)
+
+    counts = Counter(
+        n for n in (_normalize(line) for line in lines) if n is not None
+    )
+    boilerplate = {k for k, v in counts.items() if v >= threshold}
+
+    return "\n".join(
+        line for line in lines if _normalize(line) not in boilerplate
+    )
 
 
 def _first_content_line(block: str) -> str:

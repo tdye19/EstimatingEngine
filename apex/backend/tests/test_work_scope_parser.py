@@ -228,6 +228,91 @@ def test_llm_failure_falls_back_to_regex():
 
 
 # ---------------------------------------------------------------------------
+# HF-19 — KCCU-format block splitter + boilerplate stripper
+# ---------------------------------------------------------------------------
+
+
+def test_kccu_format_extracts_multiple_wcs():
+    """Simulates KCCU running-header format with 3 sections."""
+    text = (
+        "Cover page text\n"
+        "The Christman Co WC 00-1 WC 00 General Requirements\n"
+        "For all Subcontractors\n"
+        "KCCU HQ Proposal Section\n"
+        "Body content for WC 00 page 1\n"
+        "The Christman Co WC 00-2 WC 00 General Requirements\n"
+        "For all Subcontractors\n"
+        "KCCU HQ Proposal Section\n"
+        "Body content for WC 00 page 2\n"
+        "The Christman Co WC 05-1 WC 05 Site Concrete\n"
+        "For all Subcontractors\n"
+        "KCCU HQ Proposal Section\n"
+        "Body content for WC 05\n"
+        "The Christman Co WC 28A-1 WC 28A Generator Procurement\n"
+        "For all Subcontractors\n"
+        "KCCU HQ Proposal Section\n"
+        "Body content for WC 28A\n"
+    )
+    blocks = wsp._split_into_wc_blocks(text)
+    assert len(blocks) == 3
+    assert [b["wc_number"] for b in blocks] == ["WC 00", "WC 05", "WC 28A"]
+    assert blocks[0]["title"] == "General Requirements"
+    assert blocks[1]["title"] == "Site Concrete"
+    assert blocks[2]["title"] == "Generator Procurement"
+
+
+def test_running_boilerplate_stripped():
+    """Repeated lines (with varying numbers) are stripped."""
+    text = (
+        "WC 00-1 WC 00 General Requirements\n"
+        "Some unique body content line\n"
+        "WC 00-2 WC 00 General Requirements\n"
+        "Another unique body line\n"
+        "WC 00-3 WC 00 General Requirements\n"
+        "More unique content\n"
+    )
+    out = wsp._strip_running_boilerplate(text, threshold=3)
+    # Running header (digits normalized -> identical) appears 3x -> stripped
+    assert "WC 00-1 WC 00 General Requirements" not in out
+    assert "WC 00-2 WC 00 General Requirements" not in out
+    # Unique body lines preserved
+    assert "Some unique body content line" in out
+    assert "Another unique body line" in out
+    assert "More unique content" in out
+
+
+def test_kccu_space_before_dash_variant():
+    """Real KCCU PDF extracts both 'WC 00-1' and 'WC 02 -1' — both must match."""
+    text = (
+        "The Christman Co WC 00-1 WC 00 General Requirements\n"
+        "Body for WC 00\n"
+        "The Christman Co Page WC 02 -1 WC 02 Earthwork\n"
+        "Body for WC 02\n"
+        "The Christman Co Page WC 28A -1 WC 28A Electrical\n"
+        "Body for WC 28A\n"
+    )
+    blocks = wsp._split_into_wc_blocks(text)
+    assert [b["wc_number"] for b in blocks] == ["WC 00", "WC 02", "WC 28A"]
+    assert blocks[0]["title"] == "General Requirements"
+    assert blocks[1]["title"] == "Earthwork"
+    assert blocks[2]["title"] == "Electrical"
+
+
+def test_kccu_mode_requires_two_markers():
+    """Synthetic input with 1 stray '-1' marker falls through to standalone."""
+    text = (
+        "WC 01 - Concrete Work\n"
+        "Work Included\n"
+        "- Formwork\n"
+        "Note: reference WC 02-1 elsewhere in document\n"
+    )
+    blocks = wsp._split_into_wc_blocks(text)
+    # Should find 1 block via standalone mode, NOT 2 via KCCU mode
+    assert len(blocks) == 1
+    assert blocks[0]["wc_number"] == "WC 01"
+
+
+# ---------------------------------------------------------------------------
 # Output schema matches the WorkCategory model columns
 # ---------------------------------------------------------------------------
 
