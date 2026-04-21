@@ -26,6 +26,7 @@ class SubBidPackage(Base, TimestampMixin):
     base_scope_items = Column(JSON, nullable=True)
 
     bids = relationship("SubBid", back_populates="package", cascade="all, delete-orphan")
+    project = relationship("Project", back_populates="sub_bid_packages")
 
 
 class SubBid(Base, TimestampMixin):

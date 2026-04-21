@@ -190,6 +190,7 @@ class EstimateRun(Base):
     )
     schedule_scenarios = relationship("ScheduleScenario", back_populates="estimate_run", cascade="all, delete-orphan")
     overrides = relationship("EstimatorOverride", back_populates="estimate_run", cascade="all, delete-orphan")
+    project = relationship("Project", back_populates="estimate_runs")
 
 
 # ─── Source traceability ─────────────────────────────────────────────────────
@@ -538,6 +539,8 @@ class BidOutcome(Base):
     delta_to_winner = Column(Float, nullable=True)
     notes = Column(Text, nullable=True)
     recorded_at = Column(DateTime, default=_now)
+
+    project = relationship("Project", back_populates="bid_outcomes")
 
 
 # ─── Field actuals ───────────────────────────────────────────────────────────

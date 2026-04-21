@@ -53,7 +53,7 @@ class IntelligenceReportModel(Base):
     narrative_tokens_used = Column(Integer, default=0)
 
     # Relationships
-    project = relationship("Project", backref="intelligence_reports")
+    project = relationship("Project", back_populates="intelligence_reports")
 
     __table_args__ = (
         Index("ix_ir_project_id", "project_id"),
