@@ -25,3 +25,6 @@ Thumbs.db
 uploads/
 scripts/
 *.pdf
+
+# Real customer data — never commit. Tests skip via pytest.mark.skipif when absent.
+apex/backend/tests/fixtures/pb/*.xlsx
