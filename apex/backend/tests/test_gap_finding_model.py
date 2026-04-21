@@ -21,7 +21,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from apex.backend.agents.pipeline_contracts import GapFindingOut
 from apex.backend.db.database import Base
-from apex.backend.models.document import Document
 from apex.backend.models.estimate import Estimate, EstimateLineItem
 from apex.backend.models.gap_finding import GapFinding
 from apex.backend.models.project import Project
@@ -31,7 +30,6 @@ from apex.backend.services.gap_finding_repo import (
     delete_project_findings,
     list_findings,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

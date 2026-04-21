@@ -23,7 +23,6 @@ from apex.backend.models.document import Document
 from apex.backend.models.project import Project
 from apex.backend.models.spec_section import SpecSection
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
