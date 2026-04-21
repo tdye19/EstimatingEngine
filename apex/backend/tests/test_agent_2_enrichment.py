@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.orm import Session
-from unittest.mock import patch
 
 from apex.backend.agents import agent_2_spec_parser as a2
 from apex.backend.models.document import Document
@@ -91,11 +91,7 @@ def test_enrichment_targets_only_division_03(db_session, project_with_sections):
     assert div_05.assembly_parameters_json is None
 
     div_03_sections = (
-        db_session.query(SpecSection)
-        .filter_by(
-            division_number="03", project_id=project_with_sections.id
-        )
-        .all()
+        db_session.query(SpecSection).filter_by(division_number="03", project_id=project_with_sections.id).all()
     )
     assert all(s.assembly_parameters_json is not None for s in div_03_sections)
 
@@ -109,9 +105,7 @@ def test_enrichment_targets_only_division_03(db_session, project_with_sections):
     }
 
 
-def test_extractor_failure_does_not_crash_enrichment(
-    db_session, project_with_sections
-):
+def test_extractor_failure_does_not_crash_enrichment(db_session, project_with_sections):
     call_count = {"n": 0}
 
     def flaky_extract(text, csi_code=None, use_llm=True):
@@ -127,9 +121,7 @@ def test_extractor_failure_does_not_crash_enrichment(
         }
 
     with patch.object(a2, "extract_assembly_parameters", side_effect=flaky_extract):
-        result = a2._enrich_division_03_parameters(
-            db_session, project_with_sections.id, use_llm=False
-        )
+        result = a2._enrich_division_03_parameters(db_session, project_with_sections.id, use_llm=False)
 
     assert result["division_03_count"] == 2
     assert result["enriched"] == 1
@@ -193,21 +185,14 @@ def test_empty_section_text_produces_warning(db_session, project_with_sections):
     target.raw_text = ""
     db_session.commit()
 
-    result = a2._enrich_division_03_parameters(
-        db_session, project_with_sections.id, use_llm=False
-    )
+    result = a2._enrich_division_03_parameters(db_session, project_with_sections.id, use_llm=False)
 
     assert result["division_03_count"] == 2
     assert result["enriched"] == 1  # only the non-empty one
-    assert any(
-        "empty work_description and raw_text" in w
-        for w in result["warnings"]
-    )
+    assert any("empty work_description and raw_text" in w for w in result["warnings"])
 
 
-def test_enrichment_reads_work_description_not_raw_text(
-    db_session, project_with_sections
-):
+def test_enrichment_reads_work_description_not_raw_text(db_session, project_with_sections):
     """HF-20 regression: work_description is the production source column.
 
     Before HF-20, enrichment read raw_text only. The v2 LLM parser leaves
@@ -215,31 +200,17 @@ def test_enrichment_reads_work_description_not_raw_text(
     real-world Division 03 section was silently skipped. This test pins
     the fix by setting raw_text explicitly empty.
     """
-    sections = (
-        db_session.query(SpecSection)
-        .filter_by(
-            project_id=project_with_sections.id, division_number="03"
-        )
-        .all()
-    )
+    sections = db_session.query(SpecSection).filter_by(project_id=project_with_sections.id, division_number="03").all()
     for s in sections:
         s.work_description = "Concrete minimum 4000 psi. Grade 60 rebar."
         s.raw_text = ""  # explicitly empty — mirrors v2 LLM parser output
     db_session.commit()
 
-    result = a2._enrich_division_03_parameters(
-        db_session, project_with_sections.id, use_llm=False
-    )
+    result = a2._enrich_division_03_parameters(db_session, project_with_sections.id, use_llm=False)
 
     assert result["enriched"] == result["division_03_count"]
     assert result["enriched"] > 0
-    for s in (
-        db_session.query(SpecSection)
-        .filter_by(
-            project_id=project_with_sections.id, division_number="03"
-        )
-        .all()
-    ):
+    for s in db_session.query(SpecSection).filter_by(project_id=project_with_sections.id, division_number="03").all():
         assert s.assembly_parameters_json is not None
         params = s.assembly_parameters_json.get("parameters", {})
         assert "f_c_psi" in params

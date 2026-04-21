@@ -527,16 +527,11 @@ class CrewOrchestrator:
             # Runs right after Agent 2 completes. Additive intelligence:
             # a failure must not block downstream agents.
             # -----------------------------------------------------------
-            if (
-                agent_num == 2
-                and results.get(key, {}).get("status") != "failed"
-                and effective_mode != "winest_import"
-            ):
+            if agent_num == 2 and results.get(key, {}).get("status") != "failed" and effective_mode != "winest_import":
                 try:
                     from apex.backend.agents.agent_2b_work_scopes import run_work_scope_agent
-                    results["agent_2b"] = run_work_scope_agent(
-                        self.db, self.project_id, use_llm=True
-                    )
+
+                    results["agent_2b"] = run_work_scope_agent(self.db, self.project_id, use_llm=True)
                 except Exception as exc:
                     logger.exception(
                         "CrewOrchestrator: Agent 2B failed for project %d",

@@ -140,10 +140,7 @@ def get_assembly_parameters(
     if not section.assembly_parameters_json:
         raise HTTPException(
             status_code=404,
-            detail=(
-                "No assembly parameters for this section "
-                "(not Division 03, or not yet extracted)"
-            ),
+            detail=("No assembly parameters for this section " "(not Division 03, or not yet extracted)"),
         )
     return APIResponse(success=True, data=section.assembly_parameters_json)
 

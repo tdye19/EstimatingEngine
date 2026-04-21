@@ -80,8 +80,7 @@ PARAM_SPECS: list[ParamSpec] = [
         name="aggregate_max_size_inches",
         value_type="float",
         description=(
-            "Maximum coarse aggregate nominal size in inches (e.g., 0.75, "
-            "1.0, 1.5). Convert fractions to decimals."
+            "Maximum coarse aggregate nominal size in inches (e.g., 0.75, " "1.0, 1.5). Convert fractions to decimals."
         ),
         llm_confidence_base=0.85,
         regex_pattern=None,
@@ -89,15 +88,10 @@ PARAM_SPECS: list[ParamSpec] = [
     ParamSpec(
         name="slump_range_inches",
         value_type="string",
-        description=(
-            "Slump range in inches as a string, e.g., '3-5' or '4±1'. "
-            "Preserve the format the spec uses."
-        ),
+        description=("Slump range in inches as a string, e.g., '3-5' or '4±1'. " "Preserve the format the spec uses."),
         llm_confidence_base=0.90,
         regex_pattern=(
-            r"(?i)slump[^.]{0,60}?"
-            r"(\d{1,2}(?:\.\d)?\s*(?:[-\u00b1to]+)\s*\d{1,2}(?:\.\d)?)"
-            r"\s*(?:inch|in\.|\")"
+            r"(?i)slump[^.]{0,60}?" r"(\d{1,2}(?:\.\d)?\s*(?:[-\u00b1to]+)\s*\d{1,2}(?:\.\d)?)" r"\s*(?:inch|in\.|\")"
         ),
     ),
     ParamSpec(
@@ -117,10 +111,7 @@ PARAM_SPECS: list[ParamSpec] = [
     ParamSpec(
         name="rebar_grade",
         value_type="string",
-        description=(
-            "Reinforcing steel grade, e.g., 'Grade 60', 'Grade 75'. "
-            "ASTM A615 unless specified otherwise."
-        ),
+        description=("Reinforcing steel grade, e.g., 'Grade 60', 'Grade 75'. " "ASTM A615 unless specified otherwise."),
         llm_confidence_base=0.95,
         regex_pattern=r"(?i)Grade\s+(40|60|75|80|100)\b",
     ),
@@ -202,17 +193,12 @@ def extract_assembly_parameters(
         truncated, truncated_len_original = _truncate_for_llm(section_text or "")
         if truncated_len_original is not None:
             warnings.append(
-                f"Section text truncated from {truncated_len_original} "
-                f"to {len(truncated)} chars for LLM extraction"
+                f"Section text truncated from {truncated_len_original} " f"to {len(truncated)} chars for LLM extraction"
             )
         try:
-            llm_params, llm_warnings = run_async(
-                _llm_extract(truncated, csi_code)
-            )
+            llm_params, llm_warnings = run_async(_llm_extract(truncated, csi_code))
         except Exception as exc:
-            warnings.append(
-                f"LLM extraction failed: {exc}. Falling back to regex."
-            )
+            warnings.append(f"LLM extraction failed: {exc}. Falling back to regex.")
             parameters = _regex_extract(section_text or "")
             extraction_method = "regex"
         else:
@@ -300,9 +286,7 @@ No prose, no markdown fences. If nothing extracts, return {"parameters": {}}.
 """
 
 
-async def _llm_extract(
-    text: str, csi_code: str | None
-) -> tuple[dict, list[str]]:
+async def _llm_extract(text: str, csi_code: str | None) -> tuple[dict, list[str]]:
     """Call LLM, parse JSON, validate + normalize each parameter.
 
     Raises on: connection error, empty response, JSON parse failure, or
@@ -333,9 +317,7 @@ async def _llm_extract(
             warnings.append(f"Ignoring unknown parameter returned by LLM: {name!r}")
             continue
         if not isinstance(raw_entry, dict):
-            warnings.append(
-                f"Could not normalize {name}: LLM returned non-dict entry"
-            )
+            warnings.append(f"Could not normalize {name}: LLM returned non-dict entry")
             continue
         norm = _normalize_parameter(name, raw_entry, warnings)
         if norm is not None:
@@ -426,25 +408,17 @@ def _normalize_parameter(
     }
 
 
-def _clamp_confidence(
-    value: Any, warnings: list[str], *, name: str
-) -> float:
+def _clamp_confidence(value: Any, warnings: list[str], *, name: str) -> float:
     try:
         v = float(value) if value is not None else 0.5
     except (TypeError, ValueError):
-        warnings.append(
-            f"Non-numeric confidence for {name!r}, defaulting to 0.5"
-        )
+        warnings.append(f"Non-numeric confidence for {name!r}, defaulting to 0.5")
         return 0.5
     if v > 1.0:
-        warnings.append(
-            f"Confidence for {name!r} exceeds 1.0 (LLM bug); clamping."
-        )
+        warnings.append(f"Confidence for {name!r} exceeds 1.0 (LLM bug); clamping.")
         return 1.0
     if v < 0.0:
-        warnings.append(
-            f"Confidence for {name!r} negative; clamping to 0.0."
-        )
+        warnings.append(f"Confidence for {name!r} negative; clamping to 0.0.")
         return 0.0
     return v
 
@@ -456,7 +430,7 @@ def _norm_f_c_psi(value: Any, warnings: list[str], *, name: str) -> int | None:
     try:
         if isinstance(value, bool):
             return None  # bool is int subclass; reject
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             v = int(round(float(value)))
         elif isinstance(value, str):
             s = re.sub(r"[^\d.]", "", value)
@@ -479,9 +453,7 @@ def _norm_f_c_psi(value: Any, warnings: list[str], *, name: str) -> int | None:
 _CEMENT_KNOWN = {"Type I", "Type II", "Type I/II", "Type III", "Type IV", "Type V"}
 
 
-def _norm_cement_type(
-    value: Any, warnings: list[str], *, name: str
-) -> str | None:
+def _norm_cement_type(value: Any, warnings: list[str], *, name: str) -> str | None:
     if not isinstance(value, str):
         return None
     v = re.sub(r"\s+", " ", value.strip())
@@ -504,13 +476,11 @@ def _norm_cement_type(
 # -- aggregate_max_size_inches ---------------------------------------------
 
 
-def _norm_aggregate(
-    value: Any, warnings: list[str], *, name: str
-) -> float | None:
+def _norm_aggregate(value: Any, warnings: list[str], *, name: str) -> float | None:
     v: float | None = None
     if isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         v = float(value)
     elif isinstance(value, str):
         s = value.strip().lower()
@@ -595,9 +565,7 @@ def _norm_rebar(value: Any, warnings: list[str], *, name: str) -> str | None:
 # -- finish_class / curing_method (simple strip) ---------------------------
 
 
-def _norm_string_passthrough(
-    value: Any, warnings: list[str], *, name: str
-) -> str | None:
+def _norm_string_passthrough(value: Any, warnings: list[str], *, name: str) -> str | None:
     if value is None:
         return None
     s = str(value).strip()

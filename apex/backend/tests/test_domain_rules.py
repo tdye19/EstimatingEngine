@@ -2,8 +2,8 @@
 
 from apex.backend.agents.tools.domain_gap_rules import (
     ALL_DOMAIN_RULES,
-    CONCRETE_GAP_RULES,
     CIVIL_GAP_RULES,
+    CONCRETE_GAP_RULES,
     run_domain_rules,
 )
 
@@ -25,9 +25,9 @@ def test_cgr_010_does_not_fire_on_fly_ash_only():
     sections = [{"section_number": "03 30 00", "division_number": "03"}]
     spec_text = "Concrete mix shall include fly ash and slag per sustainability requirements."
     findings = run_domain_rules(sections, spec_content_text=spec_text)
-    assert not any(f["rule_id"] == "CGR-010" for f in findings), (
-        "CGR-010 should not fire on generic SCM keywords after fix"
-    )
+    assert not any(
+        f["rule_id"] == "CGR-010" for f in findings
+    ), "CGR-010 should not fire on generic SCM keywords after fix"
 
 
 def test_cgr_010_still_fires_on_high_strength():
@@ -35,9 +35,7 @@ def test_cgr_010_still_fires_on_high_strength():
     sections = [{"section_number": "03 30 00", "division_number": "03"}]
     spec_text = "10000 psi high-strength concrete mix required for columns."
     findings = run_domain_rules(sections, spec_content_text=spec_text)
-    assert any(f["rule_id"] == "CGR-010" for f in findings), (
-        "CGR-010 should still fire on high-strength keyword"
-    )
+    assert any(f["rule_id"] == "CGR-010" for f in findings), "CGR-010 should still fire on high-strength keyword"
 
 
 def test_civ_001_cost_range_updated():
@@ -63,9 +61,9 @@ def test_vapor_barrier_silent_when_scope_includes_it():
     ]
     spec_text = "Slab on grade with 15-mil vapor barrier."
     findings = run_domain_rules(sections, spec_content_text=spec_text)
-    assert not any(f["rule_id"] == "CGR-001" for f in findings), (
-        "CGR-001 should be silenced when 03 15 05 vapor barrier is in scope"
-    )
+    assert not any(
+        f["rule_id"] == "CGR-001" for f in findings
+    ), "CGR-001 should be silenced when 03 15 05 vapor barrier is in scope"
 
 
 def test_findings_include_cost_unit():

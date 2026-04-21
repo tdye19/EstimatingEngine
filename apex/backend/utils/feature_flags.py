@@ -4,6 +4,7 @@ Controlled by APEX_DEMO_MODE env var. When true, certain UI-facing routes return
 404 so the frontend hides those tabs. The underlying pipeline agents continue to
 run; only the surface is gated.
 """
+
 from apex.backend.config import APEX_DEMO_MODE
 
 HIDDEN_IN_DEMO = {

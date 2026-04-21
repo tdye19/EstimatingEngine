@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from apex.backend.services import assembly_parameter_extractor as ape
-
 
 # ---------------------------------------------------------------------------
 # is_division_03_section
@@ -126,9 +123,7 @@ def test_llm_partial_marks_method(monkeypatch):
         )
 
     monkeypatch.setattr(ape, "_llm_extract", partial)
-    result = ape.extract_assembly_parameters(
-        "dummy", csi_code="03 30 00", use_llm=True
-    )
+    result = ape.extract_assembly_parameters("dummy", csi_code="03 30 00", use_llm=True)
     assert result["extraction_method"] == "llm_partial"
     assert result["parameters"]["f_c_psi"]["value"] == 4000
 
