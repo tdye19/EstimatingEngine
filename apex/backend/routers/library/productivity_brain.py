@@ -1,17 +1,23 @@
 """Productivity Brain router — bulk upload, rates, and estimate comparison."""
 
+import hashlib
+import json
 import os
+import uuid
 
 import aiofiles
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import JSONResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from apex.backend.config import UPLOAD_DIR
 from apex.backend.db.database import get_db
 from apex.backend.services.library.productivity_brain.models import PBLineItem, PBProject
+from apex.backend.services.library.productivity_brain.parser import compute_file_hash
+from apex.backend.services.library.productivity_brain.parsers import MultiProjectRatesParser
 from apex.backend.services.library.productivity_brain.service import ProductivityBrainService
-from apex.backend.utils.auth import require_auth
+from apex.backend.utils.auth import require_auth, require_role
 from apex.backend.utils.schemas import APIResponse
 
 router = APIRouter(
@@ -183,6 +189,112 @@ _PB_LINE_ITEM_COLUMNS = (
     "csi_code",
     "source_project",
 )
+
+
+_require_admin = require_role("admin")
+
+
+def _synthetic_project_hash(file_md5: str, source_project: str) -> str:
+    """Mirror of service._project_file_hash — duplicated locally to avoid
+    importing a private helper across module boundaries."""
+    return hashlib.md5(f"{file_md5}||{source_project}".encode()).hexdigest()
+
+
+@router.post("/load-multi-project", response_model=APIResponse)
+def load_multi_project(
+    file: UploadFile = File(...),
+    metadata_json: str | None = Form(None),
+    _admin=Depends(_require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin-only multi-project loader. Parses an Excel file with per-project
+    rate columns, upserts one PBProject per column via
+    ProductivityBrainService.load_multi_project_file, and returns counts.
+
+    Status codes:
+      200 — loaded (new or upserted).
+      400 — file isn't an .xlsx, metadata_json is malformed, or the parser
+            doesn't recognise the layout.
+      409 — every PBProject this file would produce already exists (full
+            prior load detected via synthetic file_hash match).
+    """
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Expected an .xlsx upload")
+
+    metadata_overrides: dict | None = None
+    if metadata_json:
+        try:
+            parsed = json.loads(metadata_json)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid metadata_json: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise HTTPException(status_code=400, detail="metadata_json must decode to a JSON object")
+        metadata_overrides = parsed
+
+    os.makedirs(PB_UPLOAD_DIR, exist_ok=True)
+    # Randomised temp name so concurrent uploads of the same filename don't
+    # collide on disk before the idempotency check runs.
+    temp_name = f"{uuid.uuid4().hex}_{file.filename}"
+    temp_path = os.path.join(PB_UPLOAD_DIR, temp_name)
+
+    try:
+        content = file.file.read()
+        with open(temp_path, "wb") as fh:
+            fh.write(content)
+
+        if not MultiProjectRatesParser.detect(temp_path):
+            raise HTTPException(
+                status_code=400,
+                detail="File format not recognised as multi-project rates",
+            )
+
+        # Idempotency: parse once to learn project names, synthesise hashes,
+        # query for existing rows. Fully-matching prior load → 409.
+        parser = MultiProjectRatesParser()
+        preview = parser.parse(temp_path, metadata_overrides=metadata_overrides)
+        file_md5 = compute_file_hash(temp_path)
+        expected_hashes = [
+            _synthetic_project_hash(file_md5, p.source_project)
+            for p in preview.parsed_projects
+        ]
+        existing = (
+            db.query(PBProject).filter(PBProject.file_hash.in_(expected_hashes)).all()
+            if expected_hashes
+            else []
+        )
+        if expected_hashes and len(existing) == len(expected_hashes):
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "success": False,
+                    "message": "File already loaded",
+                    "error": "duplicate_file",
+                    "data": {
+                        "existing_project_ids": [p.id for p in existing],
+                        "existing_project_names": [p.name for p in existing],
+                    },
+                },
+            )
+
+        svc = ProductivityBrainService(db)
+        try:
+            result = svc.load_multi_project_file(
+                db, temp_path, metadata_overrides=metadata_overrides
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        return APIResponse(
+            success=True,
+            message="Loaded",
+            data=result.model_dump(),
+        )
+    finally:
+        if os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
 
 
 @router.get("/diagnostic/sample", response_model=APIResponse)
