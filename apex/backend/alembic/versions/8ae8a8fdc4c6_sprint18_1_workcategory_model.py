@@ -4,15 +4,15 @@ Revision ID: 8ae8a8fdc4c6
 Revises: 230fce14e46f
 Create Date: 2026-04-20
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 revision: str = "8ae8a8fdc4c6"
-down_revision: Union[str, Sequence[str], None] = "230fce14e46f"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "230fce14e46f"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

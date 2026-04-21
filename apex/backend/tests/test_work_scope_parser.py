@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from apex.backend.models.work_category import WorkCategory
 from apex.backend.services import work_scope_parser as wsp
 
-
 # ---------------------------------------------------------------------------
 # classify_document
 # ---------------------------------------------------------------------------

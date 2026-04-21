@@ -456,7 +456,7 @@ def _norm_f_c_psi(value: Any, warnings: list[str], *, name: str) -> int | None:
     try:
         if isinstance(value, bool):
             return None  # bool is int subclass; reject
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             v = int(round(float(value)))
         elif isinstance(value, str):
             s = re.sub(r"[^\d.]", "", value)
@@ -510,7 +510,7 @@ def _norm_aggregate(
     v: float | None = None
     if isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         v = float(value)
     elif isinstance(value, str):
         s = value.strip().lower()

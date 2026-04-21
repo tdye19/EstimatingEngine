@@ -314,7 +314,7 @@ def _safe_float(value: Any) -> tuple[float | None, str | None]:
     if isinstance(value, bool):
         # bool is an int subclass — reject to avoid surprises
         return None, f"unexpected bool numeric: {value!r}"
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return float(value), None
     if isinstance(value, str):
         cleaned = value.replace("$", "").replace(",", "").strip()

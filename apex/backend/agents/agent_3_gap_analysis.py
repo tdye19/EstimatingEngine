@@ -14,12 +14,12 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from apex.backend.agents.pipeline_contracts import validate_agent_output
+from apex.backend.agents.tools.domain_gap_rules import run_domain_rules
 from apex.backend.agents.tools.gap_tools import (
     checklist_compare_tool,
     gap_scorer_tool,
     risk_tagger_tool,
 )
-from apex.backend.agents.tools.domain_gap_rules import run_domain_rules
 from apex.backend.models.gap_report import GapReport, GapReportItem
 from apex.backend.models.spec_section import SpecSection
 from apex.backend.services.token_tracker import log_token_usage

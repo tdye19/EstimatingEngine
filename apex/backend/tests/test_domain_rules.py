@@ -2,8 +2,8 @@
 
 from apex.backend.agents.tools.domain_gap_rules import (
     ALL_DOMAIN_RULES,
-    CONCRETE_GAP_RULES,
     CIVIL_GAP_RULES,
+    CONCRETE_GAP_RULES,
     run_domain_rules,
 )
 

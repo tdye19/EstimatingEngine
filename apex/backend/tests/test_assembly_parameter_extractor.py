@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from apex.backend.services import assembly_parameter_extractor as ape
-
 
 # ---------------------------------------------------------------------------
 # is_division_03_section

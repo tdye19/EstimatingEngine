@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.orm import Session
-from unittest.mock import patch
 
 from apex.backend.agents import agent_2_spec_parser as a2
 from apex.backend.models.document import Document
