@@ -81,11 +81,7 @@ def test_creates_work_categories_from_work_scope_doc(db_session, sample_project)
     )
     assert [w.wc_number for w in wcs] == ["WC 01", "WC 02"]
     # source_document_id should point at the work-scope doc, not the spec doc
-    ws_doc = (
-        db_session.query(Document)
-        .filter(Document.filename == "Volume 2 - Work Scopes.pdf")
-        .first()
-    )
+    ws_doc = db_session.query(Document).filter(Document.filename == "Volume 2 - Work Scopes.pdf").first()
     assert all(w.source_document_id == ws_doc.id for w in wcs)
 
 
@@ -97,11 +93,7 @@ def test_upsert_behavior_on_rerun(db_session, sample_project):
     assert output2["work_categories_created"] == 0
     assert output2["work_categories_updated"] == 2
 
-    count = (
-        db_session.query(WorkCategory)
-        .filter(WorkCategory.project_id == sample_project.id)
-        .count()
-    )
+    count = db_session.query(WorkCategory).filter(WorkCategory.project_id == sample_project.id).count()
     assert count == 2  # unique constraint held
 
 
@@ -120,9 +112,7 @@ def test_empty_document_raw_text_produces_warning(db_session, sample_project):
     db_session.commit()
 
     output = run_work_scope_agent(db_session, sample_project.id, use_llm=False)
-    assert any(
-        "empty.pdf" in w and "empty raw_text" in w for w in output["warnings"]
-    )
+    assert any("empty.pdf" in w and "empty raw_text" in w for w in output["warnings"])
 
 
 def test_agent_2b_propagates_unexpected_errors(db_session, sample_project):

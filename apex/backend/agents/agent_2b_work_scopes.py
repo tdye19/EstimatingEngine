@@ -96,15 +96,11 @@ def run_work_scope_agent(
     for idx, doc in enumerate(docs):
         text = doc.raw_text or ""
         if not text.strip():
-            warnings.append(
-                f"Document {doc.id} ({doc.filename}) has empty raw_text; skipped."
-            )
+            warnings.append(f"Document {doc.id} ({doc.filename}) has empty raw_text; skipped.")
             continue
 
         classification = classify_document(text, doc.filename)
-        classification_summary[classification] = (
-            classification_summary.get(classification, 0) + 1
-        )
+        classification_summary[classification] = classification_summary.get(classification, 0) + 1
 
         if classification == "no_work_scope":
             continue
@@ -139,9 +135,7 @@ def run_work_scope_agent(
 
         for wc_dict in result["work_categories"]:
             wc_number = wc_dict["wc_number"]
-            persist_fields = {
-                k: v for k, v in wc_dict.items() if k != "project_id"
-            }
+            persist_fields = {k: v for k, v in wc_dict.items() if k != "project_id"}
 
             existing = (
                 db.query(WorkCategory)

@@ -51,12 +51,7 @@ def list_work_categories(project_id: int, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    rows = (
-        db.query(WorkCategory)
-        .filter(WorkCategory.project_id == project_id)
-        .order_by(WorkCategory.wc_number)
-        .all()
-    )
+    rows = db.query(WorkCategory).filter(WorkCategory.project_id == project_id).order_by(WorkCategory.wc_number).all()
     return [_serialize_wc(wc) for wc in rows]
 
 
@@ -67,12 +62,7 @@ def get_work_category(
     db: Session = Depends(get_db),
 ):
     """Return a single WorkCategory by ID, scoped to the project."""
-    wc = (
-        db.query(WorkCategory)
-        .filter(WorkCategory.id == wc_id)
-        .filter(WorkCategory.project_id == project_id)
-        .first()
-    )
+    wc = db.query(WorkCategory).filter(WorkCategory.id == wc_id).filter(WorkCategory.project_id == project_id).first()
     if not wc:
         raise HTTPException(status_code=404, detail="Work category not found")
     return _serialize_wc(wc)

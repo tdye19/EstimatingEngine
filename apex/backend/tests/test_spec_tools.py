@@ -73,9 +73,7 @@ def test_llm_parse_spec_sections_keeps_longest_content_on_duplicate(monkeypatch)
 
     monkeypatch.setattr(spec_prompts, "parse_and_validate_llm_sections", _fake_parse)
 
-    result, _in_tok, _out_tok = asyncio.run(
-        spec_tools.llm_parse_spec_sections(document_text, _FakeProvider())
-    )
+    result, _in_tok, _out_tok = asyncio.run(spec_tools.llm_parse_spec_sections(document_text, _FakeProvider()))
 
     assert call_count["n"] >= 2, "expected chunking to produce at least two LLM calls"
     assert len(result) == 1, f"expected dedup to collapse to one section, got {len(result)}"
@@ -115,9 +113,7 @@ def test_llm_parse_spec_sections_handles_missing_content_field(monkeypatch):
 
     monkeypatch.setattr(spec_prompts, "parse_and_validate_llm_sections", _fake_parse)
 
-    result, _in_tok, _out_tok = asyncio.run(
-        spec_tools.llm_parse_spec_sections(document_text, _FakeProvider())
-    )
+    result, _in_tok, _out_tok = asyncio.run(spec_tools.llm_parse_spec_sections(document_text, _FakeProvider()))
 
     assert len(result) == 1
     assert result[0]["section_number"] == "03 30 00"

@@ -61,10 +61,7 @@ def list_agent_run_logs(project_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Project not found")
 
     rows = (
-        db.query(AgentRunLog)
-        .filter(AgentRunLog.project_id == project_id)
-        .order_by(AgentRunLog.created_at.desc())
-        .all()
+        db.query(AgentRunLog).filter(AgentRunLog.project_id == project_id).order_by(AgentRunLog.created_at.desc()).all()
     )
     return APIResponse(success=True, data=[_serialize(r) for r in rows])
 
@@ -76,12 +73,7 @@ def get_agent_run_log(
     db: Session = Depends(get_db),
 ):
     """Fetch a single agent run log by ID, scoped to the project."""
-    row = (
-        db.query(AgentRunLog)
-        .filter(AgentRunLog.id == log_id)
-        .filter(AgentRunLog.project_id == project_id)
-        .first()
-    )
+    row = db.query(AgentRunLog).filter(AgentRunLog.id == log_id).filter(AgentRunLog.project_id == project_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Agent run log not found")
     return APIResponse(success=True, data=_serialize(row))

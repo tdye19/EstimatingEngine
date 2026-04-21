@@ -96,9 +96,7 @@ def _enrich_division_03_parameters(
         )
         .all()
     )
-    div_03_sections = [
-        s for s in all_sections if is_division_03_section(s.section_number)
-    ]
+    div_03_sections = [s for s in all_sections if is_division_03_section(s.section_number)]
     total = len(div_03_sections)
 
     if total == 0:
@@ -156,10 +154,7 @@ def _enrich_division_03_parameters(
 
             except Exception as exc:
                 # Non-swallow: one section's failure never blocks the rest.
-                warnings.append(
-                    f"Extraction failed for section {section.section_number} "
-                    f"(id={section.id}): {exc}"
-                )
+                warnings.append(f"Extraction failed for section {section.section_number} " f"(id={section.id}): {exc}")
                 logger.exception(
                     "Assembly parameter extraction failed for section %d",
                     section.id,
@@ -185,9 +180,7 @@ def _enrich_division_03_parameters(
             "type": "assembly_params_update",
             "project_id": project_id,
             "status": "complete",
-            "message": (
-                f"Parameter extraction complete: {enriched}/{total} sections enriched."
-            ),
+            "message": (f"Parameter extraction complete: {enriched}/{total} sections enriched."),
             "progress": {"current": total, "total": total},
         },
     )
@@ -368,9 +361,7 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     # Sprint 18.2.3: Division 03 assembly parameter enrichment.
     # Defense in depth — enrichment must never break Agent 2's existing contract.
     try:
-        enrichment_result = _enrich_division_03_parameters(
-            db, project_id, use_llm=True
-        )
+        enrichment_result = _enrich_division_03_parameters(db, project_id, use_llm=True)
     except Exception as exc:
         logger.exception("Assembly parameter enrichment phase failed wholesale")
         enrichment_result = {

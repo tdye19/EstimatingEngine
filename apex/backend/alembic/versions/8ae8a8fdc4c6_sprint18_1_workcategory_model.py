@@ -4,6 +4,7 @@ Revision ID: 8ae8a8fdc4c6
 Revises: 230fce14e46f
 Create Date: 2026-04-20
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -40,9 +41,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["source_document_id"], ["documents.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "project_id", "wc_number", name="uq_workcategory_project_wcnumber"
-        ),
+        sa.UniqueConstraint("project_id", "wc_number", name="uq_workcategory_project_wcnumber"),
     )
     with op.batch_alter_table("work_categories", schema=None) as batch_op:
         batch_op.create_index(

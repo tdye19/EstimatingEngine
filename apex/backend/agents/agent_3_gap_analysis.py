@@ -603,9 +603,7 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
             domain_gaps = []
 
         if domain_gaps:
-            logger.info(
-                f"Agent 3: domain rules fired {len(domain_gaps)} findings — using as primary fallback output"
-            )
+            logger.info(f"Agent 3: domain rules fired {len(domain_gaps)} findings — using as primary fallback output")
             for gap in domain_gaps:
                 scored_gaps.append(risk_tagger_tool(gap))
         else:

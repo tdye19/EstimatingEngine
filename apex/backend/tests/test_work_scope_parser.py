@@ -13,40 +13,23 @@ from apex.backend.services import work_scope_parser as wsp
 
 
 def test_classify_standalone_by_filename():
-    assert (
-        wsp.classify_document("", filename="Work Scopes Vol 2.pdf")
-        == "standalone_work_scope"
-    )
-    assert (
-        wsp.classify_document("", filename="KCCU_Volume_2_Work_Scopes.pdf")
-        == "standalone_work_scope"
-    )
+    assert wsp.classify_document("", filename="Work Scopes Vol 2.pdf") == "standalone_work_scope"
+    assert wsp.classify_document("", filename="KCCU_Volume_2_Work_Scopes.pdf") == "standalone_work_scope"
 
 
 def test_classify_standalone_by_content_density():
-    text = "\n".join(
-        f"WC {i:02d}\nSome content about category {i}." for i in range(8)
-    )
+    text = "\n".join(f"WC {i:02d}\nSome content about category {i}." for i in range(8))
     assert wsp.classify_document(text) == "standalone_work_scope"
 
 
 def test_classify_embedded():
     filler = "This is generic specification text content. " * 100
-    text = (
-        filler
-        + "\nWC 03 Concrete section follows.\n"
-        + filler
-        + "\nWC 05 Metals section.\n"
-        + filler
-    )
+    text = filler + "\nWC 03 Concrete section follows.\n" + filler + "\nWC 05 Metals section.\n" + filler
     assert wsp.classify_document(text) == "embedded_work_scope"
 
 
 def test_classify_none():
-    assert (
-        wsp.classify_document("No work scopes here, just random spec content.")
-        == "no_work_scope"
-    )
+    assert wsp.classify_document("No work scopes here, just random spec content.") == "no_work_scope"
 
 
 # ---------------------------------------------------------------------------
@@ -90,16 +73,14 @@ def test_csi_code_normalization():
     assert wsp.normalize_csi_code("260500") == "260500"
     assert wsp.normalize_csi_code("03.30.00") == "033000"
     assert wsp.normalize_csi_code("03 30 00.01") == "033000"  # drops sub-level
-    assert wsp.normalize_csi_code("03 30") == "033000"        # pads 4 -> 6
+    assert wsp.normalize_csi_code("03 30") == "033000"  # pads 4 -> 6
     assert wsp.normalize_csi_code("abc") is None
     assert wsp.normalize_csi_code("") is None
     assert wsp.normalize_csi_code(None) is None
 
     # Coerce-list path emits a warning for bad input
     warnings: list[str] = []
-    result = wsp._coerce_csi_list(
-        ["32 13 13", "abc", "03 30 00"], "WC 02", warnings
-    )
+    result = wsp._coerce_csi_list(["32 13 13", "abc", "03 30 00"], "WC 02", warnings)
     assert result == ["321313", "033000"]
     assert any("Skipped invalid CSI code" in w for w in warnings)
 
@@ -164,20 +145,10 @@ def test_unit_price_rate_cast_from_llm():
 
 def test_alternate_price_type_inference():
     assert wsp.infer_price_type("Add Alternate #1: Upgrade finishes") == "add"
-    assert (
-        wsp.infer_price_type("Additive Alternate: Extra landscaping") == "add"
-    )
-    assert (
-        wsp.infer_price_type("Deduct Alternate #2: Omit skylights") == "deduct"
-    )
-    assert (
-        wsp.infer_price_type("Deductive Alternate: Cheaper flooring")
-        == "deduct"
-    )
-    assert (
-        wsp.infer_price_type("Credit Alternate: Owner-supplied doors")
-        == "deduct"
-    )
+    assert wsp.infer_price_type("Additive Alternate: Extra landscaping") == "add"
+    assert wsp.infer_price_type("Deduct Alternate #2: Omit skylights") == "deduct"
+    assert wsp.infer_price_type("Deductive Alternate: Cheaper flooring") == "deduct"
+    assert wsp.infer_price_type("Credit Alternate: Owner-supplied doors") == "deduct"
     assert wsp.infer_price_type("Alternate #3: Bare reference") == "unknown"
 
     # Coerce path propagates inference when LLM omits price_type
@@ -221,8 +192,7 @@ def test_llm_invalid_json_falls_back_to_regex():
 
     # Simulate Claude returning a truncated (unterminated) JSON string
     truncated_body = (
-        '{"work_categories": [{"wc_number": "WC 02", '
-        '"title": "Earthwork", "work_included_items": ["Excavati'
+        '{"work_categories": [{"wc_number": "WC 02", ' '"title": "Earthwork", "work_included_items": ["Excavati'
     )
     fake_resp = MagicMock()
     fake_resp.content = truncated_body
@@ -336,12 +306,7 @@ def test_kccu_space_before_dash_variant():
 
 def test_kccu_mode_requires_two_markers():
     """Synthetic input with 1 stray '-1' marker falls through to standalone."""
-    text = (
-        "WC 01 - Concrete Work\n"
-        "Work Included\n"
-        "- Formwork\n"
-        "Note: reference WC 02-1 elsewhere in document\n"
-    )
+    text = "WC 01 - Concrete Work\n" "Work Included\n" "- Formwork\n" "Note: reference WC 02-1 elsewhere in document\n"
     blocks = wsp._split_into_wc_blocks(text)
     # Should find 1 block via standalone mode, NOT 2 via KCCU mode
     assert len(blocks) == 1
@@ -372,9 +337,5 @@ def test_output_schema_matches_model_columns():
 
     for wc in result["work_categories"]:
         for key in wc.keys():
-            assert key in model_cols, (
-                f"Output key {key!r} is not a WorkCategory column"
-            )
-            assert key not in db_generated, (
-                f"Output should not include DB-generated column {key!r}"
-            )
+            assert key in model_cols, f"Output key {key!r} is not a WorkCategory column"
+            assert key not in db_generated, f"Output should not include DB-generated column {key!r}"

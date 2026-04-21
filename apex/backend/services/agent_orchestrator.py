@@ -445,9 +445,8 @@ class AgentOrchestrator:
             if agent_num == 2 and last_error is None and effective_mode != "winest_import":
                 try:
                     from apex.backend.agents.agent_2b_work_scopes import run_work_scope_agent
-                    results["agent_2b"] = run_work_scope_agent(
-                        self.db, self.project_id, use_llm=True
-                    )
+
+                    results["agent_2b"] = run_work_scope_agent(self.db, self.project_id, use_llm=True)
                 except Exception as exc:
                     logger.exception("Agent 2B failed for project %d", self.project_id)
                     results["agent_2b"] = {"error": str(exc), "status": "failed"}

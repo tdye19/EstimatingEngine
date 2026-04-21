@@ -111,9 +111,7 @@ def parse_work_scopes(
             try:
                 raw_list = _parse_llm_json(resp_content)
             except (ValueError, json.JSONDecodeError) as je:
-                warnings.append(
-                    f"LLM returned invalid JSON: {je}. Fell back to regex."
-                )
+                warnings.append(f"LLM returned invalid JSON: {je}. Fell back to regex.")
                 wcs = _regex_parse(text, source_document_id, warnings)
                 outer_method = "regex_fallback"
             else:
@@ -124,9 +122,7 @@ def parse_work_scopes(
         outer_method = "regex"
 
     if not wcs:
-        warnings.append(
-            f"Classified as {classification} but no WC blocks extracted."
-        )
+        warnings.append(f"Classified as {classification} but no WC blocks extracted.")
 
     return {
         "classification": classification,
@@ -221,19 +217,11 @@ def _coerce_llm_output(
             wc["work_category_notes"] = notes_val.strip()
 
         wc["specific_notes"] = _as_str_list(raw.get("specific_notes"))
-        wc["related_work_by_others"] = _as_str_list(
-            raw.get("related_work_by_others")
-        )
+        wc["related_work_by_others"] = _as_str_list(raw.get("related_work_by_others"))
         wc["add_alternates"] = _coerce_add_alternates(raw.get("add_alternates"))
-        wc["allowances"] = _coerce_allowances(
-            raw.get("allowances"), wc_num, warnings
-        )
-        wc["unit_prices"] = _coerce_unit_prices(
-            raw.get("unit_prices"), wc_num, warnings
-        )
-        wc["referenced_spec_sections"] = _coerce_csi_list(
-            raw.get("referenced_spec_sections"), wc_num, warnings
-        )
+        wc["allowances"] = _coerce_allowances(raw.get("allowances"), wc_num, warnings)
+        wc["unit_prices"] = _coerce_unit_prices(raw.get("unit_prices"), wc_num, warnings)
+        wc["referenced_spec_sections"] = _coerce_csi_list(raw.get("referenced_spec_sections"), wc_num, warnings)
 
         out.append(wc)
     return out
@@ -343,11 +331,7 @@ def _coerce_add_alternates(value: Any) -> list[dict]:
         if not desc:
             continue
         pt_raw = item.get("price_type")
-        pt = (
-            str(pt_raw).strip().lower()
-            if isinstance(pt_raw, str)
-            else ""
-        )
+        pt = str(pt_raw).strip().lower() if isinstance(pt_raw, str) else ""
         if pt not in ("add", "deduct", "unknown"):
             pt = infer_price_type(desc)
         out.append({"description": desc, "price_type": pt})
@@ -357,12 +341,8 @@ def _coerce_add_alternates(value: Any) -> list[dict]:
 def infer_price_type(description: str) -> str:
     """Classify an alternate line as add / deduct / unknown by keyword."""
     d = (description or "").lower()
-    has_deduct = bool(
-        re.search(r"\b(deduct|deductive|credit)\s+alternate\b|\bdeduct\b", d)
-    )
-    has_add = bool(
-        re.search(r"\b(add|additive)\s+alternate\b|\badditive\b", d)
-    )
+    has_deduct = bool(re.search(r"\b(deduct|deductive|credit)\s+alternate\b|\bdeduct\b", d))
+    has_add = bool(re.search(r"\b(add|additive)\s+alternate\b|\badditive\b", d))
     if has_deduct and not has_add:
         return "deduct"
     if has_add and not has_deduct:
@@ -392,10 +372,7 @@ def _coerce_allowances(
             raw_amt = item.get("amount")  # tolerate legacy LLM key
         amount, err = _safe_float(raw_amt)
         if err:
-            warnings.append(
-                f"Could not cast amount_dollars for {wc_num} allowance "
-                f"'{desc}': {err}"
-            )
+            warnings.append(f"Could not cast amount_dollars for {wc_num} allowance " f"'{desc}': {err}")
         out.append({"description": desc, "amount_dollars": amount})
     return out
 
@@ -411,9 +388,7 @@ def _coerce_unit_prices(
     for item in value:
         if not isinstance(item, dict):
             continue
-        desc = _as_str_or_empty(
-            item.get("description") or item.get("item")
-        )
+        desc = _as_str_or_empty(item.get("description") or item.get("item"))
         if not desc:
             continue
         unit = _as_str_or_empty(item.get("unit"))
@@ -422,9 +397,7 @@ def _coerce_unit_prices(
             raw_rate = item.get("price")  # tolerate legacy LLM key
         rate, err = _safe_float(raw_rate)
         if err:
-            warnings.append(
-                f"Could not cast rate for {wc_num} unit price '{desc}': {err}"
-            )
+            warnings.append(f"Could not cast rate for {wc_num} unit price '{desc}': {err}")
         out.append({"description": desc, "unit": unit, "rate": rate})
     return out
 
@@ -440,9 +413,7 @@ def _coerce_csi_list(
     for raw in value:
         norm = normalize_csi_code(raw)
         if norm is None:
-            warnings.append(
-                f"Skipped invalid CSI code reference in {wc_num}: {raw!r}"
-            )
+            warnings.append(f"Skipped invalid CSI code reference in {wc_num}: {raw!r}")
             continue
         out.append(norm)
     # De-duplicate while preserving order of first appearance
@@ -480,9 +451,7 @@ def normalize_csi_code(raw: Any) -> str | None:
 # ---------------------------------------------------------------------------
 
 _SUBSECTION_PATTERNS: dict[str, re.Pattern] = {
-    "work_included_items": re.compile(
-        r"^\s*Work\s+Included\s*:?\s*$", re.IGNORECASE | re.MULTILINE
-    ),
+    "work_included_items": re.compile(r"^\s*Work\s+Included\s*:?\s*$", re.IGNORECASE | re.MULTILINE),
     "work_category_notes": re.compile(
         r"^\s*Work\s+Category\s+Notes\s*:?\s*$",
         re.IGNORECASE | re.MULTILINE,
@@ -491,19 +460,13 @@ _SUBSECTION_PATTERNS: dict[str, re.Pattern] = {
         r"^\s*Specific\s+Notes(?:\s+and\s+Details)?\s*:?\s*$",
         re.IGNORECASE | re.MULTILINE,
     ),
-    "add_alternates": re.compile(
-        r"^\s*Add\s+Alternates?\s*:?\s*$", re.IGNORECASE | re.MULTILINE
-    ),
+    "add_alternates": re.compile(r"^\s*Add\s+Alternates?\s*:?\s*$", re.IGNORECASE | re.MULTILINE),
     "related_work_by_others": re.compile(
         r"^\s*Related\s+Work\s+by\s+Others\s*:?\s*$",
         re.IGNORECASE | re.MULTILINE,
     ),
-    "allowances": re.compile(
-        r"^\s*Allowances?\s*:?\s*$", re.IGNORECASE | re.MULTILINE
-    ),
-    "unit_prices": re.compile(
-        r"^\s*Unit\s+Prices?\s*:?\s*$", re.IGNORECASE | re.MULTILINE
-    ),
+    "allowances": re.compile(r"^\s*Allowances?\s*:?\s*$", re.IGNORECASE | re.MULTILINE),
+    "unit_prices": re.compile(r"^\s*Unit\s+Prices?\s*:?\s*$", re.IGNORECASE | re.MULTILINE),
 }
 
 # Primary: first-page-of-section marker (KCCU/Christman PDF format).
@@ -518,9 +481,7 @@ _FIRST_PAGE_RE = re.compile(
 # Secondary: standalone WC header (synthetic/clean-PDF format).
 # Matches "WC XX" or "WC XX - Title" on its own line.
 _STANDALONE_HEADER_RE = re.compile(
-    r"^\s*WC\s+(?P<num>\d{1,2}[A-Z]?)"
-    r"(?:\s*[-:\u2014\u2013]\s*(?P<title>.+?))?"
-    r"\s*$",
+    r"^\s*WC\s+(?P<num>\d{1,2}[A-Z]?)" r"(?:\s*[-:\u2014\u2013]\s*(?P<title>.+?))?" r"\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -538,9 +499,7 @@ _BULLET_RE = re.compile(
     re.MULTILINE,
 )
 
-_CSI_INLINE_RE = re.compile(
-    r"\b(\d{2})[\s.\-]*(\d{2})[\s.\-]*(\d{2})(?:\.\d{1,2})?\b"
-)
+_CSI_INLINE_RE = re.compile(r"\b(\d{2})[\s.\-]*(\d{2})[\s.\-]*(\d{2})(?:\.\d{1,2})?\b")
 
 _DOLLAR_RE = re.compile(r"\$\s*([\d,]+(?:\.\d{1,2})?)")
 
@@ -575,21 +534,11 @@ def _regex_parse(
         if notes:
             wc["work_category_notes"] = notes
         wc["specific_notes"] = _bulleted(sections.get("specific_notes", ""))
-        wc["related_work_by_others"] = _bulleted(
-            sections.get("related_work_by_others", "")
-        )
-        wc["add_alternates"] = _regex_add_alternates(
-            sections.get("add_alternates", "")
-        )
-        wc["allowances"] = _regex_allowances(
-            sections.get("allowances", ""), b["wc_number"], warnings
-        )
-        wc["unit_prices"] = _regex_unit_prices(
-            sections.get("unit_prices", ""), b["wc_number"], warnings
-        )
-        wc["referenced_spec_sections"] = _regex_csi_codes(
-            cleaned_block, b["wc_number"], warnings
-        )
+        wc["related_work_by_others"] = _bulleted(sections.get("related_work_by_others", ""))
+        wc["add_alternates"] = _regex_add_alternates(sections.get("add_alternates", ""))
+        wc["allowances"] = _regex_allowances(sections.get("allowances", ""), b["wc_number"], warnings)
+        wc["unit_prices"] = _regex_unit_prices(sections.get("unit_prices", ""), b["wc_number"], warnings)
+        wc["referenced_spec_sections"] = _regex_csi_codes(cleaned_block, b["wc_number"], warnings)
         out.append(wc)
     return out
 
@@ -646,11 +595,13 @@ def _blocks_from_kccu_markers(text: str, matches: list) -> list[dict]:
             line_end = len(text)
         raw = text[line_start:line_end]
         title = _extract_kccu_title(raw, num)
-        blocks.append({
-            "wc_number": f"WC {num}",
-            "title": title,
-            "block": raw,
-        })
+        blocks.append(
+            {
+                "wc_number": f"WC {num}",
+                "title": title,
+                "block": raw,
+            }
+        )
     return blocks
 
 
@@ -663,11 +614,13 @@ def _blocks_from_standalone_headers(text: str, matches: list) -> list[dict]:
         start = m.start()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         raw = text[start:end]
-        blocks.append({
-            "wc_number": f"WC {num}",
-            "title": title,
-            "block": raw,
-        })
+        blocks.append(
+            {
+                "wc_number": f"WC {num}",
+                "title": title,
+                "block": raw,
+            }
+        )
     return blocks
 
 
@@ -704,14 +657,10 @@ def _strip_running_boilerplate(text: str, threshold: int = 3) -> str:
             return None  # too short to meaningfully count as boilerplate
         return re.sub(r"\d+", "#", s)
 
-    counts = Counter(
-        n for n in (_normalize(line) for line in lines) if n is not None
-    )
+    counts = Counter(n for n in (_normalize(line) for line in lines) if n is not None)
     boilerplate = {k for k, v in counts.items() if v >= threshold}
 
-    return "\n".join(
-        line for line in lines if _normalize(line) not in boilerplate
-    )
+    return "\n".join(line for line in lines if _normalize(line) not in boilerplate)
 
 
 def _first_content_line(block: str) -> str:
@@ -759,41 +708,29 @@ def _bulleted(chunk: str) -> list[str]:
 def _regex_add_alternates(chunk: str) -> list[dict]:
     if not chunk:
         return []
-    return [
-        {"description": desc, "price_type": infer_price_type(desc)}
-        for desc in _bulleted(chunk)
-    ]
+    return [{"description": desc, "price_type": infer_price_type(desc)} for desc in _bulleted(chunk)]
 
 
-def _regex_allowances(
-    chunk: str, wc_num: str, warnings: list[str]
-) -> list[dict]:
+def _regex_allowances(chunk: str, wc_num: str, warnings: list[str]) -> list[dict]:
     if not chunk:
         return []
     out = []
     for desc in _bulleted(chunk):
         amount, err = _extract_dollar_amount(desc)
         if err:
-            warnings.append(
-                f"Could not cast amount_dollars for {wc_num} allowance "
-                f"'{desc}': {err}"
-            )
+            warnings.append(f"Could not cast amount_dollars for {wc_num} allowance " f"'{desc}': {err}")
         out.append({"description": desc, "amount_dollars": amount})
     return out
 
 
-def _regex_unit_prices(
-    chunk: str, wc_num: str, warnings: list[str]
-) -> list[dict]:
+def _regex_unit_prices(chunk: str, wc_num: str, warnings: list[str]) -> list[dict]:
     if not chunk:
         return []
     out = []
     for desc in _bulleted(chunk):
         rate, err = _extract_dollar_amount(desc)
         if err:
-            warnings.append(
-                f"Could not cast rate for {wc_num} unit price '{desc}': {err}"
-            )
+            warnings.append(f"Could not cast rate for {wc_num} unit price '{desc}': {err}")
         unit_match = _UOM_HINT_RE.search(desc)
         unit = unit_match.group(1).upper() if unit_match else ""
         out.append({"description": desc, "unit": unit, "rate": rate})
@@ -807,9 +744,7 @@ def _extract_dollar_amount(text: str) -> tuple[float | None, str | None]:
     return _safe_float(m.group(1))
 
 
-def _regex_csi_codes(
-    block: str, wc_num: str, warnings: list[str]
-) -> list[str]:
+def _regex_csi_codes(block: str, wc_num: str, warnings: list[str]) -> list[str]:
     found: list[str] = []
     seen: set[str] = set()
     for m in _CSI_INLINE_RE.finditer(block):
@@ -817,9 +752,7 @@ def _regex_csi_codes(
         joined = m.group(1) + m.group(2) + m.group(3)
         normalized = normalize_csi_code(joined)
         if normalized is None:
-            warnings.append(
-                f"Skipped invalid CSI code reference in {wc_num}: {raw!r}"
-            )
+            warnings.append(f"Skipped invalid CSI code reference in {wc_num}: {raw!r}")
             continue
         if normalized not in seen:
             seen.add(normalized)
