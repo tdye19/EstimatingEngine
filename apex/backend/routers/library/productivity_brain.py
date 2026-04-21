@@ -4,11 +4,12 @@ import os
 
 import aiofiles
 from fastapi import APIRouter, Depends, File, Query, UploadFile
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from apex.backend.config import UPLOAD_DIR
 from apex.backend.db.database import get_db
-from apex.backend.services.library.productivity_brain.models import PBProject
+from apex.backend.services.library.productivity_brain.models import PBLineItem, PBProject
 from apex.backend.services.library.productivity_brain.service import ProductivityBrainService
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
@@ -162,3 +163,95 @@ def match_activity(
     if match is None:
         return APIResponse(success=True, data=None, message="No matching activity found")
     return APIResponse(success=True, data=match)
+
+
+_PB_LINE_ITEM_COLUMNS = (
+    "id",
+    "project_id",
+    "wbs_area",
+    "activity",
+    "quantity",
+    "unit",
+    "crew_trade",
+    "production_rate",
+    "labor_hours",
+    "labor_cost_per_unit",
+    "material_cost_per_unit",
+    "equipment_cost",
+    "sub_cost",
+    "total_cost",
+    "csi_code",
+    "source_project",
+)
+
+
+@router.get("/diagnostic/sample", response_model=APIResponse)
+def diagnostic_sample(
+    project_id: int | None = Query(None),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db),
+):
+    """Read-only diagnostic: summary counts, per-project rollup, sample line items.
+
+    `limit` is clamped at 50. `project_id` scopes sample_line_items to that project.
+    `projects_with_csi_code_nonnull` counts distinct pb_projects whose line items
+    include any non-null csi_code; the null partition is the complement.
+    """
+    limit = min(limit, 50)
+
+    total_projects = db.query(func.count(PBProject.id)).scalar() or 0
+    total_line_items = db.query(func.count(PBLineItem.id)).scalar() or 0
+    total_distinct_activities = db.query(func.count(func.distinct(PBLineItem.activity))).scalar() or 0
+
+    projects_with_csi_nonnull = (
+        db.query(func.count(func.distinct(PBLineItem.project_id)))
+        .filter(PBLineItem.csi_code.isnot(None))
+        .scalar()
+        or 0
+    )
+    projects_with_csi_null = total_projects - projects_with_csi_nonnull
+
+    counts_by_pid = dict(
+        db.query(PBLineItem.project_id, func.count(PBLineItem.id))
+        .group_by(PBLineItem.project_id)
+        .all()
+    )
+    source_by_pid = dict(
+        db.query(PBLineItem.project_id, func.max(PBLineItem.source_project))
+        .group_by(PBLineItem.project_id)
+        .all()
+    )
+
+    project_rows = [
+        {
+            "id": p.id,
+            "project_name": p.name,
+            "source_project": source_by_pid.get(p.id),
+            "line_item_count": counts_by_pid.get(p.id, 0),
+            "created_at": p.ingested_at.isoformat() if p.ingested_at else None,
+        }
+        for p in db.query(PBProject).order_by(PBProject.id.desc()).all()
+    ]
+
+    sample_q = db.query(PBLineItem).order_by(PBLineItem.id.desc())
+    if project_id is not None:
+        sample_q = sample_q.filter(PBLineItem.project_id == project_id)
+    sample_rows = [
+        {col: getattr(li, col) for col in _PB_LINE_ITEM_COLUMNS}
+        for li in sample_q.limit(limit).all()
+    ]
+
+    return APIResponse(
+        success=True,
+        data={
+            "summary": {
+                "total_projects": total_projects,
+                "total_line_items": total_line_items,
+                "total_distinct_activities": total_distinct_activities,
+                "projects_with_csi_code_nonnull": projects_with_csi_nonnull,
+                "projects_with_csi_code_null": projects_with_csi_null,
+            },
+            "projects": project_rows,
+            "sample_line_items": sample_rows,
+        },
+    )
