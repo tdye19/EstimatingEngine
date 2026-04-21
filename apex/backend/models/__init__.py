@@ -39,6 +39,7 @@ from apex.backend.models.productivity_history import ProductivityHistory
 from apex.backend.models.project import Project
 from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.spec_section import SpecSection
+from apex.backend.models.sub_bid import SubBid, SubBidLineItem, SubBidPackage
 from apex.backend.models.takeoff_item import TakeoffItem
 from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.models.token_usage import TokenUsage
@@ -105,4 +106,7 @@ __all__ = [
     "EstimatorOverride",
     "BidOutcome",
     "FieldActual",
+    "SubBidPackage",
+    "SubBid",
+    "SubBidLineItem",
 ]
