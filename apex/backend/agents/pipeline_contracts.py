@@ -95,12 +95,28 @@ class AssemblyParameterEnrichment(BaseModel):
     duration_ms: float = Field(ge=0)
 
 
+class SpecSectionDedupStats(BaseModel):
+    """HF-21 (Sprint 18.3.0) — upsert counters for SpecSection writes.
+
+    Surfaced in AgentRunLog.output_data so the /api/projects/{id}/agent-run-logs
+    endpoint can show how many rows were inserted vs. replaced vs. skipped
+    on a given parse run.
+    """
+
+    inserted: int = Field(ge=0)
+    replaced: int = Field(ge=0)
+    skipped: int = Field(ge=0)
+    errors: int = Field(ge=0)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class Agent2Output(BaseModel):
     sections_parsed: int = Field(ge=0)
     documents_processed: int = Field(ge=0)
     parse_method: str
     results: list[Agent2DocResult] = []
     assembly_parameters: AssemblyParameterEnrichment | None = None  # Sprint 18.2.3
+    dedup: SpecSectionDedupStats | None = None  # Sprint 18.3.0 HF-21
 
 
 # ---------------------------------------------------------------------------

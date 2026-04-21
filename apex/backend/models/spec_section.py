@@ -22,7 +22,7 @@ found are absent from the dict (not None). Null at the column level means
 "not extracted yet" — distinct from {} meaning "extracted, none found".
 """
 
-from sqlalchemy import JSON, Boolean, Column, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from apex.backend.db.database import Base
@@ -31,6 +31,15 @@ from apex.backend.models.base import TimestampMixin
 
 class SpecSection(Base, TimestampMixin):
     __tablename__ = "spec_sections"
+    __table_args__ = (
+        # HF-21 (Sprint 18.3.0): one row per CSI code per project. Agent 2's
+        # multi-chunk/multi-doc parse paths previously accumulated duplicates
+        # across runs; upsert logic in the loader + this constraint are two
+        # layers of the same guarantee.
+        UniqueConstraint(
+            "project_id", "section_number", name="uq_spec_section_project_csi"
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
