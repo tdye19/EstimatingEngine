@@ -6,9 +6,10 @@ If validation fails, a ContractViolation is raised with the agent name and detai
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ContractViolation(Exception):
@@ -157,6 +158,39 @@ class Agent3Output(BaseModel):
     report_id: int
     sections_analyzed: int = Field(ge=0)
     spec_vs_takeoff_gaps: int = 0  # count of spec-vs-takeoff cross-reference gaps
+
+
+# ---------------------------------------------------------------------------
+# Agent 3.5 — Scope Gap Analysis (Sprint 18.3.1)
+# ---------------------------------------------------------------------------
+
+
+class GapFindingOut(BaseModel):
+    """Serialized GapFinding row for API responses and inter-agent payloads.
+
+    Consumes GapFinding ORM instances via from_attributes. Literal fields are
+    the authoritative enum for finding_type / match_tier / source — the
+    underlying DB columns are plain strings to match the Sprint 18 migration
+    convention (no sa.Enum, no CHECK).
+    """
+
+    id: int
+    project_id: int
+    finding_type: Literal[
+        "in_scope_not_estimated",
+        "estimated_out_of_scope",
+        "partial_coverage",
+    ]
+    work_category_id: int | None = None
+    estimate_line_id: int | None = None
+    spec_section_ref: str | None = None
+    match_tier: Literal["csi_exact", "spec_section_fuzzy", "llm_semantic"]
+    confidence: float = Field(ge=0.0, le=1.0)
+    rationale: str
+    source: Literal["rule", "llm"]
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ---------------------------------------------------------------------------
