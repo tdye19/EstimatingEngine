@@ -91,9 +91,9 @@ def _count_children(db: Session, project_ids: list[int], tables: list[tuple[str,
     if not project_ids:
         return counts
     for tbl, col in tables:
-        sql = text(f"SELECT COUNT(*) FROM {tbl} WHERE {col} IN :ids").bindparams(
-            bindparam("ids", expanding=True)
-        )
+        sql = text(
+            f"SELECT COUNT(*) FROM {tbl} WHERE {col} IN :ids"  # noqa: S608 — tbl/col from Inspector, not user input
+        ).bindparams(bindparam("ids", expanding=True))
         n = db.execute(sql, {"ids": project_ids}).scalar() or 0
         if n:
             counts[tbl] = int(n)
@@ -125,9 +125,9 @@ def run_cleanup(db: Session, dry_run: bool) -> CleanupReport:
         # not ORM-cascaded. Clean with raw SQL in the same transaction.
         for tbl, col in child_tables:
             deleted = db.execute(
-                text(f"DELETE FROM {tbl} WHERE {col} IN :ids").bindparams(
-                    bindparam("ids", expanding=True)
-                ),
+                text(
+                    f"DELETE FROM {tbl} WHERE {col} IN :ids"  # noqa: S608 — tbl/col from Inspector, not user input
+                ).bindparams(bindparam("ids", expanding=True)),
                 {"ids": report.soft_deleted_project_ids},
             )
             rc = getattr(deleted, "rowcount", 0) or 0

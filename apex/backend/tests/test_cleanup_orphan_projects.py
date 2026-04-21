@@ -154,7 +154,7 @@ class TestCleanupScript:
         rows via ORM-cascade paths, the sweep finds zero — but the sweep
         DID run against every table, which is the regression guard we care
         about here."""
-        ids = _seed_trio(db_session, test_user.id)
+        _seed_trio(db_session, test_user.id)
 
         # Run the table-discovery path directly to check coverage.
         tables = cleanup._child_tables_referencing_projects(db_session)
