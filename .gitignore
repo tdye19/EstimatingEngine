@@ -24,6 +24,7 @@ Thumbs.db
 .vite/
 uploads/
 scripts/
+!apex/backend/scripts/
 *.pdf
 
 # Real customer data — never commit. Tests skip via pytest.mark.skipif when absent.
