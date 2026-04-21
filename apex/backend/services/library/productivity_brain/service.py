@@ -1,7 +1,10 @@
 """Business logic layer for Productivity Brain."""
 
+import hashlib
+import os
 from difflib import SequenceMatcher
 
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -13,12 +16,36 @@ from apex.backend.services.library.productivity_brain.parser import (
     parse_26col,
     parse_averaged_rates,
 )
+from apex.backend.services.library.productivity_brain.parsers import (
+    MultiProjectRatesParser,
+    ParsedProject,
+)
 
 _PARSERS = {
     "26col_civil": parse_26col,
     "21col_estimate": parse_21col,
     "averaged_rates": parse_averaged_rates,
 }
+
+
+class LoadResult(BaseModel):
+    projects_upserted_new: int = 0
+    projects_upserted_existing: int = 0
+    line_items_inserted: int = 0
+    line_items_updated: int = 0
+    line_items_skipped_empty: int = 0
+    pb_project_ids: list[int] = []
+    metadata_applied: dict = {}
+    warnings: list[str] = []
+
+
+def _project_file_hash(file_md5: str, source_project: str) -> str:
+    """Per-project synthetic hash that (a) fits String(32) and (b) keeps
+    PBProject.file_hash UNIQUE when one file yields multiple PBProjects.
+    Also supports file-level idempotency: recomputing the same pair is
+    deterministic, so DATA-1.2 can ask 'has this file been loaded?' by
+    re-hashing each parsed project and checking for any hit."""
+    return hashlib.md5(f"{file_md5}||{source_project}".encode()).hexdigest()
 
 
 class ProductivityBrainService:
@@ -76,6 +103,127 @@ class ProductivityBrainService:
     def batch_ingest(self, filepaths: list[tuple[str, str]]) -> list[dict]:
         """Ingest multiple files. Each tuple is (filepath, filename)."""
         return [self.ingest_file(fp, fn) for fp, fn in filepaths]
+
+    # ── Multi-project (DATA-1.1) ──
+
+    def load_multi_project_file(
+        self,
+        db: Session,
+        file_path: str,
+        metadata_overrides: dict | None = None,
+    ) -> LoadResult:
+        """Parse a multi-project rates file and upsert one PBProject per
+        per-project column, with PBLineItems keyed on
+        (project_id, activity, unit).
+
+        Re-running is safe: same (project_name) → existing PBProject is
+        updated in place; same (project_id, activity, unit) → existing
+        PBLineItem is updated. No duplicate rows.
+        """
+        if db is not self.db:
+            # Caller passed a different session — honour it but use ours for
+            # query convenience via a temporary swap.
+            self.db = db
+
+        parser = MultiProjectRatesParser()
+        if not parser.detect(file_path):
+            raise ValueError(
+                f"File format not recognised as multi-project rates: {file_path}"
+            )
+
+        file_md5 = compute_file_hash(file_path)
+        parse_result = parser.parse(file_path, metadata_overrides=metadata_overrides)
+
+        result = LoadResult(
+            warnings=list(parse_result.warnings),
+            metadata_applied=dict(metadata_overrides or {}),
+        )
+        file_basename = os.path.basename(file_path)
+
+        for parsed in parse_result.parsed_projects:
+            self._upsert_project(
+                parsed=parsed,
+                file_md5=file_md5,
+                file_basename=file_basename,
+                result=result,
+            )
+
+        self.db.commit()
+        return result
+
+    def _upsert_project(
+        self,
+        *,
+        parsed: ParsedProject,
+        file_md5: str,
+        file_basename: str,
+        result: LoadResult,
+    ) -> None:
+        synthetic_hash = _project_file_hash(file_md5, parsed.source_project)
+        pb_proj = (
+            self.db.query(PBProject)
+            .filter(PBProject.name == parsed.project_name)
+            .first()
+        )
+
+        if pb_proj is None:
+            pb_proj = PBProject(
+                name=parsed.project_name,
+                source_file=file_basename,
+                file_hash=synthetic_hash,
+                format_type="multi_project_rates",
+                project_count=1,
+                total_line_items=len(parsed.line_items),
+            )
+            self.db.add(pb_proj)
+            self.db.flush()
+            result.projects_upserted_new += 1
+        else:
+            pb_proj.source_file = file_basename
+            pb_proj.file_hash = synthetic_hash
+            pb_proj.format_type = "multi_project_rates"
+            pb_proj.total_line_items = len(parsed.line_items)
+            result.projects_upserted_existing += 1
+
+        if len(parsed.line_items) == 0:
+            result.line_items_skipped_empty += 1
+
+        existing = {
+            (li.activity, li.unit): li
+            for li in self.db.query(PBLineItem).filter(PBLineItem.project_id == pb_proj.id).all()
+        }
+        seen_keys: set[tuple[str, str]] = set()
+
+        for item in parsed.line_items:
+            key = (item.activity_description, item.unit)
+            seen_keys.add(key)
+            existing_row = existing.get(key)
+            if existing_row is None:
+                self.db.add(
+                    PBLineItem(
+                        project_id=pb_proj.id,
+                        wbs_area=item.wbs_area,
+                        activity=item.activity_description,
+                        unit=item.unit,
+                        crew_trade=item.crew,
+                        production_rate=item.production_rate,
+                        labor_cost_per_unit=item.labor_cost_per_unit,
+                        material_cost_per_unit=item.material_cost_per_unit,
+                        csi_code=item.csi_code,
+                        source_project=parsed.source_project,
+                    )
+                )
+                result.line_items_inserted += 1
+            else:
+                existing_row.wbs_area = item.wbs_area
+                existing_row.crew_trade = item.crew
+                existing_row.production_rate = item.production_rate
+                existing_row.labor_cost_per_unit = item.labor_cost_per_unit
+                existing_row.material_cost_per_unit = item.material_cost_per_unit
+                existing_row.source_project = parsed.source_project
+                result.line_items_updated += 1
+
+        result.pb_project_ids.append(pb_proj.id)
 
     # ── Querying ──
 
