@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 
 from apex.backend.db.database import Base
 
@@ -20,3 +21,5 @@ class UploadSession(Base):
     temp_dir = Column(String(1000), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     expires_at = Column(DateTime, nullable=False, index=True)
+
+    project = relationship("Project", back_populates="upload_sessions")

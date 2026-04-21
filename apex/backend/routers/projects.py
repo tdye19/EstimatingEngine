@@ -686,8 +686,13 @@ def clone_project(
 
 @router.delete("/{project_id}", status_code=204)
 def delete_project(project_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
+    """Hard-delete a project. Fires ORM cascade across every Project.*
+    relationship (spec_sections, documents, work_categories, etc.) so no
+    child rows are left orphaned. Pre-2026-04-21 this flipped is_deleted
+    only, leaving every child table fully populated — see
+    sprint-data-cleanup-orphans for the cleanup path for legacy data."""
     project = get_authorized_project(project_id, user, db)
-    project.is_deleted = True
+    db.delete(project)
     db.commit()
 
 

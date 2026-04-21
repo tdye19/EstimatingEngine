@@ -57,3 +57,23 @@ class Project(Base, TimestampMixin):
         cascade="all, delete-orphan",
         order_by="WorkCategory.wc_number",
     )
+    # Children whose FK is NOT NULL and which previously had no Project-side
+    # relationship — a hard-delete would fail on FK constraint without these.
+    # Added as part of the DELETE-handler cascade fix.
+    intelligence_reports = relationship(
+        "IntelligenceReportModel",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
+    sub_bid_packages = relationship(
+        "SubBidPackage", back_populates="project", cascade="all, delete-orphan"
+    )
+    upload_sessions = relationship(
+        "UploadSession", back_populates="project", cascade="all, delete-orphan"
+    )
+    estimate_runs = relationship(
+        "EstimateRun", back_populates="project", cascade="all, delete-orphan"
+    )
+    bid_outcomes = relationship(
+        "BidOutcome", back_populates="project", cascade="all, delete-orphan"
+    )
