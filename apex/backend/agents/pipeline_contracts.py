@@ -485,6 +485,18 @@ class Agent7Output(BaseModel):
     message: str | None = None  # informational note (e.g. no actuals found)
 
 
+class Agent35Output(BaseModel):
+    """Agent 3.5 — Scope Matcher (stored as agent_number=35, displayed as 3.5)."""
+
+    status: str  # "completed" | "noop"
+    project_id: int
+    findings_created: int = Field(ge=0)
+    in_scope_not_estimated_count: int = Field(ge=0)
+    estimated_out_of_scope_count: int = Field(ge=0)
+    partial_coverage_count: int = Field(ge=0)
+    error_count: int = Field(ge=0)
+
+
 # ---------------------------------------------------------------------------
 # Validation helpers — called by each agent before returning
 # ---------------------------------------------------------------------------
@@ -493,6 +505,7 @@ _CONTRACT_MAP: dict[int, type[BaseModel]] = {
     1: Agent1Output,
     2: Agent2Output,
     3: Agent3Output,
+    35: Agent35Output,
     4: Agent4Output,
     5: Agent5Output,
     6: Agent6Output,
@@ -503,6 +516,7 @@ AGENT_NAMES = {
     1: "Document Ingestion Agent",
     2: "Spec Parser Agent",
     3: "Scope Analysis Agent",
+    35: "Scope Matcher Agent",  # displayed as "3.5"
     4: "Rate Intelligence Agent",
     5: "Field Calibration Agent",
     6: "Intelligence Report Agent",

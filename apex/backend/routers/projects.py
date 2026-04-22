@@ -17,10 +17,13 @@ from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.models.document import Document
+from apex.backend.models.estimate import EstimateLineItem
+from apex.backend.models.gap_finding import GapFinding
 from apex.backend.models.project import Project
 from apex.backend.models.project_actual import ProjectActual
 from apex.backend.models.upload_session import UploadSession
 from apex.backend.models.user import User
+from apex.backend.models.work_category import WorkCategory
 from apex.backend.services.crew_orchestrator import get_orchestrator
 from apex.backend.utils.auth import ALGORITHM, SECRET_KEY, get_authorized_project, get_current_user, require_auth
 from apex.backend.utils.feature_flags import feature_visible
@@ -1035,4 +1038,105 @@ def submit_actual_entry(
         success=True,
         message="Actual entry recorded",
         data={"id": actual.id, "csi_code": actual.csi_code},
+    )
+
+
+@router.get("/{project_id}/gap-findings", response_model=APIResponse)
+def list_gap_findings(
+    project_id: int,
+    severity: str | None = Query(
+        None,
+        description="Optional filter: ERROR | WARNING | INFO (case-insensitive)",
+    ),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """List Agent 3.5 scope gap findings for a project.
+
+    Returns findings grouped by finding_type with joined WorkCategory and
+    EstimateLineItem context for display. Returns empty lists (not 404)
+    when Agent 3.5 hasn't run yet — this lets the gap UI render "no
+    findings" state without special-casing the error path.
+    """
+    get_authorized_project(project_id, user, db)
+
+    query = db.query(GapFinding).filter(GapFinding.project_id == project_id)
+    if severity is not None:
+        sev_upper = severity.strip().upper()
+        if sev_upper not in ("ERROR", "WARNING", "INFO"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"severity must be ERROR, WARNING, or INFO — got {severity!r}",
+            )
+        query = query.filter(GapFinding.severity == sev_upper)
+
+    findings = query.order_by(GapFinding.created_at.desc(), GapFinding.id.desc()).all()
+
+    wc_ids = {f.work_category_id for f in findings if f.work_category_id is not None}
+    li_ids = {f.estimate_line_id for f in findings if f.estimate_line_id is not None}
+
+    wc_map: dict[int, WorkCategory] = {}
+    if wc_ids:
+        wc_map = {
+            wc.id: wc
+            for wc in db.query(WorkCategory).filter(WorkCategory.id.in_(wc_ids)).all()
+        }
+    li_map: dict[int, EstimateLineItem] = {}
+    if li_ids:
+        li_map = {
+            li.id: li
+            for li in db.query(EstimateLineItem)
+            .filter(EstimateLineItem.id.in_(li_ids))
+            .all()
+        }
+
+    grouped: dict[str, list[dict]] = {
+        "in_scope_not_estimated": [],
+        "estimated_out_of_scope": [],
+        "partial_coverage": [],
+    }
+
+    for f in findings:
+        wc = wc_map.get(f.work_category_id) if f.work_category_id else None
+        li = li_map.get(f.estimate_line_id) if f.estimate_line_id else None
+        row = {
+            "id": f.id,
+            "finding_type": f.finding_type,
+            "severity": f.severity,
+            "match_tier": f.match_tier,
+            "confidence": f.confidence,
+            "source": f.source,
+            "rationale": f.rationale,
+            "spec_section_ref": f.spec_section_ref,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+            "work_category": (
+                {
+                    "id": wc.id,
+                    "wc_number": wc.wc_number,
+                    "title": wc.title,
+                }
+                if wc is not None
+                else None
+            ),
+            "line_item": (
+                {
+                    "id": li.id,
+                    "csi_code": li.csi_code,
+                    "description": li.description,
+                    "total_cost": li.total_cost,
+                }
+                if li is not None
+                else None
+            ),
+        }
+        grouped.setdefault(f.finding_type, []).append(row)
+
+    return APIResponse(
+        success=True,
+        data={
+            "project_id": project_id,
+            "total": len(findings),
+            "severity_filter": severity.strip().upper() if severity else None,
+            "findings": grouped,
+        },
     )
