@@ -10,6 +10,7 @@ Uses LLM parsing when a provider is available; falls back to regex.
 import logging
 import time
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from apex.backend.agents.pipeline_contracts import validate_agent_output
@@ -67,6 +68,91 @@ def _build_work_description(section_data: dict) -> str:
         parts.append("Quality: " + "; ".join(quals[:5]))
 
     return "\n".join(parts) if parts else ""
+
+
+def _upsert_spec_section(
+    db: Session,
+    *,
+    project_id: int,
+    doc_id: int,
+    section_data: dict,
+    division_number: str,
+    work_desc: str,
+    keywords: list[str],
+    standards: list[str],
+    submittals: list[str],
+    raw_content: str,
+) -> str:
+    """Upsert one SpecSection row keyed on (project_id, section_number).
+
+    Returns one of: "new", "replaced", "skipped", "error".
+
+    Longest-content-wins policy on work_description — HF-21 (Sprint 18.3.0).
+    Caller is responsible for the outer db.commit() per-doc; this helper
+    flushes after INSERT so the unique-constraint race window is tiny.
+    """
+    section_number = section_data["section_number"]
+
+    def _apply_fields(row: "SpecSection") -> None:
+        row.document_id = doc_id
+        row.division_number = division_number
+        row.title = section_data.get("title", "")
+        row.work_description = work_desc
+        row.materials_referenced = standards
+        row.execution_requirements = ""
+        row.submittal_requirements = "\n".join(submittals) if submittals else ""
+        row.keywords = keywords
+        row.raw_text = raw_content[:5000] if raw_content else ""
+        row.in_scope = section_data.get("in_scope", True)
+        row.material_specs = section_data.get("material_specs", {})
+        row.quality_requirements = section_data.get("quality_requirements", [])
+        row.referenced_standards = standards
+
+    existing = (
+        db.query(SpecSection)
+        .filter(
+            SpecSection.project_id == project_id,
+            SpecSection.section_number == section_number,
+        )
+        .first()
+    )
+
+    if existing is None:
+        row = SpecSection(project_id=project_id, section_number=section_number)
+        _apply_fields(row)
+        db.add(row)
+        try:
+            db.flush()
+            return "new"
+        except IntegrityError:
+            # Race: another session inserted the same (project_id, section_number)
+            # between our SELECT and INSERT. Rollback and fall through to the
+            # update branch using the row that won the race.
+            db.rollback()
+            existing = (
+                db.query(SpecSection)
+                .filter(
+                    SpecSection.project_id == project_id,
+                    SpecSection.section_number == section_number,
+                )
+                .first()
+            )
+            if existing is None:
+                # Vanishingly unlikely: the racing transaction rolled back.
+                # One retry only — do not loop.
+                row = SpecSection(
+                    project_id=project_id, section_number=section_number
+                )
+                _apply_fields(row)
+                db.add(row)
+                db.flush()
+                return "new"
+
+    # existing is set, either from the initial query or from the race branch.
+    if len(work_desc or "") > len(existing.work_description or ""):
+        _apply_fields(existing)
+        return "replaced"
+    return "skipped"
 
 
 def _enrich_division_03_parameters(
@@ -250,6 +336,12 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     total_sections = 0
     doc_results = []
     run_parse_methods: list[str] = []
+    # HF-21 upsert counters — surfaced in output_data for AgentRunLog observability.
+    upsert_new = 0
+    upsert_replaced = 0
+    upsert_skipped = 0
+    upsert_errors = 0
+    upsert_warnings: list[str] = []
 
     for doc_idx, doc in enumerate(all_docs):
         if not doc.raw_text:
@@ -284,27 +376,40 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
                 standards = section_data.get("referenced_standards", [])
                 submittals = section_data.get("submittals_required", [])
 
-                spec_section = SpecSection(
-                    project_id=project_id,
-                    document_id=doc.id,
-                    division_number=div_info["division_number"],
-                    section_number=section_data["section_number"],
-                    title=section_data.get("title", ""),
-                    # Backward-compatible fields (Agents 3/4 read these)
-                    work_description=work_desc,
-                    materials_referenced=standards,
-                    execution_requirements="",
-                    submittal_requirements="\n".join(submittals) if submittals else "",
-                    keywords=keywords,
-                    raw_text=raw_content[:5000] if raw_content else "",
-                    # v2 spec parameter fields
-                    in_scope=section_data.get("in_scope", True),
-                    material_specs=section_data.get("material_specs", {}),
-                    quality_requirements=section_data.get("quality_requirements", []),
-                    referenced_standards=standards,
-                )
-                db.add(spec_section)
-                sections_created += 1
+                try:
+                    outcome = _upsert_spec_section(
+                        db,
+                        project_id=project_id,
+                        doc_id=doc.id,
+                        section_data=section_data,
+                        division_number=div_info["division_number"],
+                        work_desc=work_desc,
+                        keywords=keywords,
+                        standards=standards,
+                        submittals=submittals,
+                        raw_content=raw_content,
+                    )
+                except Exception as exc:
+                    upsert_errors += 1
+                    upsert_warnings.append(
+                        f"Upsert failed for {section_data.get('section_number')} "
+                        f"(doc {doc.id}): {exc}"
+                    )
+                    logger.exception(
+                        "SpecSection upsert failed for %s on doc %d",
+                        section_data.get("section_number"),
+                        doc.id,
+                    )
+                    continue
+
+                if outcome == "new":
+                    upsert_new += 1
+                    sections_created += 1
+                elif outcome == "replaced":
+                    upsert_replaced += 1
+                    sections_created += 1
+                else:  # "skipped"
+                    upsert_skipped += 1
 
             db.commit()
             total_sections += sections_created
@@ -358,6 +463,16 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     overall_parse_method = "llm" if "llm" in run_parse_methods else "regex"
     logger.info(f"Agent 2 complete: {total_sections} sections parsed via {overall_parse_method}")
 
+    # HF-21 observability — one summary line per run; individual errors were
+    # already appended to upsert_warnings at the point of failure.
+    if upsert_replaced or upsert_new or upsert_skipped:
+        summary = (
+            f"Upserted {upsert_replaced} existing sections; "
+            f"inserted {upsert_new} new; skipped {upsert_skipped} shorter duplicates"
+        )
+        logger.info("Agent 2 dedup: %s", summary)
+        upsert_warnings.append(summary)
+
     # Sprint 18.2.3: Division 03 assembly parameter enrichment.
     # Defense in depth — enrichment must never break Agent 2's existing contract.
     try:
@@ -380,5 +495,12 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
             "parse_method": overall_parse_method,
             "results": doc_results,
             "assembly_parameters": enrichment_result,
+            "dedup": {
+                "inserted": upsert_new,
+                "replaced": upsert_replaced,
+                "skipped": upsert_skipped,
+                "errors": upsert_errors,
+                "warnings": upsert_warnings,
+            },
         },
     )

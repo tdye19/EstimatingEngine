@@ -6,9 +6,10 @@ If validation fails, a ContractViolation is raised with the agent name and detai
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ContractViolation(Exception):
@@ -95,12 +96,28 @@ class AssemblyParameterEnrichment(BaseModel):
     duration_ms: float = Field(ge=0)
 
 
+class SpecSectionDedupStats(BaseModel):
+    """HF-21 (Sprint 18.3.0) — upsert counters for SpecSection writes.
+
+    Surfaced in AgentRunLog.output_data so the /api/projects/{id}/agent-run-logs
+    endpoint can show how many rows were inserted vs. replaced vs. skipped
+    on a given parse run.
+    """
+
+    inserted: int = Field(ge=0)
+    replaced: int = Field(ge=0)
+    skipped: int = Field(ge=0)
+    errors: int = Field(ge=0)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class Agent2Output(BaseModel):
     sections_parsed: int = Field(ge=0)
     documents_processed: int = Field(ge=0)
     parse_method: str
     results: list[Agent2DocResult] = []
     assembly_parameters: AssemblyParameterEnrichment | None = None  # Sprint 18.2.3
+    dedup: SpecSectionDedupStats | None = None  # Sprint 18.3.0 HF-21
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +158,39 @@ class Agent3Output(BaseModel):
     report_id: int
     sections_analyzed: int = Field(ge=0)
     spec_vs_takeoff_gaps: int = 0  # count of spec-vs-takeoff cross-reference gaps
+
+
+# ---------------------------------------------------------------------------
+# Agent 3.5 — Scope Gap Analysis (Sprint 18.3.1)
+# ---------------------------------------------------------------------------
+
+
+class GapFindingOut(BaseModel):
+    """Serialized GapFinding row for API responses and inter-agent payloads.
+
+    Consumes GapFinding ORM instances via from_attributes. Literal fields are
+    the authoritative enum for finding_type / match_tier / source — the
+    underlying DB columns are plain strings to match the Sprint 18 migration
+    convention (no sa.Enum, no CHECK).
+    """
+
+    id: int
+    project_id: int
+    finding_type: Literal[
+        "in_scope_not_estimated",
+        "estimated_out_of_scope",
+        "partial_coverage",
+    ]
+    work_category_id: int | None = None
+    estimate_line_id: int | None = None
+    spec_section_ref: str | None = None
+    match_tier: Literal["csi_exact", "spec_section_fuzzy", "llm_semantic"]
+    confidence: float = Field(ge=0.0, le=1.0)
+    rationale: str
+    source: Literal["rule", "llm"]
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ---------------------------------------------------------------------------

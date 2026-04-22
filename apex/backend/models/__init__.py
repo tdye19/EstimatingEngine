@@ -28,6 +28,7 @@ from apex.backend.models.equipment_rate import EquipmentRate
 from apex.backend.models.estimate import Estimate, EstimateLineItem
 from apex.backend.models.estimate_library import EstimateLibraryEntry, EstimateLibraryTag
 from apex.backend.models.field_actuals import FieldActualsLineItem, FieldActualsProject
+from apex.backend.models.gap_finding import GapFinding
 from apex.backend.models.gap_report import GapReport, GapReportItem
 from apex.backend.models.historical_line_item import HistoricalLineItem
 from apex.backend.models.intelligence_report import IntelligenceReportModel
@@ -56,6 +57,7 @@ __all__ = [
     "Project",
     "Document",
     "SpecSection",
+    "GapFinding",
     "GapReport",
     "GapReportItem",
     "TakeoffItem",
