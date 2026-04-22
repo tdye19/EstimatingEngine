@@ -66,6 +66,10 @@ AGENT_DEFINITIONS = {
     1: ("Document Ingestion Agent", "apex.backend.agents.agent_1_ingestion", "run_ingestion_agent"),
     2: ("Spec Parser Agent", "apex.backend.agents.agent_2_spec_parser", "run_spec_parser_agent"),
     3: ("Scope Analysis Agent", "apex.backend.agents.agent_3_gap_analysis", "run_gap_analysis_agent"),
+    # Agent 3.5 — stored as integer 35, display-formatted as "3.5" by the API / UI.
+    # Runs after Agent 3 and before Agent 5; cross-references takeoff line items
+    # against WorkCategory inclusions and emits GapFinding rows.
+    35: ("Scope Matcher Agent", "apex.backend.agents.agent_3_5_scope_matcher", "run_scope_matcher_agent"),
     4: ("Rate Intelligence Agent", "apex.backend.agents.agent_4_takeoff", "run_takeoff_agent"),
     5: ("Field Calibration Agent", "apex.backend.agents.agent_5_labor", "run_labor_agent"),
     6: ("Intelligence Report Agent", "apex.backend.agents.agent_6_assembly", "run_assembly_agent"),
@@ -232,8 +236,11 @@ class AgentOrchestrator:
         pipeline_start = datetime.utcnow()
         results: dict[str, dict] = {}
         # v2 order: Agent 4 runs before Agent 3 so takeoff data is available
-        # for spec-vs-takeoff cross-reference analysis
-        pipeline_agents = [1, 2, 4, 3, 5, 6]
+        # for spec-vs-takeoff cross-reference analysis.
+        # Sprint 18.3.2: Agent 3.5 (scope matcher) slots between 3 and 5 —
+        # consumes Agent 3 scope analysis and Agent 4 takeoff line items to
+        # emit GapFinding rows for Agent 5 and the Intelligence Report.
+        pipeline_agents = [1, 2, 4, 3, 35, 5, 6]
         failed_at: int | None = None
         effective_mode = pipeline_mode
 
@@ -641,9 +648,12 @@ class AgentOrchestrator:
     # ------------------------------------------------------------------
 
     def run_single_agent(self, agent_number: int) -> dict:
-        """Run a single agent by number (1-7)."""
+        """Run a single agent by number (1-7, or 35 for Agent 3.5)."""
         if agent_number not in AGENT_DEFINITIONS:
-            raise ValueError(f"Invalid agent_number {agent_number}: must be 1-7")
+            raise ValueError(
+                f"Invalid agent_number {agent_number}: "
+                f"must be one of {sorted(AGENT_DEFINITIONS)}"
+            )
 
         agent_name, module_path, fn_name = AGENT_DEFINITIONS[agent_number]
         import importlib

@@ -75,6 +75,15 @@ class GapFinding(Base):
     source = Column(String(16), nullable=False)
     # "rule" | "llm"
 
+    severity = Column(
+        String(16),
+        nullable=False,
+        default="WARNING",
+        server_default="WARNING",
+    )
+    # "ERROR" | "WARNING" | "INFO" — queryable by downstream consumers
+    # (gap UI, Intelligence Report). Added in Sprint 18.3.1.1.
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     project = relationship("Project")
