@@ -5,6 +5,7 @@ Uses LLM-powered analysis (Claude Sonnet) when a provider is available;
 falls back to rule-based checklist logic if the LLM is unavailable or fails.
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -27,6 +28,12 @@ from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.utils.csi_utils import MASTER_SCOPE_CHECKLIST
 
 logger = logging.getLogger("apex.agent.gap_analysis")
+
+# Timeout guards (Sprint 18.3.3.4): cap LLM and health-check calls so Agent 3
+# cannot hang indefinitely when the provider is unresponsive. 120s covers the
+# historical 72-78s ceiling with ~60% headroom; 10s is enough for a health ping.
+LLM_TIMEOUT_SECONDS = 120
+HEALTH_CHECK_TIMEOUT_SECONDS = 10
 
 
 # ---------------------------------------------------------------------------
@@ -384,11 +391,14 @@ async def _llm_gap_analysis(
     """
     user_prompt = _build_user_prompt(parsed_sections, spec_context=spec_context)
     try:
-        response = await provider.complete(
-            system_prompt=GAP_ANALYSIS_SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            temperature=0.1,
-            max_tokens=4096,
+        response = await asyncio.wait_for(
+            provider.complete(
+                system_prompt=GAP_ANALYSIS_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=0.1,
+                max_tokens=4096,
+            ),
+            timeout=LLM_TIMEOUT_SECONDS,
         )
         logger.info(
             f"Agent 3 LLM: provider={response.provider} model={response.model} "
@@ -404,6 +414,11 @@ async def _llm_gap_analysis(
             response.cache_creation_input_tokens,
             response.cache_read_input_tokens,
         )
+    except TimeoutError:
+        logger.error(
+            f"Agent 3 LLM: call timed out after {LLM_TIMEOUT_SECONDS}s — falling back to rule-based"
+        )
+        return None, 0, 0, 0, 0
     except Exception as exc:
         logger.error(f"Agent 3 LLM: call failed — {exc}")
         return None, 0, 0, 0, 0
@@ -541,7 +556,16 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
         from apex.backend.services.llm_provider import get_llm_provider
 
         provider = get_llm_provider(agent_number=3)
-        llm_available = _run_async(provider.health_check())
+        try:
+            llm_available = _run_async(
+                asyncio.wait_for(provider.health_check(), timeout=HEALTH_CHECK_TIMEOUT_SECONDS)
+            )
+        except TimeoutError:
+            logger.warning(
+                f"Agent 3: LLM provider '{provider.provider_name}' health check timed out "
+                f"after {HEALTH_CHECK_TIMEOUT_SECONDS}s — using rule-based fallback"
+            )
+            llm_available = False
         if llm_available:
             logger.info(
                 f"Agent 3: LLM provider '{provider.provider_name}/{provider.model_name}' "
