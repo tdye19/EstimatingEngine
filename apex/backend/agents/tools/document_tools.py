@@ -80,13 +80,109 @@ def docx_reader_tool(file_path: str) -> dict:
     return result
 
 
+# ---------------------------------------------------------------------------
+# Work Scope detection (Sprint 18.3.3.2)
+#
+# Christman-style Work Scope PDFs (KCCU Volume 2 shape) previously fell
+# through to the content-based "spec" branch because their body text
+# mentions "section"/"division"/"part 1". That pollutes Agent 2's spec
+# parsing, which filters on Document.classification == "spec"
+# (agent_2_spec_parser.py:316) and additionally pulls in "general"/None
+# (agent_2_spec_parser.py:328). Tagging these docs "work_scope" keeps
+# them out of both selectors. Agent 2B runs its own per-document
+# classifier and is NOT gated on Document.classification, so this tag
+# is purely defensive for Agent 2's output quality.
+# ---------------------------------------------------------------------------
+
+_WORK_SCOPE_FILENAME_HINTS: tuple[str, ...] = (
+    "work scope",
+    "work scopes",
+    "workscopes",
+    "work_scopes",
+    "work-scopes",
+)
+
+# "WC 00", "WC 28A", etc. — 1-2 digits with optional letter suffix, followed
+# by a space or hyphen (the KCCU table-of-contents / section-header shape).
+_WC_NUMBER_RE = re.compile(r"\bWC\s+\d{1,2}[A-Z]?[\s\-]", re.IGNORECASE)
+
+# "Work Included:" as a line-start marker (the bold subsection heading inside
+# each WC block). MULTILINE so it matches on any line, tolerating leading
+# whitespace that PDF text extraction often introduces.
+_WORK_INCLUDED_LINE_RE = re.compile(r"(?m)^\s*Work Included:")
+
+
+def _is_work_scope_document(filename: str, text_sample: str) -> bool:
+    """Detect a Christman-style Work Scopes document.
+
+    Filename signal (any one match → True):
+        * substring match against _WORK_SCOPE_FILENAME_HINTS
+        * filenames containing BOTH "volume" and "scope" (e.g.
+          "KCCU Volume 2 - Work Scopes")
+
+    Content signals (≥ 2 required when filename doesn't match):
+        1. literal "Work Category No." (with period) in the body
+        2. _WC_NUMBER_RE match ("WC 00", "WC 28A", ...)
+        3. both "Proposal Section" AND "Work Category Description"
+           (the Christman table header)
+        4. a line starting with "Work Included:"
+
+    Single-signal matches are deliberately insufficient — specs that
+    mention "Work Category" once in a coordination note must not trigger.
+
+    Fails closed: any unexpected exception returns False so downstream
+    classification of non-work-scope docs is never broken.
+    """
+    try:
+        fname_lower = (filename or "").lower()
+
+        if any(hint in fname_lower for hint in _WORK_SCOPE_FILENAME_HINTS):
+            return True
+        if "volume" in fname_lower and "scope" in fname_lower:
+            return True
+
+        text = text_sample or ""
+        text_lower = text.lower()
+
+        signals = 0
+        if "work category no." in text_lower:
+            signals += 1
+        if _WC_NUMBER_RE.search(text):
+            signals += 1
+        if "proposal section" in text_lower and "work category description" in text_lower:
+            signals += 1
+        if _WORK_INCLUDED_LINE_RE.search(text):
+            signals += 1
+
+        return signals >= 2
+    except Exception:  # pragma: no cover - defensive
+        return False
+
+
 def file_classifier_tool(filename: str, text_sample: str = "") -> str:
     """Classify a document based on filename and content sample.
 
-    Returns one of: spec, drawing, addendum, rfi, schedule, general
+    Returns one of: winest, work_scope, takeoff, spec, drawing, addendum,
+    rfi, schedule, general.
+
+    Ordering: winest → work_scope → spec → drawing → fallback.
+    WinEst always wins; work_scope fires before the "spec" branch so
+    Christman-style Work Scope PDFs don't pollute Agent 2's spec-parsing
+    filter (see _is_work_scope_document docstring for the full rationale).
     """
     fname_lower = filename.lower()
     text_lower = text_sample.lower()[:2000]
+
+    # WinEst (Sprint 18.3.3.2) — Agent 1 normally short-circuits .est files
+    # before calling this tool, but when the tool is invoked directly (tests
+    # or ad-hoc tooling) .est must not fall through to content-based branches.
+    if fname_lower.endswith(".est"):
+        return "winest"
+
+    # Work Scope (Sprint 18.3.3.2) — fires before "spec" so KCCU-style Work
+    # Scope PDFs don't get spec-parsed. See module-level comment above.
+    if _is_work_scope_document(filename, text_sample):
+        return "work_scope"
 
     # Filename-based classification
     if any(kw in fname_lower for kw in ["takeoff", "estimate"]) and any(
