@@ -1,4 +1,4 @@
-"""GapFinding — Agent 3.5 scope gap analysis output (Sprint 18.3.1).
+"""GapFinding — Agent 3.5 scope gap analysis output (Sprint 18.3.1, extended 18.4.1).
 
 One row per finding produced by the scope gap analyzer. Findings are
 *regenerated* on every Agent 3.5 run via delete-then-insert scoped to
@@ -6,8 +6,8 @@ a project; there is no versioning and no updated_at — use created_at
 to distinguish runs.
 
 finding_type:
-    in_scope_not_estimated  — WorkCategory scope has no matching EstimateLineItem
-    estimated_out_of_scope  — EstimateLineItem has no matching WorkCategory scope
+    in_scope_not_estimated  — WorkCategory scope has no matching takeoff item
+    estimated_out_of_scope  — takeoff item has no matching WorkCategory scope
     partial_coverage        — match exists but coverage is incomplete
 
 match_tier (how the matcher identified the link):
@@ -18,6 +18,13 @@ match_tier (how the matcher identified the link):
 source:
     rule — produced by deterministic matcher
     llm  — produced by the LLM review pass
+
+Line-item FK transition (Sprint 18.4.1):
+    takeoff_item_id  — FK to TakeoffItemV2 populated by every NEW emission.
+                       This is the live reference post-18.4.1 Part B.
+    estimate_line_id — FK to EstimateLineItem, retained for backward compat
+                       with rows written before the Part A input-source fix.
+                       The scope matcher now leaves this NULL on new rows.
 """
 
 from datetime import datetime
@@ -61,6 +68,12 @@ class GapFinding(Base):
         ForeignKey("estimate_line_items.id", ondelete="SET NULL"),
         nullable=True,
     )
+    takeoff_item_id = Column(
+        Integer,
+        ForeignKey("takeoff_items_v2.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     spec_section_ref = Column(String(32), nullable=True)
     # CSI code in display form, e.g. "03 30 00". Stored as opaque string —
     # not FK'd to spec_sections because findings may reference codes that
@@ -89,6 +102,7 @@ class GapFinding(Base):
     project = relationship("Project")
     work_category = relationship("WorkCategory")
     estimate_line = relationship("EstimateLineItem")
+    takeoff_item = relationship("TakeoffItemV2")
 
     __table_args__ = (
         Index(

@@ -504,6 +504,11 @@ class Agent35Output(BaseModel):
     estimated_out_of_scope_count: int = Field(ge=0)
     partial_coverage_count: int = Field(ge=0)
     error_count: int = Field(ge=0)
+    # Attribution counts — Sprint 18.4.1 Part C. Populated on every run;
+    # default to 0 / {} so legacy snapshots missing these keys still validate.
+    attributions_created: int = Field(ge=0, default=0)
+    attributions_by_tier: dict[str, int] = Field(default_factory=dict)
+    attributions_unmatched: int = Field(ge=0, default=0)
 
 
 # ---------------------------------------------------------------------------

@@ -33,6 +33,7 @@ from apex.backend.models.gap_report import GapReport, GapReportItem
 from apex.backend.models.historical_line_item import HistoricalLineItem
 from apex.backend.models.intelligence_report import IntelligenceReportModel
 from apex.backend.models.labor_estimate import LaborEstimate
+from apex.backend.models.line_item_wc_attribution import LineItemWCAttribution
 from apex.backend.models.material_price import MaterialPrice
 from apex.backend.models.organization import Organization
 from apex.backend.models.productivity_benchmark import ProductivityBenchmark
@@ -89,6 +90,7 @@ __all__ = [
     "FieldActualsLineItem",
     "IntelligenceReportModel",
     "WorkCategory",
+    "LineItemWCAttribution",
     # Decision system models
     "ComparableProject",
     "HistoricalRateObservation",
