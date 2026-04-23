@@ -379,6 +379,15 @@ class ScopeRiskSummary(BaseModel):
     missing_divisions: list[str] = []
     top_risks: list[dict] = []  # top 5 gaps by severity
 
+    # Sprint 18.3.3 additions — GapFinding rollups from Agent 3.5
+    in_scope_not_estimated: int = 0
+    estimated_out_of_scope: int = 0
+    partial_coverage: int = 0
+    severity_error: int = 0
+    severity_warning: int = 0
+    severity_info: int = 0
+    top_gap_findings: list[dict] = []  # top 5 by severity then confidence
+
 
 class ComparableProjectSummary(BaseModel):
     """Comparable projects from Bid Intelligence."""
