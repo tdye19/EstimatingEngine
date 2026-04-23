@@ -19,8 +19,10 @@ from apex.backend.db.database import get_db
 from apex.backend.models.document import Document
 from apex.backend.models.estimate import EstimateLineItem
 from apex.backend.models.gap_finding import GapFinding
+from apex.backend.models.line_item_wc_attribution import LineItemWCAttribution
 from apex.backend.models.project import Project
 from apex.backend.models.project_actual import ProjectActual
+from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.models.upload_session import UploadSession
 from apex.backend.models.user import User
 from apex.backend.models.work_category import WorkCategory
@@ -1074,6 +1076,7 @@ def list_gap_findings(
 
     wc_ids = {f.work_category_id for f in findings if f.work_category_id is not None}
     li_ids = {f.estimate_line_id for f in findings if f.estimate_line_id is not None}
+    ti_ids = {f.takeoff_item_id for f in findings if f.takeoff_item_id is not None}
 
     wc_map: dict[int, WorkCategory] = {}
     if wc_ids:
@@ -1089,6 +1092,14 @@ def list_gap_findings(
             .filter(EstimateLineItem.id.in_(li_ids))
             .all()
         }
+    ti_map: dict[int, TakeoffItemV2] = {}
+    if ti_ids:
+        ti_map = {
+            ti.id: ti
+            for ti in db.query(TakeoffItemV2)
+            .filter(TakeoffItemV2.id.in_(ti_ids))
+            .all()
+        }
 
     grouped: dict[str, list[dict]] = {
         "in_scope_not_estimated": [],
@@ -1099,6 +1110,7 @@ def list_gap_findings(
     for f in findings:
         wc = wc_map.get(f.work_category_id) if f.work_category_id else None
         li = li_map.get(f.estimate_line_id) if f.estimate_line_id else None
+        ti = ti_map.get(f.takeoff_item_id) if f.takeoff_item_id else None
         row = {
             "id": f.id,
             "finding_type": f.finding_type,
@@ -1118,6 +1130,9 @@ def list_gap_findings(
                 if wc is not None
                 else None
             ),
+            # Legacy identity (pre-18.4.1). Kept for backward compat; new
+            # matcher emissions leave estimate_line_id NULL.
+            "estimate_line_id": f.estimate_line_id,
             "line_item": (
                 {
                     "id": li.id,
@@ -1126,6 +1141,20 @@ def list_gap_findings(
                     "total_cost": li.total_cost,
                 }
                 if li is not None
+                else None
+            ),
+            # Current identity (post-18.4.1 Part B).
+            "takeoff_item_id": f.takeoff_item_id,
+            "takeoff_item_activity": ti.activity if ti is not None else None,
+            "takeoff_item": (
+                {
+                    "id": ti.id,
+                    "activity": ti.activity,
+                    "csi_code": ti.csi_code,
+                    "quantity": ti.quantity,
+                    "unit": ti.unit,
+                }
+                if ti is not None
                 else None
             ),
         }
@@ -1138,5 +1167,84 @@ def list_gap_findings(
             "total": len(findings),
             "severity_filter": severity.strip().upper() if severity else None,
             "findings": grouped,
+        },
+    )
+
+
+@router.get("/{project_id}/line-item-attributions", response_model=APIResponse)
+def list_line_item_attributions(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """List persistent takeoff-item → WorkCategory attributions for a project.
+
+    Sprint 18.4.1 Part C. After Agent 3.5 runs, every TakeoffItemV2 has
+    exactly one row — either pointing at a WorkCategory (match_tier in
+    csi_exact / spec_section_fuzzy / activity_title_fuzzy / llm_semantic)
+    or at NULL with match_tier="unmatched".
+
+    Returns empty lists (not 404) when Agent 3.5 hasn't run yet — lets
+    consumers render "no attributions" state without special-casing.
+    """
+    get_authorized_project(project_id, user, db)
+
+    attributions = (
+        db.query(LineItemWCAttribution)
+        .filter(LineItemWCAttribution.project_id == project_id)
+        .order_by(
+            LineItemWCAttribution.takeoff_item_id.asc(),
+            LineItemWCAttribution.id.asc(),
+        )
+        .all()
+    )
+
+    ti_ids = {a.takeoff_item_id for a in attributions}
+    wc_ids = {a.work_category_id for a in attributions if a.work_category_id is not None}
+
+    ti_map: dict[int, TakeoffItemV2] = {}
+    if ti_ids:
+        ti_map = {
+            ti.id: ti
+            for ti in db.query(TakeoffItemV2)
+            .filter(TakeoffItemV2.id.in_(ti_ids))
+            .all()
+        }
+    wc_map: dict[int, WorkCategory] = {}
+    if wc_ids:
+        wc_map = {
+            wc.id: wc
+            for wc in db.query(WorkCategory).filter(WorkCategory.id.in_(wc_ids)).all()
+        }
+
+    by_tier: dict[str, int] = {}
+    rows: list[dict] = []
+    for a in attributions:
+        by_tier[a.match_tier] = by_tier.get(a.match_tier, 0) + 1
+        ti = ti_map.get(a.takeoff_item_id)
+        wc = wc_map.get(a.work_category_id) if a.work_category_id else None
+        rows.append(
+            {
+                "id": a.id,
+                "takeoff_item_id": a.takeoff_item_id,
+                "takeoff_item_activity": ti.activity if ti is not None else None,
+                "work_category_id": a.work_category_id,
+                "work_category_wc_number": wc.wc_number if wc is not None else None,
+                "work_category_title": wc.title if wc is not None else None,
+                "match_tier": a.match_tier,
+                "confidence": a.confidence,
+                "source": a.source,
+                "rationale": a.rationale,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+        )
+
+    return APIResponse(
+        success=True,
+        data={
+            "project_id": project_id,
+            "total": len(attributions),
+            "by_tier": by_tier,
+            "attributions": rows,
         },
     )

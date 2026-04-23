@@ -1,10 +1,11 @@
-"""Tests for Agent 3.5 — Scope Matcher (Sprint 18.3.2).
+"""Tests for Agent 3.5 — Scope Matcher (Sprint 18.3.2, rewritten in 18.4.1 Part A).
 
 Covers:
   Tier 1 (CSI exact / division prefix) — 2 tests
   Tier 2 (fuzzy string above/below threshold) — 2 tests
   Tier 3 (LLM high/low confidence) — 2 tests
   Finding emission (unmatched, uncovered inclusion, exclusion conflict) — 3 tests
+  Fresh-pipeline regression guard — 1 test
   Orchestration (upstream-failure skip log) — 1 test
   API (empty response + severity filter) — 2 tests
 """
@@ -14,8 +15,8 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from apex.backend.models.agent_run_log import AgentRunLog
-from apex.backend.models.estimate import Estimate, EstimateLineItem
 from apex.backend.models.gap_finding import GapFinding
+from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.models.work_category import WorkCategory
 from apex.backend.services import scope_matcher as sm
 from apex.backend.services.agent_orchestrator import AGENT_DEFINITIONS, AgentOrchestrator
@@ -25,30 +26,24 @@ from apex.backend.services.agent_orchestrator import AGENT_DEFINITIONS, AgentOrc
 # ---------------------------------------------------------------------------
 
 
-def _make_estimate(db, project_id: int) -> Estimate:
-    est = Estimate(project_id=project_id, version=1, status="draft")
-    db.add(est)
-    db.commit()
-    db.refresh(est)
-    return est
-
-
-def _make_line(db, estimate_id: int, **kw) -> EstimateLineItem:
+def _make_takeoff(db, project_id: int, **kw) -> TakeoffItemV2:
+    """Build a TakeoffItemV2 row. `activity` is NOT NULL on the model;
+    `csi_code` is nullable. row_number is NOT NULL — defaults to 1, but tests
+    creating multiple rows in the same project should pass distinct values."""
     defaults = {
-        "estimate_id": estimate_id,
-        "division_number": "03",
+        "project_id": project_id,
+        "row_number": 1,
+        "activity": "Cast-in-place concrete",
         "csi_code": "03 30 00",
-        "description": "Cast-in-place concrete",
         "quantity": 100.0,
-        "unit_of_measure": "CY",
-        "total_cost": 10_000.0,
+        "unit": "CY",
     }
     defaults.update(kw)
-    li = EstimateLineItem(**defaults)
-    db.add(li)
+    ti = TakeoffItemV2(**defaults)
+    db.add(ti)
     db.commit()
-    db.refresh(li)
-    return li
+    db.refresh(ti)
+    return ti
 
 
 def _make_wc(db, project_id: int, **kw) -> WorkCategory:
@@ -79,9 +74,11 @@ def _make_wc(db, project_id: int, **kw) -> WorkCategory:
 
 class TestTier1CSIMatch:
     def test_exact_6_digit_csi_match(self, db_session, test_project):
-        """Line item CSI 03 30 00 matches WC with referenced_spec_sections=['033000']."""
-        est = _make_estimate(db_session, test_project.id)
-        li = _make_line(db_session, est.id, csi_code="03 30 00", description="3000 PSI slab on grade")
+        """Takeoff CSI 03 30 00 matches WC with referenced_spec_sections=['033000']."""
+        li = _make_takeoff(
+            db_session, test_project.id,
+            csi_code="03 30 00", activity="3000 PSI slab on grade",
+        )
         wc_concrete = _make_wc(
             db_session, test_project.id,
             wc_number="03", title="Concrete",
@@ -103,12 +100,11 @@ class TestTier1CSIMatch:
         assert rec.spec_section_ref == "033000"
 
     def test_multi_division_wc_prefix_match(self, db_session, test_project):
-        """WC with multiple referenced divisions — line item in one of them matches
+        """WC with multiple referenced divisions — takeoff item in one of them matches
         via the division prefix (non-exact, confidence 0.9)."""
-        est = _make_estimate(db_session, test_project.id)
-        li = _make_line(
-            db_session, est.id,
-            csi_code="03 31 00", description="Reinforced concrete walls",
+        li = _make_takeoff(
+            db_session, test_project.id,
+            csi_code="03 31 00", activity="Reinforced concrete walls",
         )
         wc_multi = _make_wc(
             db_session, test_project.id,
@@ -137,12 +133,11 @@ class TestTier1CSIMatch:
 
 class TestTier2FuzzyMatch:
     def test_fuzzy_above_threshold(self, db_session, test_project):
-        """Line item description closely matches WC title+inclusion union."""
-        est = _make_estimate(db_session, test_project.id)
-        li = _make_line(
-            db_session, est.id,
+        """Takeoff activity closely matches WC title+inclusion union."""
+        li = _make_takeoff(
+            db_session, test_project.id,
             csi_code="XX XX XX",  # unparseable — tier 1 skips
-            description="cast in place concrete foundation walls",
+            activity="cast in place concrete foundation walls",
         )
         wc = _make_wc(
             db_session, test_project.id,
@@ -158,12 +153,11 @@ class TestTier2FuzzyMatch:
         assert rec.work_category_id == wc.id
 
     def test_fuzzy_below_threshold_returns_none(self, db_session, test_project):
-        """Description with no meaningful overlap to WC content → Tier 2 declines."""
-        est = _make_estimate(db_session, test_project.id)
-        li = _make_line(
-            db_session, est.id,
+        """Activity with no meaningful overlap to WC content → Tier 2 declines."""
+        li = _make_takeoff(
+            db_session, test_project.id,
             csi_code="XX XX XX",
-            description="landscape irrigation sleeves",
+            activity="landscape irrigation sleeves",
         )
         wc = _make_wc(
             db_session, test_project.id,
@@ -173,6 +167,100 @@ class TestTier2FuzzyMatch:
         )
 
         rec = sm._tier2_fuzzy_match(li, [wc])
+        assert rec is None
+
+
+# ---------------------------------------------------------------------------
+# Tier 2.5 — Activity-title fuzzy match (Sprint 18.4.1 Part D)
+# ---------------------------------------------------------------------------
+
+
+class TestTier25ActivityTitleFuzzy:
+    def test_tier_2_5_activity_title_fuzzy_fires(self, db_session, test_project):
+        """Activity name overlaps a WC inclusion line closely enough to
+        clear the 0.55 threshold. Record cites the matched inclusion."""
+        li = _make_takeoff(
+            db_session, test_project.id,
+            csi_code=None,  # no CSI → Tier 1 skips
+            activity="Senior Project Manager",
+        )
+        wc = _make_wc(
+            db_session, test_project.id,
+            wc_number="00", title="General Conditions",
+            referenced_spec_sections=[],  # force Tier 2 to miss on haystack
+            work_included_items=[
+                "Provide senior project manager oversight on site",
+                "Daily safety coordination",
+            ],
+        )
+
+        rec = sm._tier2_5_activity_title_fuzzy_match(li, [wc])
+        assert rec is not None
+        assert rec.tier == "activity_title_fuzzy"
+        assert rec.source == "rule"
+        assert rec.confidence >= sm.ACTIVITY_TITLE_FUZZY_THRESHOLD
+        assert rec.work_category_id == wc.id
+        # Rationale cites the matched inclusion text
+        assert "senior project manager oversight" in rec.rationale.lower()
+
+    def test_tier_2_5_skipped_if_tier_1_matched(self, db_session, test_project):
+        """When Tier 1 CSI matches, later tiers must not overwrite the
+        match — first-match-wins across tiers. End-to-end check via the
+        full match loop: attribution tier should be csi_exact, not
+        activity_title_fuzzy."""
+        from apex.backend.agents.agent_3_5_scope_matcher import run_scope_matcher_agent
+        from apex.backend.models.line_item_wc_attribution import LineItemWCAttribution
+
+        ti = _make_takeoff(
+            db_session, test_project.id,
+            csi_code="03 30 00",  # triggers Tier 1
+            activity="cast in place concrete foundation",
+        )
+        _make_wc(
+            db_session, test_project.id,
+            wc_number="03", title="Structural Concrete",
+            referenced_spec_sections=["033000"],  # Tier 1 hit
+            work_included_items=[
+                # This inclusion would easily clear Tier 2.5 on its own,
+                # proving that if Tier 2.5 ever ran it would emit a match.
+                "cast in place concrete foundation walls and footings",
+            ],
+        )
+
+        run_scope_matcher_agent(db_session, test_project.id)
+
+        row = (
+            db_session.query(LineItemWCAttribution)
+            .filter(
+                LineItemWCAttribution.project_id == test_project.id,
+                LineItemWCAttribution.takeoff_item_id == ti.id,
+            )
+            .one()
+        )
+        # Tier 1 set the tier; Tier 2.5 must not have overwritten it.
+        assert row.match_tier == "csi_exact"
+        assert row.confidence == 1.0
+
+    def test_tier_2_5_threshold_respected(self, db_session, test_project):
+        """Activity with no meaningful overlap to inclusions (ratio < 0.55)
+        returns None — Tier 2.5 declines so Tier 3 / unmatched can handle it."""
+        li = _make_takeoff(
+            db_session, test_project.id,
+            csi_code=None,
+            activity="xyzzy plugh frotz",
+        )
+        wc = _make_wc(
+            db_session, test_project.id,
+            wc_number="03", title="Structural Concrete",
+            referenced_spec_sections=[],
+            work_included_items=[
+                "cast in place concrete",
+                "slab on grade",
+                "walls and footings",
+            ],
+        )
+
+        rec = sm._tier2_5_activity_title_fuzzy_match(li, [wc])
         assert rec is None
 
 
@@ -196,10 +284,9 @@ def _mock_llm_provider(content: str):
 class TestTier3LLMMatch:
     def test_llm_high_confidence_match_no_finding(self, db_session, test_project):
         """LLM returns 0.9 confidence → match recorded, no partial_coverage finding."""
-        est = _make_estimate(db_session, test_project.id)
-        li = _make_line(
-            db_session, est.id,
-            csi_code="XX XX XX", description="exotic custom work",
+        li = _make_takeoff(
+            db_session, test_project.id,
+            csi_code="XX XX XX", activity="exotic custom work",
         )
         wc = _make_wc(
             db_session, test_project.id,
@@ -217,7 +304,7 @@ class TestTier3LLMMatch:
             "apex.backend.services.llm_provider.get_llm_provider",
             return_value=provider,
         ):
-            findings = sm.match_scope_to_takeoff(test_project.id, db_session)
+            findings, _attributions = sm.match_scope_to_takeoff(test_project.id, db_session)
 
         # No partial_coverage, no out_of_scope for li; only in_scope_not_estimated
         # for the wc's inclusion (because wc.id IS in matched_wc_ids when li matches).
@@ -229,10 +316,9 @@ class TestTier3LLMMatch:
     def test_llm_low_confidence_creates_partial_coverage_info(self, db_session, test_project):
         """LLM returns 0.6 confidence — matcher records match BUT emits a
         partial_coverage finding with severity=INFO for estimator review."""
-        est = _make_estimate(db_session, test_project.id)
-        li = _make_line(
-            db_session, est.id,
-            csi_code="XX XX XX", description="ambiguous wall feature",
+        li = _make_takeoff(
+            db_session, test_project.id,
+            csi_code="XX XX XX", activity="ambiguous wall feature",
         )
         wc = _make_wc(
             db_session, test_project.id,
@@ -250,14 +336,17 @@ class TestTier3LLMMatch:
             "apex.backend.services.llm_provider.get_llm_provider",
             return_value=provider,
         ):
-            findings = sm.match_scope_to_takeoff(test_project.id, db_session)
+            findings, _attributions = sm.match_scope_to_takeoff(test_project.id, db_session)
 
         partials = [f for f in findings if f.finding_type == "partial_coverage"]
         assert len(partials) == 1
         assert partials[0].severity == "INFO"
         assert partials[0].match_tier == "llm_semantic"
         assert partials[0].confidence == 0.6
-        assert partials[0].estimate_line_id == li.id
+        # Post-18.4.1 Part B: takeoff_item_id is the live FK; estimate_line_id
+        # stays NULL on new rows (retained for legacy consumers only).
+        assert partials[0].estimate_line_id is None
+        assert partials[0].takeoff_item_id == li.id
         assert partials[0].work_category_id == wc.id
 
 
@@ -268,11 +357,10 @@ class TestTier3LLMMatch:
 
 class TestFindingEmission:
     def test_unmatched_after_all_tiers_emits_out_of_scope(self, db_session, test_project):
-        """Line item that nothing matches → estimated_out_of_scope WARNING."""
-        est = _make_estimate(db_session, test_project.id)
-        li = _make_line(
-            db_session, est.id,
-            csi_code="32 90 00", description="landscape irrigation",
+        """Takeoff item that nothing matches → estimated_out_of_scope WARNING."""
+        li = _make_takeoff(
+            db_session, test_project.id,
+            csi_code="32 90 00", activity="landscape irrigation",
         )
         wc = _make_wc(
             db_session, test_project.id,
@@ -291,15 +379,17 @@ class TestFindingEmission:
             "apex.backend.services.llm_provider.get_llm_provider",
             return_value=provider,
         ):
-            findings = sm.match_scope_to_takeoff(test_project.id, db_session)
+            findings, _attributions = sm.match_scope_to_takeoff(test_project.id, db_session)
 
         oos = [f for f in findings if f.finding_type == "estimated_out_of_scope"]
-        assert len(oos) >= 1
-        matched = [f for f in oos if f.estimate_line_id == li.id]
-        assert len(matched) == 1
-        assert matched[0].severity == "WARNING"
-        assert matched[0].work_category_id is None
-        assert "did not match any published WorkCategory" in matched[0].rationale
+        # Exactly one takeoff item in this project → one out-of-scope finding.
+        assert len(oos) == 1
+        assert oos[0].severity == "WARNING"
+        assert oos[0].work_category_id is None
+        # Post-18.4.1 Part B: takeoff_item_id populated, estimate_line_id NULL.
+        assert oos[0].estimate_line_id is None
+        assert oos[0].takeoff_item_id == li.id
+        assert "did not match any published WorkCategory" in oos[0].rationale
         # The unmatched WC should also surface as in_scope_not_estimated for its inclusion
         assert any(
             f.finding_type == "in_scope_not_estimated" and f.work_category_id == wc.id
@@ -309,9 +399,8 @@ class TestFindingEmission:
     def test_wc_with_no_matches_emits_in_scope_finding_per_inclusion(
         self, db_session, test_project
     ):
-        """WC with zero matched line items → one in_scope_not_estimated per inclusion."""
-        est = _make_estimate(db_session, test_project.id)
-        # No line items in this estimate.
+        """WC with zero matched takeoff items → one in_scope_not_estimated per inclusion."""
+        # No takeoff items at all — only a WC.
         wc = _make_wc(
             db_session, test_project.id,
             wc_number="26", title="Electrical",
@@ -319,7 +408,7 @@ class TestFindingEmission:
             work_included_items=["power distribution", "lighting", "grounding"],
         )
 
-        findings = sm.match_scope_to_takeoff(test_project.id, db_session)
+        findings, _attributions = sm.match_scope_to_takeoff(test_project.id, db_session)
         in_scope = [
             f for f in findings
             if f.finding_type == "in_scope_not_estimated" and f.work_category_id == wc.id
@@ -329,17 +418,14 @@ class TestFindingEmission:
         assert all(f.source == "rule" for f in in_scope)
         # spec_section_ref populated from first referenced CSI
         assert all(f.spec_section_ref == "260500" for f in in_scope)
-        # estimate_id exists to silence pyflakes (and to make sure setup ran)
-        assert est.id is not None
 
     def test_explicit_exclusion_conflict_emits_error(self, db_session, test_project):
-        """Line item matches WC scope but WC explicitly excludes that work →
+        """Takeoff matches WC scope but WC explicitly excludes that work →
         estimated_out_of_scope finding with severity=ERROR."""
-        est = _make_estimate(db_session, test_project.id)
-        li = _make_line(
-            db_session, est.id,
+        ti = _make_takeoff(
+            db_session, test_project.id,
             csi_code="03 30 00",
-            description="concrete cutting and coring",
+            activity="concrete cutting and coring",
         )
         wc = _make_wc(
             db_session, test_project.id,
@@ -349,13 +435,55 @@ class TestFindingEmission:
             related_work_by_others=["concrete cutting and coring"],
         )
 
-        findings = sm.match_scope_to_takeoff(test_project.id, db_session)
+        findings, _attributions = sm.match_scope_to_takeoff(test_project.id, db_session)
         errors = [f for f in findings if f.severity == "ERROR"]
         assert len(errors) == 1
         assert errors[0].finding_type == "estimated_out_of_scope"
-        assert errors[0].estimate_line_id == li.id
+        # Post-18.4.1 Part B: takeoff_item_id populated, estimate_line_id NULL.
+        assert errors[0].estimate_line_id is None
+        assert errors[0].takeoff_item_id == ti.id
         assert errors[0].work_category_id == wc.id
         assert "explicitly excludes" in errors[0].rationale
+
+
+# ---------------------------------------------------------------------------
+# Fresh-pipeline regression guard (Sprint 18.4.1 Part A)
+# ---------------------------------------------------------------------------
+
+
+class TestFreshPipelineRegression:
+    def test_matcher_fires_on_fresh_pipeline(self, db_session, test_project):
+        """Regression guard for the pre-18.4.1 bug: matcher used to read
+        EstimateLineItem, but Agent 6 (which creates Estimates) runs AFTER
+        Agent 3.5 in the pipeline — so on every fresh pipeline the matcher
+        silently returned []. After Part A the matcher reads TakeoffItemV2
+        directly and must emit findings when takeoff data is present and
+        no Estimate exists."""
+        # TakeoffItemV2 rows present. NO Estimate / EstimateLineItem rows.
+        _make_takeoff(
+            db_session, test_project.id,
+            row_number=1, csi_code="03 30 00", activity="Cast-in-place concrete",
+        )
+        _make_takeoff(
+            db_session, test_project.id,
+            row_number=2, csi_code="99 99 99", activity="Widget that matches nothing",
+        )
+        _make_wc(
+            db_session, test_project.id,
+            wc_number="03", title="Structural Concrete",
+            referenced_spec_sections=["033000"],
+            work_included_items=["cast in place concrete"],
+        )
+
+        findings, _attributions = sm.match_scope_to_takeoff(test_project.id, db_session)
+
+        # Must NOT be empty (that's exactly the pre-fix bug).
+        assert len(findings) > 0, (
+            "Matcher returned 0 findings on a fresh pipeline with takeoff "
+            "data present — 18.4.1 Part A regression."
+        )
+        # Expect the widget row to surface as estimated_out_of_scope.
+        assert any(f.finding_type == "estimated_out_of_scope" for f in findings)
 
 
 # ---------------------------------------------------------------------------
