@@ -109,23 +109,35 @@ def _detect_simple_header(df: pd.DataFrame) -> str:
 def parse_26col_takeoff(filepath: str) -> list[TakeoffLineItem]:
     """Parse a 26-column CCI Civil Est Report export.
 
-    Header at row 5 (index 4). Column mapping:
-      B -> wbs_area, C -> activity, F -> quantity, G -> unit,
-      H -> crew, I -> production_rate (Unit/MH),
-      K -> labor_cost_per_unit, L -> material_cost_per_unit
+    Header at xlsx row 4 (pandas index 3). Data starts at xlsx row 5 (index 4).
+    Column mapping (0-indexed):
+      B(1)  -> wbs_area
+      E(4)  -> activity (Item Description)
+      F(5)  -> quantity (Takeoff Quantity - Adjusted)
+      G(6)  -> unit
+      H(7)  -> production_rate (Labor Productivity - Adjusted / TradeHours)
+      M(12) -> labor_cost_per_unit (Labor Unit Price)
+      N(13) -> material_cost_per_unit (Mat Unit Price)
+
+    Rows where col A/C contain group markers ("--- Base Estimate ---") or
+    where col E is empty / starts with "---" / col F is not a positive
+    number are skipped (rollup and section-header rows).
     """
     df = pd.read_excel(filepath, header=None)
     items: list[TakeoffLineItem] = []
     row_num = 0
 
-    for idx in range(5, len(df)):  # row 5 is header (index 4), data starts at index 5
+    for idx in range(4, len(df)):
         row = df.iloc[idx]
-        activity = _safe_str(row[2])  # col C (0-indexed)
+        activity = _safe_str(row[4])  # col E — Item Description
 
-        # Skip empty rows and section headers (start with digit)
         if activity is None:
             continue
-        if activity[0].isdigit():
+        if activity.startswith("---"):
+            continue
+
+        quantity = _safe_float(row[5])  # col F — Takeoff Quantity
+        if quantity is None or quantity <= 0:
             continue
 
         row_num += 1
@@ -133,13 +145,13 @@ def parse_26col_takeoff(filepath: str) -> list[TakeoffLineItem]:
             TakeoffLineItem(
                 row_number=row_num,
                 wbs_area=_safe_str(row[1]),  # col B
-                activity=activity,  # col C
-                quantity=_safe_float(row[5]),  # col F
+                activity=activity,
+                quantity=quantity,
                 unit=_safe_str(row[6]),  # col G
-                crew=_safe_str(row[7]),  # col H
-                production_rate=_safe_float(row[8]),  # col I
-                labor_cost_per_unit=_safe_float(row[10]),  # col K
-                material_cost_per_unit=_safe_float(row[11]),  # col L
+                crew=None,  # no crew column in 26-col format
+                production_rate=_safe_float(row[7]),  # col H
+                labor_cost_per_unit=_safe_float(row[12]),  # col M
+                material_cost_per_unit=_safe_float(row[13]),  # col N
             )
         )
 
