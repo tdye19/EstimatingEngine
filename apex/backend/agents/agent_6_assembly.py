@@ -36,6 +36,7 @@ from apex.backend.agents.tools.assembly_tools import (
 )
 from apex.backend.models.equipment_rate import EquipmentRate
 from apex.backend.models.estimate import Estimate, EstimateLineItem
+from apex.backend.models.gap_finding import GapFinding
 from apex.backend.models.gap_report import GapReport, GapReportItem
 from apex.backend.models.intelligence_report import IntelligenceReportModel
 
@@ -284,6 +285,100 @@ def _aggregate_scope_risk(db: Session, project_id: int) -> dict:
         "missing_divisions": sorted(missing_divs),
         "top_risks": top_risks,
     }
+
+
+# Severity rank for ordering top_gap_findings (ERROR first → WARNING → INFO → unknown last).
+_GAP_FINDING_SEVERITY_RANK = {"ERROR": 0, "WARNING": 1, "INFO": 2}
+
+
+def _empty_gap_findings_rollup() -> dict:
+    return {
+        "in_scope_not_estimated": 0,
+        "estimated_out_of_scope": 0,
+        "partial_coverage": 0,
+        "severity_error": 0,
+        "severity_warning": 0,
+        "severity_info": 0,
+        "top_gap_findings": [],
+    }
+
+
+def _aggregate_gap_findings(db: Session, project_id: int) -> dict:
+    """Aggregate Agent 3.5 GapFinding rows for *project_id*.
+
+    Scoping matches Agent 3.5's delete-then-insert-per-project contract:
+    findings are regenerated per-project on every run (no versioning,
+    no estimate_run_id), so querying by project_id reflects the latest
+    scope-match pass.
+
+    Returns rollup counts by finding_type + severity plus top 5 findings
+    ordered ERROR → WARNING → INFO, confidence DESC within tier.
+
+    Never raises — graceful degradation to an empty rollup on any error.
+    """
+    try:
+        findings = (
+            db.query(GapFinding).filter(GapFinding.project_id == project_id).all()
+        )
+    except Exception as exc:
+        logger.warning(f"Agent 6: _aggregate_gap_findings query failed ({exc}) — returning empty rollup")
+        return _empty_gap_findings_rollup()
+
+    if not findings:
+        return _empty_gap_findings_rollup()
+
+    try:
+        rollup = _empty_gap_findings_rollup()
+
+        for f in findings:
+            ftype = (f.finding_type or "").strip()
+            if ftype == "in_scope_not_estimated":
+                rollup["in_scope_not_estimated"] += 1
+            elif ftype == "estimated_out_of_scope":
+                rollup["estimated_out_of_scope"] += 1
+            elif ftype == "partial_coverage":
+                rollup["partial_coverage"] += 1
+
+            sev = (f.severity or "").strip().upper()
+            if sev == "ERROR":
+                rollup["severity_error"] += 1
+            elif sev == "WARNING":
+                rollup["severity_warning"] += 1
+            elif sev == "INFO":
+                rollup["severity_info"] += 1
+
+        ordered = sorted(
+            findings,
+            key=lambda g: (
+                _GAP_FINDING_SEVERITY_RANK.get((g.severity or "").strip().upper(), 99),
+                -(g.confidence or 0.0),
+            ),
+        )
+
+        top = []
+        for f in ordered[:5]:
+            wc = getattr(f, "work_category", None)
+            line = getattr(f, "estimate_line", None)
+            top.append(
+                {
+                    "finding_type": f.finding_type,
+                    "severity": f.severity,
+                    "confidence": f.confidence,
+                    "match_tier": f.match_tier,
+                    "source": f.source,
+                    "spec_section_ref": f.spec_section_ref,
+                    "work_category_number": getattr(wc, "wc_number", None) if wc else None,
+                    "work_category_title": getattr(wc, "title", None) if wc else None,
+                    "line_item_description": getattr(line, "description", None) if line else None,
+                    "rationale": (f.rationale or "")[:200] if f.rationale else "",
+                }
+            )
+
+        rollup["top_gap_findings"] = top
+        return rollup
+    except Exception as exc:
+        logger.warning(f"Agent 6: _aggregate_gap_findings rollup build failed ({exc}) — returning empty rollup")
+        return _empty_gap_findings_rollup()
 
 
 def _find_comparable_projects(db: Session, project_id: int) -> dict:
@@ -544,6 +639,39 @@ def _retrieve_spec_context_for_narrative(project_id: int) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _has_gap_findings(sr: dict) -> bool:
+    """True when Agent 3.5 produced at least one GapFinding for the project."""
+    return bool(
+        sr.get("in_scope_not_estimated", 0)
+        or sr.get("estimated_out_of_scope", 0)
+        or sr.get("partial_coverage", 0)
+    )
+
+
+def _format_top_gap_finding(sr: dict) -> str:
+    """One-sentence summary of the first entry in top_gap_findings, or '' if none."""
+    top = sr.get("top_gap_findings") or []
+    if not top:
+        return ""
+    f = top[0]
+    ftype = (f.get("finding_type") or "").replace("_", "-")
+    sev = f.get("severity") or "WARNING"
+    conf = f.get("confidence")
+    conf_str = f"{conf:.2f}" if isinstance(conf, (int, float)) else "n/a"
+
+    wc_num = f.get("work_category_number")
+    label = (
+        f"WC {wc_num}"
+        if wc_num
+        else f.get("line_item_description")
+        or f.get("spec_section_ref")
+        or "(unspecified)"
+    )
+    rationale = (f.get("rationale") or "").strip()
+    base = f"[{sev}] {ftype} for {label} (confidence {conf_str})"
+    return f"{base}: {rationale}" if rationale else base
+
+
 def _build_narrative_prompt(report_data: dict, spec_context: str = "") -> str:
     """Build the user prompt with all intelligence data for the LLM."""
     ri = report_data.get("rate_intelligence", {})
@@ -602,6 +730,21 @@ def _build_narrative_prompt(report_data: dict, spec_context: str = "") -> str:
         lines.append("Top risks:")
         for r in top_risks[:3]:
             lines.append(f"  - [{r['severity']}] {r['title']} ({r['gap_type']})")
+
+    # Sprint 18.3.3 — Agent 3.5 scope matcher findings. Omitted entirely when no findings exist.
+    if _has_gap_findings(sr):
+        matcher_line = (
+            f"GapFindings from scope matcher: "
+            f"{sr.get('in_scope_not_estimated', 0)} in-scope-not-estimated, "
+            f"{sr.get('estimated_out_of_scope', 0)} estimated-out-of-scope, "
+            f"{sr.get('partial_coverage', 0)} partial-coverage. "
+            f"Severity: {sr.get('severity_error', 0)} errors, "
+            f"{sr.get('severity_warning', 0)} warnings."
+        )
+        top_summary = _format_top_gap_finding(sr)
+        if top_summary:
+            matcher_line += f" Top finding: {top_summary}"
+        lines.append(matcher_line)
 
     lines += [
         "",
@@ -678,6 +821,23 @@ def _generate_fallback_narrative(report_data: dict) -> str:
     else:
         rec = "Hold for revision. Critical risk signals detected — management review recommended."
 
+    # Sprint 18.3.3 — Agent 3.5 scope matcher findings paragraph (omitted when empty).
+    scope_matcher_paragraph = ""
+    if _has_gap_findings(sr):
+        top_summary = _format_top_gap_finding(sr)
+        scope_matcher_paragraph = (
+            f"SCOPE MATCHER FINDINGS: "
+            f"{sr.get('in_scope_not_estimated', 0)} in-scope-not-estimated, "
+            f"{sr.get('estimated_out_of_scope', 0)} estimated-out-of-scope, "
+            f"{sr.get('partial_coverage', 0)} partial-coverage. "
+            f"Severity: {sr.get('severity_error', 0)} errors, "
+            f"{sr.get('severity_warning', 0)} warnings, "
+            f"{sr.get('severity_info', 0)} info."
+        )
+        if top_summary:
+            scope_matcher_paragraph += f" Top finding: {top_summary}."
+        scope_matcher_paragraph += "\n\n"
+
     return (
         f"Intelligence Report for {project_name}\n"
         f"Risk Level: {level.upper()} | Confidence: {confidence}%\n\n"
@@ -692,6 +852,7 @@ def _generate_fallback_narrative(report_data: dict) -> str:
         f"SCOPE RISK: {sr.get('critical_gaps', 0)} critical gaps, "
         f"{sr.get('spec_vs_takeoff_gaps', 0)} spec-vs-takeoff gaps. "
         f"Missing divisions: {', '.join(sr.get('missing_divisions', [])) or 'none'}.\n\n"
+        f"{scope_matcher_paragraph}"
         f"COMPARABLE PROJECTS: {cp.get('comparable_count', 0)} found"
         + (f", avg bid ${cp['avg_bid_amount']:,.0f}" if cp.get("avg_bid_amount") else "")
         + (f", hit rate {cp['company_hit_rate']}%" if cp.get("company_hit_rate") else "")
@@ -727,8 +888,10 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
     # 3. Field calibration
     field_cal = _aggregate_field_calibration(db, project_id)
 
-    # 4. Scope risk
+    # 4. Scope risk — Sprint 15 GapReport rollup + Sprint 18.3.3 GapFinding rollup (Agent 3.5).
+    # Both sets of fields live on the same ScopeRiskSummary object. Sprint 15 path is untouched.
     scope_risk = _aggregate_scope_risk(db, project_id)
+    scope_risk.update(_aggregate_gap_findings(db, project_id))
 
     # 5. Comparable projects
     comparables = _find_comparable_projects(db, project_id)
