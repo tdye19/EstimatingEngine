@@ -648,6 +648,33 @@ def _has_gap_findings(sr: dict) -> bool:
     )
 
 
+def _build_scope_matcher_paragraph(sr: dict) -> str:
+    """Return the deterministic 'SCOPE MATCHER FINDINGS:' paragraph, or '' when
+    the scope_risk dict has no findings.
+
+    HF-24: extracted from _generate_fallback_narrative so the LLM-narrative
+    path can append the same literal string. The validator's A9 assertion and
+    Agent 6's downstream consumers grep for this exact marker; the LLM path
+    is free to rephrase the body, but the structured paragraph is appended
+    deterministically so the marker is always present when findings exist.
+    """
+    if not _has_gap_findings(sr):
+        return ""
+    paragraph = (
+        f"SCOPE MATCHER FINDINGS: "
+        f"{sr.get('in_scope_not_estimated', 0)} in-scope-not-estimated, "
+        f"{sr.get('estimated_out_of_scope', 0)} estimated-out-of-scope, "
+        f"{sr.get('partial_coverage', 0)} partial-coverage. "
+        f"Severity: {sr.get('severity_error', 0)} errors, "
+        f"{sr.get('severity_warning', 0)} warnings, "
+        f"{sr.get('severity_info', 0)} info."
+    )
+    top_summary = _format_top_gap_finding(sr)
+    if top_summary:
+        paragraph += f" Top finding: {top_summary}."
+    return paragraph
+
+
 def _format_top_gap_finding(sr: dict) -> str:
     """One-sentence summary of the first entry in top_gap_findings, or '' if none."""
     top = sr.get("top_gap_findings") or []
@@ -822,21 +849,9 @@ def _generate_fallback_narrative(report_data: dict) -> str:
         rec = "Hold for revision. Critical risk signals detected — management review recommended."
 
     # Sprint 18.3.3 — Agent 3.5 scope matcher findings paragraph (omitted when empty).
-    scope_matcher_paragraph = ""
-    if _has_gap_findings(sr):
-        top_summary = _format_top_gap_finding(sr)
-        scope_matcher_paragraph = (
-            f"SCOPE MATCHER FINDINGS: "
-            f"{sr.get('in_scope_not_estimated', 0)} in-scope-not-estimated, "
-            f"{sr.get('estimated_out_of_scope', 0)} estimated-out-of-scope, "
-            f"{sr.get('partial_coverage', 0)} partial-coverage. "
-            f"Severity: {sr.get('severity_error', 0)} errors, "
-            f"{sr.get('severity_warning', 0)} warnings, "
-            f"{sr.get('severity_info', 0)} info."
-        )
-        if top_summary:
-            scope_matcher_paragraph += f" Top finding: {top_summary}."
-        scope_matcher_paragraph += "\n\n"
+    # HF-24: literal-paragraph builder is now shared with the LLM-narrative path.
+    scope_matcher_body = _build_scope_matcher_paragraph(sr)
+    scope_matcher_paragraph = f"{scope_matcher_body}\n\n" if scope_matcher_body else ""
 
     return (
         f"Intelligence Report for {project_name}\n"
@@ -967,6 +982,23 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
                     narrative = llm_text
                     narrative_method = "llm"
                     logger.info(f"Agent 6 v2: LLM narrative generated ({narrative_tokens} tokens)")
+                    # HF-24: append the deterministic SCOPE MATCHER FINDINGS marker
+                    # paragraph if the LLM didn't include it. The validator's A9
+                    # assertion and Agent 6's downstream consumers grep for the
+                    # literal token; the LLM is free to rephrase the body, but
+                    # the marker must be present whenever findings exist. The
+                    # "not in narrative" guard prevents duplication if the LLM
+                    # happened to include the literal string itself.
+                    if (
+                        _has_gap_findings(scope_risk)
+                        and "SCOPE MATCHER FINDINGS:" not in narrative
+                    ):
+                        narrative = (
+                            narrative.rstrip()
+                            + "\n\n"
+                            + _build_scope_matcher_paragraph(scope_risk).rstrip()
+                            + "\n"
+                        )
                 else:
                     logger.warning("Agent 6 v2: LLM returned empty — using template")
             else:
