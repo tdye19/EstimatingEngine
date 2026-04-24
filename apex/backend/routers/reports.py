@@ -302,6 +302,9 @@ def get_rate_intelligence(project_id: int, db: Session = Depends(get_db), user: 
                 "unit": r.unit,
                 "crew": r.crew,
                 "wbs_area": r.wbs_area,
+                # HF-29b: actual takeoff quantity (col F on WinEst). Distinct
+                # from estimator_rate which holds productivity (col I/H).
+                "quantity": r.quantity,
                 "estimator_rate": r.production_rate,
                 "historical_avg_rate": r.historical_avg_rate,
                 "historical_min_rate": r.historical_min_rate,

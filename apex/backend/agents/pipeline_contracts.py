@@ -232,6 +232,12 @@ class RateRecommendation(BaseModel):
     activity: str
     unit: str | None = None
     crew: str | None = None
+    # HF-29b: actual takeoff quantity (col F on WinEst). Persisted to
+    # TakeoffItemV2.quantity and consumed by proposal_form for bid totals.
+    # Distinct from estimator_rate (productivity from col I/H).
+    # Post-summit cleanup: estimator_rate is misnamed — actually holds
+    # production_rate. Rename when touching the rate-delta logic.
+    quantity: float | None = None
     estimator_rate: float | None = None
     historical_avg_rate: float | None = None
     historical_min_rate: float | None = None
