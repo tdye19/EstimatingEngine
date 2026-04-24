@@ -23,6 +23,7 @@ LLM is used ONLY for the executive narrative (step 9).
 
 import json
 import logging
+from typing import Literal
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -509,23 +510,47 @@ def _get_pb_coverage(db: Session) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _confidence_to_risk_level(
+    confidence_pct: float,
+) -> Literal["LOW", "MODERATE", "HIGH", "CRITICAL"]:
+    """HF-25: map data confidence to bid risk level.
+
+    Risk level is driven by data confidence, not by detected-problem
+    severity. A 6%-confidence project with few visible problems is HIGH
+    risk because we don't have enough data to know what's missing — not
+    LOW risk.
+
+    Tiers (uppercase output is part of the API contract; pinned by
+    test_risk_level_output_is_uppercase):
+      confidence >= 75  -> LOW
+      confidence >= 50  -> MODERATE
+      confidence >= 25  -> HIGH
+      confidence  < 25  -> CRITICAL
+    """
+    if confidence_pct >= 75:
+        return "LOW"
+    if confidence_pct >= 50:
+        return "MODERATE"
+    if confidence_pct >= 25:
+        return "HIGH"
+    return "CRITICAL"
+
+
 def _compute_risk_level(rate_intel: dict, field_cal: dict, scope_risk: dict, pb_coverage: dict) -> tuple:
     """Compute overall risk level and confidence score.
 
-    Risk factors (each 0-25 points, total 0-100):
-    - Rate deviation: % of items flagged UPDATE (>20% off)
-    - Field calibration: % of items with optimistic direction
-    - Scope gaps: count of critical + spec_vs_takeoff gaps
-    - Data coverage: % of items with PB match + field data
+    HF-25 update: level is now derived from confidence (see
+    _confidence_to_risk_level). The four risk_score factors below are
+    still computed so they can surface as a diagnostic breakdown under
+    the top-line risk level in a future Intelligence Report UI revision
+    (e.g. "Your 37.5% confidence breaks down as: Rate Deviation 10/25,
+    Field Calibration 0/25, Scope Gaps 22/25, Coverage Deficit 18/25").
 
-    Risk levels:
-    - 0-25: "low"
-    - 26-50: "moderate"
-    - 51-75: "high"
-    - 76-100: "critical"
-
-    Confidence = inverse of data gaps (more data = higher confidence)
+    Confidence = inverse of data gaps (more data = higher confidence).
     """
+    # risk_score computed but not used for level (HF-25). Reserved for
+    # future detail-breakdown UI — keep the factor math intact so the
+    # eventual surface doesn't require a re-derivation pass.
     risk_score = 0.0
 
     # Factor 1: Rate deviation (0-25)
@@ -553,17 +578,7 @@ def _compute_risk_level(rate_intel: dict, field_cal: dict, scope_risk: dict, pb_
         coverage_deficit = (no_match_pct + no_field_pct) / 2
         risk_score += min(coverage_deficit * 50, 25.0)
 
-    risk_score = round(min(risk_score, 100.0), 1)
-
-    # Risk level
-    if risk_score <= 25:
-        level = "low"
-    elif risk_score <= 50:
-        level = "moderate"
-    elif risk_score <= 75:
-        level = "high"
-    else:
-        level = "critical"
+    risk_score = round(min(risk_score, 100.0), 1)  # noqa: F841 — see HF-25 note above
 
     # Confidence: more data = higher confidence
     data_points = 0
@@ -583,6 +598,9 @@ def _compute_risk_level(rate_intel: dict, field_cal: dict, scope_risk: dict, pb_
     max_data_points += 10
 
     confidence = round((data_points / max_data_points * 100), 1) if max_data_points > 0 else 0.0
+
+    # HF-25: level is a function of confidence, not risk_score.
+    level = _confidence_to_risk_level(confidence)
 
     return level, confidence
 
@@ -838,12 +856,12 @@ def _generate_fallback_narrative(report_data: dict) -> str:
     sr = report_data.get("scope_risk", {})
     cp = report_data.get("comparable_projects", {})
 
-    # Auto-recommendation based on risk level
-    if level == "low":
+    # Auto-recommendation based on risk level (HF-25: uppercase tier names).
+    if level == "LOW":
         rec = "Submit as-is. No significant risk signals detected."
-    elif level == "moderate":
+    elif level == "MODERATE":
         rec = "Review flagged items before submission. Moderate risk signals present."
-    elif level == "high":
+    elif level == "HIGH":
         rec = "Hold for revision. Multiple high-risk signals require estimator review."
     else:
         rec = "Hold for revision. Critical risk signals detected — management review recommended."
