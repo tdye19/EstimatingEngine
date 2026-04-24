@@ -70,6 +70,12 @@ def get_intelligence_report(project_id: int, db: Session = Depends(get_db), user
             "comparable_projects": json.loads(report.comparable_projects_json)
             if report.comparable_projects_json
             else {},
+            # Sprint 18.4.2 — ProposalForm. None when Agent 6 couldn't build it
+            # (no WorkCategories or no TakeoffItemV2 rows). Surface as null so
+            # the frontend can render an empty-state for the proposal tab.
+            "proposal_form": json.loads(report.proposal_form_json)
+            if report.proposal_form_json
+            else None,
             "spec_sections_parsed": report.spec_sections_parsed,
             "material_specs_extracted": report.material_specs_extracted,
             "executive_narrative": report.executive_narrative,

@@ -1010,6 +1010,14 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
         narrative = _generate_fallback_narrative(report_data)
         narrative_method = "template"
 
+    # Sprint 18.4.2 — ProposalForm: deterministic Python build, no LLM in math
+    # path. Returns None when the project has no WorkCategories or no
+    # TakeoffItemV2 rows; the column stays NULL in that case so the API
+    # endpoint omits the key downstream.
+    from apex.backend.agents.proposal_form_builder import build_proposal_form
+
+    proposal_form = build_proposal_form(db, project_id)
+
     # 10. Persist IntelligenceReportModel
     existing_count = db.query(func.count(IntelligenceReportModel.id)).filter_by(project_id=project_id).scalar() or 0
 
@@ -1023,6 +1031,7 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
         field_calibration_json=json.dumps(field_cal),
         scope_risk_json=json.dumps(scope_risk),
         comparable_projects_json=json.dumps(comparables),
+        proposal_form_json=json.dumps(proposal_form) if proposal_form is not None else None,
         spec_sections_parsed=spec_intel["sections_parsed"],
         material_specs_extracted=spec_intel["material_specs_extracted"],
         overall_risk_level=risk_level,
