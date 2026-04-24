@@ -218,6 +218,7 @@ class RateMatchingEngine:
                         activity=item.activity,
                         unit=item.unit,
                         crew=item.crew,
+                        quantity=item.quantity,  # HF-29b: pass through file qty
                         estimator_rate=item.production_rate,
                         historical_avg_rate=match["avg_rate"],
                         historical_min_rate=match["min_rate"],
@@ -251,6 +252,7 @@ class RateMatchingEngine:
                         activity=item.activity,
                         unit=item.unit,
                         crew=item.crew,
+                        quantity=item.quantity,  # HF-29b: pass through file qty
                         estimator_rate=item.production_rate,
                         sample_count=0,
                         confidence="none",

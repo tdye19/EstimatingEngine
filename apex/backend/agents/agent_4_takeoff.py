@@ -121,7 +121,7 @@ def run_takeoff_agent(db: Session, project_id: int) -> dict:
             row_number=rec.line_item_row,
             wbs_area=rec.wbs_area,
             activity=rec.activity,
-            quantity=rec.estimator_rate,  # estimator's production rate stored as reference
+            quantity=rec.quantity,  # HF-29b: actual takeoff quantity (was misassigned to estimator_rate pre-HF-29b)
             unit=rec.unit,
             crew=rec.crew,
             production_rate=rec.estimator_rate,

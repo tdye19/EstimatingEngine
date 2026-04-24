@@ -202,7 +202,7 @@ def test_aws_winest_rates_unchanged_post_hf29(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_aws_winest_persists_estimator_rates_not_pb_avg(
+def test_aws_winest_persists_estimator_rates_and_quantities_not_pb_avg(
     db_session: Session, tmp_path
 ):
     """End-to-end Agent 4 path: when the file's parser-extracted rate
@@ -210,7 +210,13 @@ def test_aws_winest_persists_estimator_rates_not_pb_avg(
     persisted TakeoffItemV2.labor_cost_per_unit must equal the FILE rate
     (estimator's bid), not the PB avg. Edit 3 happens in the matcher;
     this pins behavior at the persistence layer (where the proposal_form
-    actually reads)."""
+    actually reads).
+
+    HF-29b: also pins TakeoffItemV2.quantity to the file's actual takeoff
+    quantity (col F = 76 for Senior Project Manager in this fixture),
+    NOT the productivity value (0.02 from col H) which Sprint 14 was
+    misassigning. Without this assertion a future refactor could silently
+    re-introduce the original bug."""
     suffix = uuid.uuid4().hex[:8]
     project = Project(
         name=f"HF29 e2e {suffix}",
@@ -272,6 +278,16 @@ def test_aws_winest_persists_estimator_rates_not_pb_avg(
         f"persisted labor_cost_per_unit={pm_row.labor_cost_per_unit} — "
         "Edit 3 broken: matcher overwrote estimator's file rate with PB avg"
     )
+    # HF-29b: TakeoffItemV2.quantity must be the file's takeoff quantity
+    # (col F = 76 for Senior Project Manager per _build_aws_26col_fixture),
+    # NOT the productivity value (0.02 from col H). Pre-HF-29b assigned
+    # rec.estimator_rate (productivity) here, deflating proposal_form ~40x.
+    assert pm_row.quantity == 76, (
+        f"persisted quantity={pm_row.quantity} — HF-29b broken: Agent 4 "
+        "wrote production_rate to TakeoffItemV2.quantity instead of file qty"
+    )
+    # production_rate column (separate field) still reflects the productivity.
+    assert pm_row.production_rate == 0.02
     # historical_avg_rate field still reflects PB data (separate column).
     assert pm_row.historical_avg_rate == 0.02
 
@@ -345,3 +361,106 @@ def test_proposal_form_base_bid_nonzero_with_real_rates(db_session: Session):
     assert wc_row["labor_cost"] == 3200.0
     assert wc_row["material_cost"] == 2500.0
     assert wc_row["subtotal"] == 5700.0
+
+
+# ---------------------------------------------------------------------------
+# Test 6 (HF-29b) — quantity flows through matcher's no-match branch too
+# ---------------------------------------------------------------------------
+
+
+def test_hf29b_quantity_flows_through_matcher_no_match_branch(
+    db_session: Session, tmp_path
+):
+    """Edit 3 (matcher) added quantity=item.quantity to the no-match branch.
+    With NO PB seed data, every item routes through the no-match path. Pin
+    that the file's quantity (76 for Senior PM, 354 for Curb) still ends
+    up on TakeoffItemV2 — separate from the match-branch coverage in
+    test_aws_winest_persists_estimator_rates_and_quantities_not_pb_avg."""
+    suffix = uuid.uuid4().hex[:8]
+    project = Project(
+        name=f"HF29b nomatch {suffix}",
+        project_number=f"HF29B-NM-{suffix}",
+        project_type="commercial",
+    )
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    fixture = _build_aws_26col_fixture(tmp_path)
+    doc = Document(
+        project_id=project.id,
+        filename="aws_nomatch.xlsx",
+        file_path=str(fixture),
+        file_type="xlsx",
+        classification="winest",
+        processing_status="completed",
+    )
+    db_session.add(doc)
+    db_session.commit()
+
+    # Test-isolation: the in-memory SQLite engine is shared across tests
+    # via StaticPool, so PB rows seeded by earlier tests leak in. Wipe
+    # PB data so the matcher reliably hits the no-match branch.
+    db_session.query(PBLineItem).delete()
+    db_session.query(PBProject).delete()
+    db_session.commit()
+
+    # Deliberately NO PB seed → matcher hits the no-match branch on every row.
+    result = run_takeoff_agent(db_session, project.id)
+    assert result["items_unmatched"] == result["takeoff_items_parsed"] == 2
+
+    rows = (
+        db_session.query(TakeoffItemV2)
+        .filter_by(project_id=project.id)
+        .order_by(TakeoffItemV2.row_number)
+        .all()
+    )
+    by_act = {r.activity: r for r in rows}
+    pm = by_act["Senior Project Manager"]
+    curb = by_act["Curb/Curb & Gutter Concrete 4000psi"]
+    assert pm.quantity == 76, f"no-match branch dropped quantity: got {pm.quantity}"
+    assert pm.labor_cost_per_unit == 4250
+    assert curb.quantity == 354, f"no-match branch dropped quantity: got {curb.quantity}"
+    assert curb.material_cost_per_unit == 180
+
+
+# ---------------------------------------------------------------------------
+# Test 7 (HF-29b) — recommendations API response surfaces quantity
+# ---------------------------------------------------------------------------
+
+
+def test_hf29b_recommendations_api_response_includes_quantity(
+    client, db_session, test_project, auth_headers
+):
+    """routers/reports.py was updated to include quantity in the
+    recommendations dict so frontend Rate Intelligence consumers can
+    show qty next to rate. Pin the response shape — without this
+    assertion the routers/reports.py edit could silently regress."""
+    db_session.add(
+        TakeoffItemV2(
+            project_id=test_project.id,
+            row_number=1,
+            activity="Project Manager",
+            quantity=5,
+            unit="week",
+            production_rate=0.13,
+            labor_cost_per_unit=640,
+        )
+    )
+    db_session.commit()
+
+    resp = client.get(
+        f"/api/projects/{test_project.id}/rate-intelligence",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    recs = resp.json()["data"]["recommendations"]
+    assert len(recs) == 1
+    rec = recs[0]
+    # HF-29b key: quantity must be present and equal the persisted value.
+    assert "quantity" in rec, f"quantity field missing from response: {rec}"
+    assert rec["quantity"] == 5, f"quantity={rec['quantity']} != 5"
+    # Existing keys still present (regression guard).
+    assert rec["activity"] == "Project Manager"
+    assert rec["estimator_rate"] == 0.13
+    assert rec["labor_cost_per_unit"] == 640
