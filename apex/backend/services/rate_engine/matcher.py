@@ -206,6 +206,12 @@ class RateMatchingEngine:
                     delta_pct = None
                     flag = "NO_DATA"
 
+                # HF-29: prefer the estimator's rate from the takeoff file
+                # over the PB historical average. The proposal_form needs the
+                # bid total (estimator's actual rates), and the historical
+                # avg is preserved separately as historical_avg_rate. PB avg
+                # is used only as a fallback when the parser couldn't extract
+                # a per-line rate from the file.
                 recommendations.append(
                     RateRecommendation(
                         line_item_row=item.row_number,
@@ -222,13 +228,23 @@ class RateMatchingEngine:
                         delta_pct=delta_pct,
                         flag=flag,
                         matching_projects=match["projects"],
-                        labor_cost_per_unit=match["avg_labor_cost"],
-                        material_cost_per_unit=match["avg_mat_cost"],
+                        labor_cost_per_unit=(
+                            item.labor_cost_per_unit
+                            if item.labor_cost_per_unit is not None
+                            else match["avg_labor_cost"]
+                        ),
+                        material_cost_per_unit=(
+                            item.material_cost_per_unit
+                            if item.material_cost_per_unit is not None
+                            else match["avg_mat_cost"]
+                        ),
                         wbs_area=item.wbs_area,
                     )
                 )
             else:
-                # No match found
+                # No match found — surface estimator's parsed rates anyway
+                # (HF-29) so proposal_form / takeoff_total_labor reflect the
+                # actual bid even when the project has no PB coverage.
                 recommendations.append(
                     RateRecommendation(
                         line_item_row=item.row_number,
@@ -240,6 +256,8 @@ class RateMatchingEngine:
                         confidence="none",
                         flag="NO_DATA",
                         wbs_area=item.wbs_area,
+                        labor_cost_per_unit=item.labor_cost_per_unit,
+                        material_cost_per_unit=item.material_cost_per_unit,
                     )
                 )
 

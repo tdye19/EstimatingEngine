@@ -20,6 +20,7 @@ class TakeoffItemV2(Base):
     unit = Column(String)
     crew = Column(String)
     production_rate = Column(Float)
+    # HF-29: estimator's file rate (preferred) with PB historical avg as fallback.
     labor_cost_per_unit = Column(Float)
     material_cost_per_unit = Column(Float)
     csi_code = Column(String)

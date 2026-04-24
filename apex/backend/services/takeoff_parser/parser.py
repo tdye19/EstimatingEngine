@@ -162,35 +162,65 @@ def parse_26col_takeoff(filepath: str) -> list[TakeoffLineItem]:
 
 
 def parse_21col_takeoff(filepath: str) -> list[TakeoffLineItem]:
-    """Parse a 21-column CCI Estimate Report export.
+    """Parse a CCI Estimate Report export (cell A1 = "_CCI Estimate Report").
 
-    Header at row 5 (index 4). Column mapping:
-      B -> wbs_area, C -> activity, D -> quantity, E -> unit,
-      F -> crew, G -> production_rate
+    HF-29 column remapping. The pre-HF-29 mapping read columns B/C/D/E/F/G
+    and matched none of the real header positions, so every row's activity
+    came out as "--- Base Estimate ---" (col C) and quantity/unit were
+    text from unrelated columns. Result: 100% NO_DATA on every project that
+    routed to this parser, including KCCU project 21.
+
+    Format named "21col" historically; actual layout has 23 columns. Name
+    retained to avoid cross-codebase rename (format-detection tree, agent
+    output, validator, frontend display all key on the literal "21col").
+
+    Header at xlsx row 4 (pandas index 3). Data starts at xlsx row 5
+    (pandas index 4). Column mapping (0-indexed):
+      D(3)  -> wbs_area               (WBS8 Name)
+      E(4)  -> activity               (Item Description)
+      F(5)  -> quantity               (Takeoff Quantity - Adjusted)
+      G(6)  -> unit
+      H(7)  -> crew                   (Labor Mix 1 Name)
+      I(8)  -> production_rate        (Labor Productivity - Adjusted / TradeHours)
+      L(11) -> labor_cost_per_unit    (Labor Unit Price)
+      M(12) -> material_cost_per_unit (Mat Unit Price)
+
+    Filters (mirror parse_26col_takeoff):
+      - skip rows where activity is None or starts with "---"
+        (catches "--- Base Estimate ---" rollup at xlsx row 5)
+      - skip rows where quantity is None or <= 0
+        (catches "General Conditions" / WBS-level section headers that
+        carry a description but no qty)
     """
     df = pd.read_excel(filepath, header=None)
     items: list[TakeoffLineItem] = []
     row_num = 0
 
-    for idx in range(5, len(df)):  # row 5 is header (index 4), data starts at index 5
+    for idx in range(4, len(df)):  # data starts at xlsx row 5 (index 4)
         row = df.iloc[idx]
-        activity = _safe_str(row[2])  # col C (0-indexed)
+        activity = _safe_str(row[4])  # col E — Item Description
 
         if activity is None:
             continue
-        if activity[0].isdigit():
+        if activity.startswith("---"):
+            continue
+
+        quantity = _safe_float(row[5])  # col F — Takeoff Quantity
+        if quantity is None or quantity <= 0:
             continue
 
         row_num += 1
         items.append(
             TakeoffLineItem(
                 row_number=row_num,
-                wbs_area=_safe_str(row[1]),  # col B
-                activity=activity,  # col C
-                quantity=_safe_float(row[3]),  # col D
-                unit=_safe_str(row[4]),  # col E
-                crew=_safe_str(row[5]),  # col F
-                production_rate=_safe_float(row[6]),  # col G
+                wbs_area=_safe_str(row[3]),  # col D
+                activity=activity,
+                quantity=quantity,
+                unit=_safe_str(row[6]),  # col G
+                crew=_safe_str(row[7]),  # col H — Labor Mix 1 Name
+                production_rate=_safe_float(row[8]),  # col I
+                labor_cost_per_unit=_safe_float(row[11]),  # col L
+                material_cost_per_unit=_safe_float(row[12]),  # col M
             )
         )
 
