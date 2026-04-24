@@ -307,6 +307,16 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     except Exception as e:
         logger.warning(f"Could not initialise LLM provider ({e}), using regex fallback")
 
+    # HF-26: clean-slate per project. Without this, SpecSection rows from
+    # earlier code paths (or from previously-misclassified docs) accumulate
+    # forever — _upsert_spec_section dedupes on (project_id, section_number)
+    # but never deletes orphans, so re-triggers can grow the count but
+    # never shrink it. Mirrors Agent 3.5's delete-then-insert contract.
+    db.query(SpecSection).filter(SpecSection.project_id == project_id).delete(
+        synchronize_session=False
+    )
+    db.commit()
+
     # Get all completed spec documents
     documents = (
         db.query(Document)
@@ -414,10 +424,12 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
             db.commit()
             total_sections += sections_created
 
-            # Reclassify document as spec if it had sections
-            if sections_created > 0 and doc.classification != "spec":
-                doc.classification = "spec"
-                db.commit()
+            # HF-26: removed self-promotion. Documents retain their Agent 1
+            # classification. The general/None secondary filter above gives
+            # unclassified docs a chance on every run; permanent re-classification
+            # to "spec" was creating a feedback loop where any non-spec doc
+            # (e.g., winest.xlsx) that yielded a single section-shaped fragment
+            # got locked into the spec pool forever.
 
             doc_results.append(
                 {
