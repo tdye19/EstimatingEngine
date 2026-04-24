@@ -134,44 +134,135 @@ class AgentOrchestrator:
         return log
 
     def _log_complete(self, log: AgentRunLog, summary: str, tokens: int = 0, output_data: dict = None):
-        now = datetime.utcnow()
-        log.status = "completed"
-        log.completed_at = now
-        log.duration_seconds = (datetime.utcnow() - log.started_at).total_seconds() if log.started_at else 0
-        log.tokens_used = tokens
-        log.output_summary = summary
-        log.output_data = output_data
+        # HF-22: pre-emptively clear any pending-rollback state from an
+        # upstream agent that swallowed an IntegrityError. Without this,
+        # the very first attribute read on `log` (including log.id) would
+        # trigger an expired-attribute reload on the poisoned session and
+        # raise PendingRollbackError before our try/except can engage.
+        # No-op on a healthy session.
+        try:
+            self.db.rollback()
+        except Exception:
+            pass
 
-        if tokens == 0 and log.started_at is not None:
-            usage_records = (
-                self.db.query(TokenUsage)
-                .filter(
-                    TokenUsage.project_id == self.project_id,
-                    TokenUsage.agent_number == log.agent_number,
-                    TokenUsage.created_at >= log.started_at,
+        log_id = log.id
+        agent_number = log.agent_number
+        try:
+            now = datetime.utcnow()
+            log.status = "completed"
+            log.completed_at = now
+            log.duration_seconds = (datetime.utcnow() - log.started_at).total_seconds() if log.started_at else 0
+            log.tokens_used = tokens
+            log.output_summary = summary
+            log.output_data = output_data
+
+            if tokens == 0 and log.started_at is not None:
+                usage_records = (
+                    self.db.query(TokenUsage)
+                    .filter(
+                        TokenUsage.project_id == self.project_id,
+                        TokenUsage.agent_number == log.agent_number,
+                        TokenUsage.created_at >= log.started_at,
+                    )
+                    .all()
                 )
-                .all()
+                count = len(usage_records)
+                if count > 0:
+                    total_tokens = sum(r.input_tokens + r.output_tokens for r in usage_records)
+                    log.tokens_used = total_tokens
+                    logger.info(
+                        "Agent %d token usage: %d tokens (auto-filled from %d TokenUsage records)",
+                        log.agent_number,
+                        total_tokens,
+                        count,
+                    )
+
+            self.db.commit()
+        except Exception as exc:
+            logger.error(
+                "AgentRunLog _log_complete failed for agent %s (likely poisoned session): %s",
+                agent_number,
+                exc,
             )
-            count = len(usage_records)
-            if count > 0:
-                total_tokens = sum(r.input_tokens + r.output_tokens for r in usage_records)
-                log.tokens_used = total_tokens
-                logger.info(
-                    "Agent %d token usage: %d tokens (auto-filled from %d TokenUsage records)",
-                    log.agent_number,
-                    total_tokens,
-                    count,
-                )
-
-        self.db.commit()
+            self._force_status_update(
+                log_id,
+                status="failed",
+                error_message=f"agent reported success but log persist failed: {exc}",
+            )
 
     def _log_error(self, log: AgentRunLog, error_msg: str):
-        now = datetime.utcnow()
-        log.status = "failed"
-        log.completed_at = now
-        log.duration_seconds = (datetime.utcnow() - log.started_at).total_seconds() if log.started_at else 0
-        log.error_message = error_msg
-        self.db.commit()
+        # HF-22: same proactive rollback as _log_complete. See its comment.
+        try:
+            self.db.rollback()
+        except Exception:
+            pass
+
+        log_id = log.id
+        agent_number = log.agent_number
+        try:
+            now = datetime.utcnow()
+            log.status = "failed"
+            log.completed_at = now
+            log.duration_seconds = (datetime.utcnow() - log.started_at).total_seconds() if log.started_at else 0
+            log.error_message = error_msg
+            self.db.commit()
+        except Exception as exc:
+            logger.error(
+                "AgentRunLog _log_error failed for agent %s (likely poisoned session): %s",
+                agent_number,
+                exc,
+            )
+            self._force_status_update(
+                log_id,
+                status="failed",
+                error_message=f"{error_msg} (log persist also failed: {exc})",
+            )
+
+    def _force_status_update(self, log_id: int, *, status: str, error_message: str) -> None:
+        """HF-22 last-resort AgentRunLog status write on a fresh session.
+
+        Guarantees the row transitions out of "running" even when self.db is
+        poisoned by an upstream IntegrityError. Also rolls back self.db so
+        downstream agents in the same pipeline run can keep using it.
+
+        Errors here are logged but never raised — this helper is a sink. The
+        runlog row in the DB is the validator's source of truth; if it lies,
+        every downstream debug session is wrong.
+
+        Marker: error_message is prefixed with "[HF-22 forced status]" so
+        Railway logs can be grepped to trace this code path.
+        """
+        # Release the poisoned shared session for downstream agents.
+        try:
+            self.db.rollback()
+        except Exception as exc:
+            logger.warning("HF-22 force-update: self.db.rollback() failed: %s", exc)
+
+        # Open a fresh session that bypasses the poisoned one entirely.
+        from apex.backend.db.database import SessionLocal
+
+        fresh = SessionLocal()
+        try:
+            row = fresh.query(AgentRunLog).filter(AgentRunLog.id == log_id).first()
+            if row is None:
+                logger.error("HF-22 force-update: AgentRunLog id=%d not found", log_id)
+                return
+            row.status = status
+            row.completed_at = datetime.utcnow()
+            marked = f"[HF-22 forced status] {error_message}"
+            row.error_message = (
+                f"{row.error_message}\n{marked}" if row.error_message else marked
+            )
+            fresh.commit()
+            logger.info(
+                "HF-22 force-update: AgentRunLog id=%d status=%s written via fresh session",
+                log_id,
+                status,
+            )
+        except Exception as exc:
+            logger.error("HF-22 force-update FAILED for log_id=%d: %s", log_id, exc)
+        finally:
+            fresh.close()
 
     def _log_skipped(self, agent_name: str, agent_number: int, reason: str = "") -> AgentRunLog:
         """Record a skipped agent.  *reason* is stored in output_summary."""

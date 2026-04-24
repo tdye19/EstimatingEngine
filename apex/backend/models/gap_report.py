@@ -29,7 +29,10 @@ class GapReportItem(Base, TimestampMixin):
 
     id = Column(Integer, primary_key=True, index=True)
     gap_report_id = Column(Integer, ForeignKey("gap_reports.id"), nullable=False)
-    division_number = Column(String(10), nullable=False)
+    # HF-22: nullable so cross-cutting rule-based findings (e.g. "takeoff includes
+    # concrete but missing reinforcement") that don't map to one CSI division can
+    # persist without violating NOT NULL.
+    division_number = Column(String(10), nullable=True)
     section_number = Column(String(20), nullable=True)
     title = Column(String(500), nullable=False)
     gap_type = Column(String(50), nullable=False)  # missing, ambiguous, conflicting

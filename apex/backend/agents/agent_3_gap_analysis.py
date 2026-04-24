@@ -734,6 +734,11 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
             logger.info("Agent 3: spec-vs-takeoff pass — no additional gaps found")
     except Exception as exc:
         logger.warning(f"Agent 3: spec-vs-takeoff pass failed (non-fatal): {exc}")
+        # HF-22: release the SQLAlchemy session if the failed db.commit() left
+        # it in rolled-back state. Without this, every downstream operation on
+        # this session — including the orchestrator's AgentRunLog status write
+        # — raises PendingRollbackError, hanging the pipeline at status="running".
+        db.rollback()
 
     total_gaps = scores["total_gaps"] + svt_gap_count
     critical_total = scores["critical_count"] + svt_gap_count
