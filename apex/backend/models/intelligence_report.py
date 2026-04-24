@@ -34,6 +34,10 @@ class IntelligenceReportModel(Base):
     field_calibration_json = Column(Text)  # JSON of FieldCalibrationSummary
     scope_risk_json = Column(Text)  # JSON of ScopeRiskSummary
     comparable_projects_json = Column(Text)  # JSON of ComparableProjectSummary
+    # Sprint 18.4.2 — Proposal Form JSON (mirrors CCI Trade Contract Proposal
+    # Form). Nullable: Agent 6 omits when project lacks WorkCategories or
+    # TakeoffItemV2 rows. See apex.backend.agents.proposal_form_builder.
+    proposal_form_json = Column(Text, nullable=True)
 
     # Spec intel
     spec_sections_parsed = Column(Integer, default=0)

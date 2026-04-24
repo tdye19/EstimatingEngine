@@ -494,6 +494,95 @@ class Agent7Output(BaseModel):
     message: str | None = None  # informational note (e.g. no actuals found)
 
 
+# ---------------------------------------------------------------------------
+# Sprint 18.4.2 — ProposalForm (emitted by Agent 6 alongside intelligence
+# report sections). Mirrors Christman Constructors' Trade Contract Proposal
+# Form structure. Built by apex.backend.agents.proposal_form_builder; not
+# part of any agent's pipeline-handshake contract — surfaced via the
+# IntelligenceReportModel.proposal_form_json column and the
+# /intelligence-report API endpoint.
+# ---------------------------------------------------------------------------
+
+
+class ProposalFormByWC(BaseModel):
+    wc_number: str
+    wc_title: str
+    line_items_count: int = Field(ge=0)
+    labor_cost: float
+    material_cost: float
+    subtotal: float
+    # Mean LineItemWCAttribution.confidence for this WC. None when the WC has
+    # no attributed line items (Refinement 3 — empty WCs still appear in the
+    # list to surface scope that exists but isn't priced).
+    attribution_confidence_avg: float | None = None
+
+
+class ProposalFormUnattributed(BaseModel):
+    line_items_count: int = Field(ge=0)
+    labor_cost: float
+    material_cost: float
+    subtotal: float
+    note: str
+
+
+class ProposalFormBaseBid(BaseModel):
+    total: float
+    by_work_category: list[ProposalFormByWC]
+    # None when zero unattributed items exist for the project.
+    unattributed: ProposalFormUnattributed | None = None
+
+
+class ProposalFormAlternate(BaseModel):
+    wc_number: str
+    description: str
+    price_type: Literal["add", "deduct", "unknown"]
+    # Always None today — WorkCategory.add_alternates carries no amount.
+    # The estimator fills this in via the 18.4.4 UI / 18.4.3 Excel.
+    amount: float | None = None
+    source: Literal["work_category.add_alternates"]
+
+
+class ProposalFormAllowance(BaseModel):
+    wc_number: str
+    description: str
+    # 0.0 in WC.allowances.amount_dollars is treated as "not set" → null.
+    amount: float | None = None
+    source: Literal["work_category.allowances"]
+
+
+class ProposalFormUnitPrice(BaseModel):
+    wc_number: str
+    description: str
+    unit: str
+    # 0.0 in WC.unit_prices.rate is a placeholder → null.
+    rate: float | None = None
+    source: Literal["work_category.unit_prices"]
+
+
+class ProposalFormBreakoutNote(BaseModel):
+    wc_number: str
+    description: str
+    source: Literal["work_category.specific_notes"]
+
+
+class ProposalForm(BaseModel):
+    """Top-level ProposalForm contract — round-trip validated by
+    proposal_form_builder.build_proposal_form before persistence."""
+
+    project_id: int = Field(ge=0)
+    project_name: str
+    generated_at: str  # ISO8601 UTC
+    base_bid: ProposalFormBaseBid
+    alternates: list[ProposalFormAlternate]
+    allowances: list[ProposalFormAllowance]
+    unit_prices: list[ProposalFormUnitPrice]
+    breakout_notes: list[ProposalFormBreakoutNote]
+    # Free-form data-quality flags. Each entry begins with one of the
+    # WARNING_PREFIXES vocabulary defined in proposal_form_builder so
+    # downstream tools (18.4.3 Excel, future UI, log analysis) can grep.
+    warnings: list[str]
+
+
 class Agent35Output(BaseModel):
     """Agent 3.5 — Scope Matcher (stored as agent_number=35, displayed as 3.5)."""
 
