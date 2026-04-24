@@ -423,7 +423,7 @@ class IntelligenceReport(BaseModel):
     material_specs_extracted: int = 0
 
     # Overall assessment
-    overall_risk_level: str = "unknown"  # "low", "moderate", "high", "critical"
+    overall_risk_level: str = "unknown"  # HF-25: "LOW" | "MODERATE" | "HIGH" | "CRITICAL"
     confidence_score: float | None = None  # 0-100 based on data coverage
     executive_narrative: str = ""  # LLM-generated or template
     narrative_method: str = "template"  # "llm" or "template"
