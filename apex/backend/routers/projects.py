@@ -7,18 +7,22 @@ import math
 import os
 import shutil
 import time
+import traceback
 import uuid
 from datetime import datetime, timedelta
+from io import BytesIO
 from pathlib import Path
 
 log = logging.getLogger(__name__)
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.models.document import Document
 from apex.backend.models.estimate import EstimateLineItem
 from apex.backend.models.gap_finding import GapFinding
+from apex.backend.models.intelligence_report import IntelligenceReportModel
 from apex.backend.models.line_item_wc_attribution import LineItemWCAttribution
 from apex.backend.models.project import Project
 from apex.backend.models.project_actual import ProjectActual
@@ -27,6 +31,10 @@ from apex.backend.models.upload_session import UploadSession
 from apex.backend.models.user import User
 from apex.backend.models.work_category import WorkCategory
 from apex.backend.services.crew_orchestrator import get_orchestrator
+from apex.backend.services.proposal_form_excel_service import (
+    build_export_filename,
+    render_proposal_form_xlsx,
+)
 from apex.backend.utils.auth import ALGORITHM, SECRET_KEY, get_authorized_project, get_current_user, require_auth
 from apex.backend.utils.feature_flags import feature_visible
 from apex.backend.utils.schemas import (
@@ -1247,4 +1255,58 @@ def list_line_item_attributions(
             "by_tier": by_tier,
             "attributions": rows,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 18.4.3 — Proposal Form Excel export
+# ---------------------------------------------------------------------------
+@router.get("/{project_id}/proposal-form/export.xlsx")
+def export_proposal_form_xlsx(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """Render the latest proposal-form JSON for this project as a 7-sheet xlsx."""
+    project = get_authorized_project(project_id, user, db)
+
+    report = (
+        db.query(IntelligenceReportModel)
+        .filter(IntelligenceReportModel.project_id == project_id)
+        .order_by(IntelligenceReportModel.version.desc())
+        .first()
+    )
+    if report is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No intelligence report for this project; run pipeline first",
+        )
+    if not report.proposal_form_json:
+        raise HTTPException(
+            status_code=404,
+            detail="Proposal form not yet generated; run pipeline first",
+        )
+
+    try:
+        xlsx_bytes = render_proposal_form_xlsx(report, project)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception:
+        error_id = str(uuid.uuid4())
+        log.error(
+            "Proposal form xlsx render failed (error_id=%s project_id=%d):\n%s",
+            error_id,
+            project_id,
+            traceback.format_exc(),
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Excel render failed", "error_id": error_id},
+        )
+
+    filename = build_export_filename(project.name)
+    return StreamingResponse(
+        BytesIO(xlsx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
