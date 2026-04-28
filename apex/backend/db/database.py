@@ -3,7 +3,7 @@
 import logging
 import os
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 _db_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -76,12 +76,20 @@ def ensure_project_context_columns(eng) -> None:
         ("size_sf", "FLOAT"),
         ("scope_types", "TEXT"),
     ]
+    inspector = inspect(eng)
+    if "projects" not in inspector.get_table_names():
+        logger.debug("Project table does not exist; skipping context column migration")
+        return
+
+    existing_cols = {col_info["name"] for col_info in inspector.get_columns("projects")}
     with eng.connect() as conn:
         for col_name, col_type in new_columns:
+            if col_name in existing_cols:
+                continue
             try:
                 conn.execute(text(f"ALTER TABLE projects ADD COLUMN {col_name} {col_type}"))
                 conn.commit()
                 logger.debug("Added column projects.%s", col_name)
             except Exception:
-                # Column already exists or table doesn't exist yet — both are fine
+                # Column creation failed or already exists (race condition).
                 conn.rollback()
