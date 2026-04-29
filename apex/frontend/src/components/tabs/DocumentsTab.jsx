@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { listDocuments, deleteDocument, bulkDeleteDocuments, runPipeline, getPipelineStatus, getDocumentFileUrl, uploadBatchZip } from '../../api';
-import { FileText, Clock, CheckCircle2, XCircle, Loader2, Trash2, Play, Eye, Archive } from 'lucide-react';
+import {
+  listDocuments, deleteDocument, bulkDeleteDocuments, runPipeline,
+  getPipelineStatus, getDocumentFileUrl, uploadBatchZip,
+  uploadDocument, initChunkedUpload, uploadChunk, completeChunkedUpload,
+} from '../../api';
+import { FileText, Clock, CheckCircle2, XCircle, Loader2, Trash2, Play, Eye, Archive, FolderUp } from 'lucide-react';
 import ChunkedUploader from '../ChunkedUploader';
 import PdfViewer from '../PdfViewer';
+import FolderUploadSession from '../FolderUploadSession';
 
 const STATUS_CONFIG = {
   pending:    { icon: Clock,         color: 'text-gray-400',  label: 'Pending' },
@@ -18,6 +23,66 @@ function fmtBytes(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+// ── Folder upload constants ───────────────────────────────────────────────────
+
+const SKIP_EXTENSIONS = new Set([
+  // CAD / BIM — stored but not parsed by APEX today
+  'dwg', 'dxf', 'rvt', 'rfa', 'nwd', 'nwc', 'ifc',
+  // Images (photos, site pics)
+  'jpg', 'jpeg', 'png', 'gif', 'tif', 'tiff', 'bmp', 'heic',
+  // Video / audio
+  'mp4', 'mov', 'avi', 'mp3', 'wav',
+  // Archives-within-archives — recursion out of scope
+  'zip', 'rar', '7z', 'tar', 'gz',
+  // OS junk
+  'ds_store', 'thumbs.db',
+]);
+
+const FOLDER_CONCURRENCY    = 3;
+const FOLDER_CHUNK_SIZE     = 2 * 1024 * 1024;       // 2 MB — must match backend CHUNK_SIZE
+const SMALL_FILE_THRESHOLD  = 1 * 1024 * 1024;        // 1 MB — single-shot below this
+const MAX_FOLDER_FILE_BYTES = 500 * 1024 * 1024;      // 500 MB — skip above this
+
+// Note: uploads above 500 MB require a streaming/chunked architecture change (Sprint 20+).
+// Railway Pro proxy and the backend batch-import endpoint are both capped at 500 MB.
+// Individual chunked-upload sessions (this code path) also respect this limit.
+
+function classifyFolderFile(file) {
+  const basename = (file.webkitRelativePath || file.name).split('/').pop() || file.name;
+  if (basename.startsWith('.') || basename.startsWith('~$')) {
+    return { skip: true, reason: 'hidden_file' };
+  }
+  const ext = basename.includes('.') ? basename.split('.').pop().toLowerCase() : '';
+  if (SKIP_EXTENSIONS.has(ext)) {
+    return { skip: true, reason: 'filtered_extension' };
+  }
+  if (file.size > MAX_FOLDER_FILE_BYTES) {
+    return { skip: true, reason: 'over_500mb' };
+  }
+  return { skip: false };
+}
+
+async function uploadFolderFile(projectId, file, onProgress) {
+  if (file.size <= SMALL_FILE_THRESHOLD) {
+    await uploadDocument(projectId, file);
+    onProgress(1);
+    return;
+  }
+  const totalChunks = Math.ceil(file.size / FOLDER_CHUNK_SIZE);
+  const { upload_id } = await initChunkedUpload(
+    projectId, file.name, file.size, file.type || 'application/octet-stream',
+  );
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * FOLDER_CHUNK_SIZE;
+    await uploadChunk(projectId, upload_id, i, file.slice(start, Math.min(start + FOLDER_CHUNK_SIZE, file.size)));
+    onProgress((i + 1) / totalChunks);
+  }
+  await completeChunkedUpload(projectId, upload_id);
+  onProgress(1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipelineComplete }) {
   const [docs, setDocs] = useState([]);
@@ -40,6 +105,10 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
   const [zipUploading, setZipUploading] = useState(false);
   const [zipProgress, setZipProgress] = useState(0);
   const zipInputRef = useRef(null);
+
+  const [folderSession, setFolderSession] = useState(null);
+  const folderInputRef = useRef(null);
+  const folderCancelRef = useRef(false);
 
   const loadDocs = () => {
     setLoading(true);
@@ -140,6 +209,145 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
       setZipProgress(0);
     }
   };
+
+  // Warn before navigating away while folder uploads are running
+  useEffect(() => {
+    if (!folderSession || folderSession.finished) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [folderSession]);
+
+  // Worker pool: upload workItems = [{queueIdx, file}] with bounded concurrency
+  const startFolderPool = async (workItems) => {
+    const pool = [...workItems];
+    let successSinceLastRefresh = 0;
+    let lastRefreshTime = Date.now();
+
+    const worker = async () => {
+      while (true) {
+        if (folderCancelRef.current) return;
+        const work = pool.shift();
+        if (!work) return;
+        const { queueIdx, file } = work;
+
+        setFolderSession(prev => {
+          if (!prev) return prev;
+          const q = [...prev.queue];
+          q[queueIdx] = { ...q[queueIdx], status: 'uploading', progress: 0 };
+          return { ...prev, queue: q };
+        });
+
+        let lastProg = 0;
+        const onProgress = (p) => {
+          const delta = (p - lastProg) * file.size;
+          lastProg = p;
+          setFolderSession(prev => {
+            if (!prev) return prev;
+            const q = [...prev.queue];
+            q[queueIdx] = { ...q[queueIdx], progress: p };
+            return { ...prev, queue: q, uploadedBytes: prev.uploadedBytes + delta };
+          });
+        };
+
+        try {
+          await uploadFolderFile(projectId, file, onProgress);
+          setFolderSession(prev => {
+            if (!prev) return prev;
+            const q = [...prev.queue];
+            q[queueIdx] = { ...q[queueIdx], status: 'done', progress: 1 };
+            return { ...prev, queue: q };
+          });
+          successSinceLastRefresh++;
+          const now = Date.now();
+          if (successSinceLastRefresh >= 10 || now - lastRefreshTime >= 5000) {
+            loadDocs();
+            successSinceLastRefresh = 0;
+            lastRefreshTime = now;
+          }
+        } catch (err) {
+          setFolderSession(prev => {
+            if (!prev) return prev;
+            const q = [...prev.queue];
+            q[queueIdx] = { ...q[queueIdx], status: 'failed', error: err.message || 'Upload failed' };
+            return { ...prev, queue: q };
+          });
+        }
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(FOLDER_CONCURRENCY, workItems.length) }, () => worker()),
+    );
+  };
+
+  const handleFolderChange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    e.target.value = '';
+
+    const queue = files.map(file => {
+      const { skip, reason } = classifyFolderFile(file);
+      return {
+        file,
+        relativePath: file.webkitRelativePath || file.name,
+        status: skip ? 'skipped' : 'pending',
+        progress: 0,
+        skipReason: reason,
+      };
+    });
+
+    const uploadableEntries = queue.map((item, i) => ({ item, i })).filter(({ item }) => item.status === 'pending');
+    const totalBytes = uploadableEntries.reduce((s, { item }) => s + item.file.size, 0);
+
+    folderCancelRef.current = false;
+    setFolderSession({ queue, totalBytes, uploadedBytes: 0, finished: false });
+
+    if (!uploadableEntries.length) {
+      setFolderSession(prev => prev ? { ...prev, finished: true } : prev);
+      return;
+    }
+
+    await startFolderPool(uploadableEntries.map(({ item, i }) => ({ queueIdx: i, file: item.file })));
+    loadDocs();
+    setFolderSession(prev => prev ? { ...prev, finished: true } : prev);
+  };
+
+  const handleRetryFailed = async () => {
+    if (!folderSession) return;
+    const failedEntries = folderSession.queue
+      .map((item, i) => ({ item, i }))
+      .filter(({ item }) => item.status === 'failed');
+    if (!failedEntries.length) return;
+
+    setFolderSession(prev => {
+      const q = prev.queue.map((item, idx) =>
+        failedEntries.some(({ i }) => i === idx)
+          ? { ...item, status: 'pending', progress: 0, error: undefined }
+          : item,
+      );
+      const totalBytes = q.filter(qi => qi.status !== 'skipped').reduce((s, qi) => s + qi.file.size, 0);
+      return { ...prev, queue: q, finished: false, uploadedBytes: 0, totalBytes };
+    });
+
+    folderCancelRef.current = false;
+    await startFolderPool(failedEntries.map(({ item, i }) => ({ queueIdx: i, file: item.file })));
+    loadDocs();
+    setFolderSession(prev => prev ? { ...prev, finished: true } : prev);
+  };
+
+  const handleCancelFolder = () => {
+    folderCancelRef.current = true;
+    setFolderSession(prev => {
+      if (!prev) return prev;
+      const q = prev.queue.map(item =>
+        item.status === 'pending' ? { ...item, status: 'skipped', skipReason: 'cancelled' } : item,
+      );
+      return { ...prev, queue: q };
+    });
+  };
+
+  const handleDismissFolder = () => setFolderSession(null);
 
   const handleDelete = async (docId) => {
     if (!window.confirm('Are you sure? This can be undone by an admin.')) return;
@@ -249,6 +457,25 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
               : <Archive className="h-4 w-4" />}
             {zipUploading ? `Uploading ZIP… ${zipProgress}%` : 'Upload ZIP Archive'}
           </button>
+          {/* Folder upload — desktop only; webkitdirectory not supported on mobile/Safari iOS */}
+          <input
+            ref={folderInputRef}
+            type="file"
+            webkitdirectory=""
+            directory=""
+            multiple
+            className="hidden"
+            onChange={handleFolderChange}
+          />
+          <button
+            onClick={() => folderInputRef.current?.click()}
+            disabled={pipelineRunning || (folderSession && !folderSession.finished)}
+            className="btn-secondary flex items-center gap-2 text-sm hidden sm:flex"
+            title="Upload an entire project folder. Each file is uploaded individually through the chunked upload path. Desktop only — not supported on mobile Safari."
+          >
+            <FolderUp className="h-4 w-4" />
+            Upload Folder
+          </button>
           {hasDocuments && (
             <button
               onClick={handleRunPipeline}
@@ -278,6 +505,16 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
         }`}>
           {pipelineMsg}
         </div>
+      )}
+
+      {/* Folder upload session panel */}
+      {folderSession && (
+        <FolderUploadSession
+          session={folderSession}
+          onCancel={handleCancelFolder}
+          onRetryFailed={handleRetryFailed}
+          onDismiss={handleDismissFolder}
+        />
       )}
 
       {/* Bulk action bar */}
