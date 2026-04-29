@@ -1,9 +1,12 @@
 """Bid Intelligence router — estimation history upload, analytics, and benchmarks."""
 
+import json
+import logging
 import os
 
 import aiofiles
 from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from apex.backend.config import UPLOAD_DIR
@@ -12,6 +15,8 @@ from apex.backend.services.library.bid_intelligence.models import BIEstimate
 from apex.backend.services.library.bid_intelligence.service import BidIntelligenceService
 from apex.backend.utils.auth import require_auth
 from apex.backend.utils.schemas import APIResponse
+
+logger = logging.getLogger("apex.routers.bid_intelligence")
 
 router = APIRouter(
     prefix="/api/library/bid-intelligence",
@@ -22,14 +27,24 @@ router = APIRouter(
 BI_UPLOAD_DIR = os.path.join(UPLOAD_DIR, "bid_intelligence")
 
 
-@router.post("/upload", response_model=APIResponse)
+@router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """Accept an EstimationHistory .xlsx file and ingest via the BI service."""
+    """Accept an EstimationHistory .xlsx file and ingest via the BI service.
+
+    Response codes:
+      200 — all rows loaded successfully
+      207 — partial: some rows loaded, some skipped (see errors list)
+      422 — pre-flight failure (missing required columns; no rows inserted)
+      500 — unhandled exception
+    """
     if not file.filename or not file.filename.lower().endswith(".xlsx"):
-        return APIResponse(success=False, error="File must be .xlsx")
+        return JSONResponse(status_code=422, content={"ok": False, "error": "File must be .xlsx"})
+
+    file_size = file.size or 0
+    logger.info(f"BI upload: received file='{file.filename}' size={file_size} bytes")
 
     os.makedirs(BI_UPLOAD_DIR, exist_ok=True)
     dest = os.path.join(BI_UPLOAD_DIR, file.filename)
@@ -40,11 +55,28 @@ async def upload_file(
 
         svc = BidIntelligenceService(db)
         result = svc.ingest_file(dest, file.filename)
-        return APIResponse(success=True, data=result)
-    except Exception as e:
+
+        status = 207 if result.get("skipped", 0) > 0 else 200
+        return JSONResponse(status_code=status, content=result)
+
+    except ValueError as exc:
+        # parse_estimation_history raises ValueError with a JSON-encoded payload
+        # for missing required columns. Surface it as 422.
         if os.path.exists(dest):
             os.unlink(dest)
-        return APIResponse(success=False, error=str(e))
+        try:
+            payload = json.loads(str(exc))
+        except (json.JSONDecodeError, TypeError):
+            payload = {"error": str(exc)}
+        payload["ok"] = False
+        logger.warning(f"BI upload: pre-flight failed for '{file.filename}': {payload}")
+        return JSONResponse(status_code=422, content=payload)
+
+    except Exception as exc:
+        if os.path.exists(dest):
+            os.unlink(dest)
+        logger.exception(f"BI upload: unhandled error for '{file.filename}': {exc}")
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(exc)})
 
 
 @router.get("/stats", response_model=APIResponse)

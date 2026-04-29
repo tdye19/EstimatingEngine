@@ -1,10 +1,17 @@
 """Business logic layer for Bid Intelligence (Estimation History)."""
 
+import logging
+import math
+
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from apex.backend.services.library.bid_intelligence.models import BIEstimate
 from apex.backend.services.library.bid_intelligence.parser import parse_estimation_history
+
+logger = logging.getLogger("apex.library.bid_intelligence")
+
+_CHUNK_SIZE = 250
 
 
 class BidIntelligenceService:
@@ -14,17 +21,47 @@ class BidIntelligenceService:
     # ── Ingestion ──
 
     def ingest_file(self, filepath: str, filename: str) -> dict:
-        """Parse xlsx and upsert by estimate_number."""
-        rows = parse_estimation_history(filepath)
+        """Parse xlsx and upsert by estimate_number in chunks of 250 rows.
 
-        inserted = 0
-        updated = 0
-        errors = []
+        Idempotency: existing rows are updated in-place keyed by estimate_number
+        (upsert). No bulk delete — Sprint 19 concern if full-replace is needed.
 
-        for row in rows:
+        Raises ValueError (with JSON payload) when required columns are missing;
+        the router converts this to HTTP 422.
+        """
+        logger.info(f"BI ingest: received file='{filename}' path={filepath}")
+
+        # parse_estimation_history raises ValueError on missing required columns.
+        records, row_errors, found_headers = parse_estimation_history(filepath)
+
+        logger.info(
+            f"BI ingest: header validation passed. found_headers={len(found_headers)} "
+            f"parsed_rows={len(records)} parse_errors={len(row_errors)}"
+        )
+
+        loaded = 0
+        commit_count = 0
+        pending_add: list[BIEstimate] = []
+
+        def _flush(chunk: list[BIEstimate], chunk_start: int) -> None:
+            nonlocal commit_count
+            self.db.add_all(chunk)
+            self.db.commit()
+            commit_count += 1
+            logger.info(
+                f"BI ingest: committed chunk {commit_count}: "
+                f"rows {chunk_start}..{chunk_start + len(chunk) - 1}"
+            )
+
+        chunk_start = 1
+        for row in records:
             est_num = row.get("estimate_number")
             if not est_num:
-                errors.append(f"Row missing estimate_number: {row.get('name', '?')}")
+                row_errors.append({
+                    "row": None,
+                    "error": "missing estimate_number",
+                    "raw": [str(row.get("name", "?"))],
+                })
                 continue
 
             existing = self.db.query(BIEstimate).filter_by(estimate_number=est_num).first()
@@ -32,19 +69,38 @@ class BidIntelligenceService:
                 for k, v in row.items():
                     if k != "estimate_number":
                         setattr(existing, k, v)
-                updated += 1
+                # Updated rows are committed with the next chunk flush.
             else:
-                self.db.add(BIEstimate(**row))
-                inserted += 1
+                pending_add.append(BIEstimate(**row))
 
-        self.db.commit()
+            loaded += 1
+
+            if len(pending_add) >= _CHUNK_SIZE:
+                _flush(pending_add, chunk_start)
+                chunk_start += len(pending_add)
+                pending_add = []
+
+        # Flush remainder and commit any pending updates.
+        if pending_add or (loaded > 0 and commit_count == 0):
+            _flush(pending_add, chunk_start)
+        elif loaded > 0:
+            # Updates were staged but no add flush triggered a commit for them.
+            self.db.commit()
+            commit_count += 1
+            logger.info(f"BI ingest: committed trailing updates (chunk {commit_count})")
+
+        skipped = len(row_errors)
+        logger.info(
+            f"BI ingest complete: file='{filename}' loaded={loaded} "
+            f"skipped={skipped} commits={commit_count}"
+        )
 
         return {
-            "filename": filename,
-            "total": len(rows),
-            "inserted": inserted,
-            "updated": updated,
-            "errors": errors,
+            "ok": True,
+            "loaded": loaded,
+            "skipped": skipped,
+            "errors": row_errors[:50],
+            "commits": commit_count,
         }
 
     # ── Analytics ──

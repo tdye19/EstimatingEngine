@@ -94,11 +94,41 @@ export default function BidIntelligenceTab() {
     setUploading(true);
     setUploadResult(null);
     try {
-      const result = await biUploadFile(file);
-      setUploadResult(result);
+      const token = localStorage.getItem('apex_token');
+      const form = new FormData();
+      form.append('file', file);
+      let response;
+      try {
+        response = await fetch('/api/library/bid-intelligence/upload', {
+          method: 'POST',
+          body: form,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      } catch {
+        setUploadResult({
+          ok: false,
+          networkError: true,
+          error: `Upload failed to reach the server (network error). The file may be too large for the server to process. Try with a smaller file or contact support.`,
+        });
+        return;
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        data = { ok: false, error: `Server returned status ${response.status} with no JSON body.` };
+      }
+
+      if (!response.ok) {
+        // 422 with missing_required_columns gets special rendering
+        setUploadResult({ ok: false, httpStatus: response.status, ...data });
+        return;
+      }
+
+      // 200 or 207 — at least some rows loaded
+      setUploadResult({ ok: true, httpStatus: response.status, ...data });
       loadData();
-    } catch (err) {
-      setUploadResult({ errors: [err.message] });
     } finally {
       setUploading(false);
     }
@@ -202,14 +232,46 @@ export default function BidIntelligenceTab() {
           </label>
         </div>
         {uploadResult && (
-          <div className="mt-3 border-t pt-3">
-            {uploadResult.errors?.length > 0 ? (
-              <div className="text-sm text-red-600">
-                {uploadResult.errors.map((e, i) => <p key={i}>{e}</p>)}
+          <div className="mt-3 border-t pt-3 text-sm">
+            {uploadResult.networkError ? (
+              /* 502 / network failure */
+              <p className="text-red-600">{uploadResult.error}</p>
+            ) : !uploadResult.ok ? (
+              /* 422 schema error or 500 */
+              <div className="text-red-600">
+                {uploadResult.error === 'missing_required_columns' ? (
+                  <>
+                    <p className="font-medium">Your file is missing these required columns:</p>
+                    <ul className="list-disc ml-4 mt-1">
+                      {(uploadResult.missing || []).map((c) => <li key={c}>{c}</li>)}
+                    </ul>
+                    {uploadResult.found_columns?.length > 0 && (
+                      <p className="mt-1 text-gray-500 text-xs">
+                        Found: {uploadResult.found_columns.join(', ')}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p>{uploadResult.error || `Upload failed (HTTP ${uploadResult.httpStatus})`}</p>
+                )}
+              </div>
+            ) : uploadResult.skipped > 0 ? (
+              /* 207 partial success */
+              <div>
+                <p className="text-yellow-700 font-medium">
+                  Loaded {uploadResult.loaded} of {uploadResult.loaded + uploadResult.skipped} rows.{' '}
+                  {uploadResult.skipped} row{uploadResult.skipped !== 1 ? 's' : ''} skipped — see details below.
+                </p>
+                <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto text-xs text-red-600">
+                  {(uploadResult.errors || []).slice(0, 10).map((e, i) => (
+                    <li key={i}>Row {e.row ?? '?'}: {e.error}</li>
+                  ))}
+                </ul>
               </div>
             ) : (
-              <p className="text-sm text-green-700">
-                {uploadResult.total} rows processed: {uploadResult.inserted} inserted, {uploadResult.updated} updated
+              /* 200 full success */
+              <p className="text-green-700">
+                Loaded {uploadResult.loaded} rows successfully.
               </p>
             )}
           </div>
