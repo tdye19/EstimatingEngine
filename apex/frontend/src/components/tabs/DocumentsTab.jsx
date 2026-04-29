@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { listDocuments, deleteDocument, bulkDeleteDocuments, runPipeline, getPipelineStatus, getDocumentFileUrl } from '../../api';
-import { FileText, Clock, CheckCircle2, XCircle, Loader2, Trash2, Play, Eye } from 'lucide-react';
+import { listDocuments, deleteDocument, bulkDeleteDocuments, runPipeline, getPipelineStatus, getDocumentFileUrl, uploadBatchZip } from '../../api';
+import { FileText, Clock, CheckCircle2, XCircle, Loader2, Trash2, Play, Eye, Archive } from 'lucide-react';
 import ChunkedUploader from '../ChunkedUploader';
 import PdfViewer from '../PdfViewer';
 
@@ -36,6 +36,10 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const [zipUploading, setZipUploading] = useState(false);
+  const [zipProgress, setZipProgress] = useState(0);
+  const zipInputRef = useRef(null);
 
   const loadDocs = () => {
     setLoading(true);
@@ -115,6 +119,26 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
 
   const handleUploadError = (msg) => {
     setUploadMsg(`Upload error: ${msg}`);
+  };
+
+  const handleZipChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setZipUploading(true);
+    setZipProgress(0);
+    setUploadMsg('');
+    try {
+      const result = await uploadBatchZip(file, setZipProgress);
+      const fileCount = result?.file_count ?? result?.files_found ?? '?';
+      setUploadMsg(`ZIP uploaded — ${fileCount} file(s) queued for classification.`);
+      loadDocs();
+    } catch (err) {
+      setUploadMsg(`ZIP upload error: ${err.message}`);
+    } finally {
+      setZipUploading(false);
+      setZipProgress(0);
+    }
   };
 
   const handleDelete = async (docId) => {
@@ -206,6 +230,25 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
             disabled={pipelineRunning}
             multiple
           />
+          {/* ZIP batch upload — folded in from Batch Import tab (Sprint 19) */}
+          <input
+            ref={zipInputRef}
+            type="file"
+            accept=".zip"
+            className="hidden"
+            onChange={handleZipChange}
+          />
+          <button
+            onClick={() => zipInputRef.current?.click()}
+            disabled={pipelineRunning || zipUploading}
+            className="btn-secondary flex items-center gap-2 text-sm"
+            title="Upload a .zip containing specs, drawings, RFIs, and other project documents. Files will be auto-classified."
+          >
+            {zipUploading
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Archive className="h-4 w-4" />}
+            {zipUploading ? `Uploading ZIP… ${zipProgress}%` : 'Upload ZIP Archive'}
+          </button>
           {hasDocuments && (
             <button
               onClick={handleRunPipeline}

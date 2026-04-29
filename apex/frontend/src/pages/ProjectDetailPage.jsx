@@ -23,7 +23,6 @@ import {
   Package,
   FileDiff,
   LibraryBig,
-  FolderArchive,
   Search,
   Brain,
   Target,
@@ -94,7 +93,6 @@ const TABS = [
   { path: 'agents', label: 'Agent Logs', icon: Activity },
   { path: 'cost-tracking', label: 'Cost Tracking', icon: DollarSign },
   { path: 'estimate-library', label: 'Estimate Library', icon: LibraryBig },
-  { path: 'batch-import', label: 'Batch Import', icon: FolderArchive },
   { path: 'benchmarks', label: 'Benchmarks', icon: BarChart2 },
   { path: 'productivity-brain', label: 'Productivity Brain', icon: Brain },
   { path: 'bid-intelligence', label: 'Bid Intelligence', icon: Target },
@@ -399,6 +397,7 @@ export default function ProjectDetailPage() {
             </ErrorBoundary>
           }
         />
+        {/* TODO Sprint 20: remove this orphaned route; Batch Import was folded into Documents tab in Sprint 19. */}
         <Route
           path="batch-import"
           element={
