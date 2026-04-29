@@ -286,3 +286,81 @@ def test_intelligence_report_omits_gap_findings_paragraph_when_empty(db_session:
     )
     narrative = report.executive_narrative or ""
     assert "SCOPE MATCHER FINDINGS" not in narrative
+
+
+# ---------------------------------------------------------------------------
+# Driver-bucket narrative — LLM path
+# ---------------------------------------------------------------------------
+
+
+def test_driver_bucket_narrative_llm_path(db_session: Session, mock_llm_response):
+    """LLM path: driver-bucket headings appear; SCOPE MATCHER FINDINGS appended exactly once."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    project = _scaffold_project(db_session, "llm-bucket")
+    wc = _scaffold_work_category(db_session, project, "03")
+
+    # Scope matcher finding — routes to Quantity Growth bucket + triggers deterministic append
+    _add_finding(
+        db_session,
+        project_id=project.id,
+        finding_type="in_scope_not_estimated",
+        severity="ERROR",
+        confidence=0.88,
+        work_category_id=wc.id,
+        spec_section_ref="03 30 00",
+    )
+    # Productivity signal — rate deviation finding via a second scope finding
+    _add_finding(
+        db_session,
+        project_id=project.id,
+        finding_type="partial_coverage",
+        severity="WARNING",
+        confidence=0.60,
+        rationale="Production rate for concrete placement not validated against field actuals",
+    )
+
+    # Simulated LLM output: bucket-organized narrative WITHOUT the deterministic marker
+    fake_llm_narrative = (
+        "Risk Overview: HIGH risk, 30% confidence. Review all flagged items before submission.\n\n"
+        "## Quantity Growth\n"
+        "One in-scope-not-estimated gap was identified for Division 03 concrete work. "
+        "The finding at spec section 03 30 00 indicates potential quantity growth risk "
+        "if scope is awarded without coverage.\n"
+        "- [ERROR] in-scope-not-estimated for WC 03 (confidence 0.88): "
+        "03 30 00 referenced in specs but not covered by an estimate line\n\n"
+        "## Productivity\n"
+        "One partial-coverage finding flags a production rate that has not been validated "
+        "against field actuals for concrete placement. This introduces labor hour uncertainty.\n"
+        "- [WARNING] partial-coverage (confidence 0.60): "
+        "Production rate for concrete placement not validated against field actuals\n\n"
+        "## Material Escalation\n"
+        "No material escalation signals identified for this estimate.\n\n"
+        "Recommendation: Hold for revision. Address the Division 03 scope gap before submission."
+    )
+
+    mock_resp = mock_llm_response(content=fake_llm_narrative)
+    mock_provider = MagicMock()
+    mock_provider.health_check = AsyncMock(return_value=True)
+    mock_provider.complete = AsyncMock(return_value=mock_resp)
+    mock_provider.provider_name = "test"
+    mock_provider.model_name = "test-model"
+
+    with patch("apex.backend.services.llm_provider.get_llm_provider", return_value=mock_provider):
+        result = run_assembly_agent(db_session, project.id, use_llm=True)
+
+    assert result["narrative_method"] == "llm"
+
+    report = db_session.query(IntelligenceReportModel).filter_by(id=result["report_id"]).one()
+    narrative = report.executive_narrative or ""
+
+    # Driver-bucket section headings must be present
+    assert "Quantity Growth" in narrative
+    assert "Productivity" in narrative
+    assert "Material Escalation" in narrative
+
+    # Deterministic marker appended exactly once (not in LLM output → appended by guard)
+    assert narrative.count("SCOPE MATCHER FINDINGS:") == 1
+
+    # proposal_form_json unaffected — no WorkCategories/TakeoffItemV2 in this fixture
+    assert report.proposal_form_json is None
