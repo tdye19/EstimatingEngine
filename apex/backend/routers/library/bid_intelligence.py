@@ -56,7 +56,11 @@ async def upload_file(
         svc = BidIntelligenceService(db)
         result = svc.ingest_file(dest, file.filename)
 
-        status = 207 if result.get("skipped", 0) > 0 else 200
+        if not result.get("ok"):
+            return JSONResponse(status_code=500, content=result)
+
+        has_issues = result.get("skipped", 0) > 0 or bool(result.get("internal_duplicates"))
+        status = 207 if has_issues else 200
         return JSONResponse(status_code=status, content=result)
 
     except ValueError as exc:

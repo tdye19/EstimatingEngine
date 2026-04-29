@@ -232,6 +232,7 @@ def parse_estimation_history(filepath: str) -> tuple[list[dict], list[dict], lis
             if not record.get("name"):
                 continue
 
+            record["_row_num"] = row_idx  # consumed by service for duplicate tracking
             records.append(record)
 
         except Exception as exc:

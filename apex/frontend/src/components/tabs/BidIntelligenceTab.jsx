@@ -91,6 +91,10 @@ export default function BidIntelligenceTab() {
 
   const handleFile = async (file) => {
     if (!file || !file.name.endsWith('.xlsx')) return;
+    const confirmed = window.confirm(
+      `This will replace all existing bid intelligence data with the contents of "${file.name}". Continue?`
+    );
+    if (!confirmed) return;
     setUploading(true);
     setUploadResult(null);
     try {
@@ -271,8 +275,27 @@ export default function BidIntelligenceTab() {
             ) : (
               /* 200 full success */
               <p className="text-green-700">
-                Loaded {uploadResult.loaded} rows successfully.
+                Loaded {uploadResult.loaded} estimates (replaced {uploadResult.previous_row_count ?? 0} previous records).
               </p>
+            )}
+            {uploadResult?.ok && uploadResult.internal_duplicates?.length > 0 && (
+              <div className="mt-2">
+                <p className="text-yellow-700 font-medium text-xs">
+                  Duplicate estimate numbers in your file (kept first occurrence):
+                </p>
+                <ul className="mt-1 space-y-0.5 text-xs text-yellow-700">
+                  {uploadResult.internal_duplicates.slice(0, 10).map((d, i) => (
+                    <li key={i}>
+                      Row {d.row}: estimate &quot;{d.estimate_number}&quot; (also at row {d.first_seen_row})
+                    </li>
+                  ))}
+                </ul>
+                {uploadResult.internal_duplicates.length > 10 && (
+                  <p className="text-xs text-yellow-600 mt-0.5">
+                    +{uploadResult.internal_duplicates.length - 10} more
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

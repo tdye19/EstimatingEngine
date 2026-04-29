@@ -1,7 +1,6 @@
 """Business logic layer for Bid Intelligence (Estimation History)."""
 
 import logging
-import math
 
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
@@ -20,87 +19,120 @@ class BidIntelligenceService:
 
     # ── Ingestion ──
 
+    def _truncate_existing(self) -> int:
+        """DELETE all rows from bi_estimates and commit. Returns count deleted."""
+        deleted = self.db.query(BIEstimate).delete()
+        self.db.commit()
+        logger.info(f"BI ingest: truncated bi_estimates (deleted {deleted} rows)")
+        return deleted
+
     def ingest_file(self, filepath: str, filename: str) -> dict:
-        """Parse xlsx and upsert by estimate_number in chunks of 250 rows.
+        """Parse xlsx and replace bi_estimates with the file's unique rows.
 
-        Idempotency: existing rows are updated in-place keyed by estimate_number
-        (upsert). No bulk delete — Sprint 19 concern if full-replace is needed.
+        Pre-flight order (nothing is written to DB until all checks pass):
+          1. parse_estimation_history() — raises ValueError(422) on missing required cols
+          2. Internal-duplicate detection — keeps first occurrence, logs skips
+          3. _truncate_existing() — DELETE + commit (only reached after clean pre-flight)
+          4. Chunked INSERT (250 rows per commit)
 
-        Raises ValueError (with JSON payload) when required columns are missing;
-        the router converts this to HTTP 422.
+        A bad file will never wipe good data.
         """
         logger.info(f"BI ingest: received file='{filename}' path={filepath}")
 
-        # parse_estimation_history raises ValueError on missing required columns.
+        # Step 1: Parse — raises ValueError on missing required columns (→ 422).
         records, row_errors, found_headers = parse_estimation_history(filepath)
 
+        # Step 2: Internal-duplicate detection (pre-flight, no DB writes yet).
+        unique_records: list[dict] = []
+        internal_duplicates: list[dict] = []
+        seen: dict[str, int] = {}  # estimate_number → row_num of first occurrence
+
+        for rec in records:
+            row_num = rec.pop("_row_num", None)
+            est_num = rec.get("estimate_number")
+
+            if not est_num:
+                # Null estimate_number rows flow through without dedup check.
+                unique_records.append(rec)
+                continue
+
+            if est_num in seen:
+                internal_duplicates.append({
+                    "row": row_num,
+                    "estimate_number": est_num,
+                    "first_seen_row": seen[est_num],
+                })
+            else:
+                seen[est_num] = row_num
+                unique_records.append(rec)
+
         logger.info(
-            f"BI ingest: header validation passed. found_headers={len(found_headers)} "
-            f"parsed_rows={len(records)} parse_errors={len(row_errors)}"
+            f"BI ingest: pre-flight complete. parsed_rows={len(records)} "
+            f"unique_rows={len(unique_records)} internal_duplicates={len(internal_duplicates)}"
         )
 
+        # Step 3: Truncate AFTER successful pre-flight.
+        previous_row_count = self._truncate_existing()
+
+        # Step 4: Chunked insert — pure inserts (table is empty after truncate).
         loaded = 0
         commit_count = 0
-        pending_add: list[BIEstimate] = []
+        pending: list[BIEstimate] = []
 
-        def _flush(chunk: list[BIEstimate], chunk_start: int) -> None:
+        def _flush(chunk: list, start: int) -> None:
             nonlocal commit_count
             self.db.add_all(chunk)
             self.db.commit()
             commit_count += 1
             logger.info(
                 f"BI ingest: committed chunk {commit_count}: "
-                f"rows {chunk_start}..{chunk_start + len(chunk) - 1}"
+                f"rows {start}..{start + len(chunk) - 1}"
             )
 
-        chunk_start = 1
-        for row in records:
-            est_num = row.get("estimate_number")
-            if not est_num:
-                row_errors.append({
-                    "row": None,
-                    "error": "missing estimate_number",
-                    "raw": [str(row.get("name", "?"))],
-                })
-                continue
-
-            existing = self.db.query(BIEstimate).filter_by(estimate_number=est_num).first()
-            if existing:
-                for k, v in row.items():
-                    if k != "estimate_number":
-                        setattr(existing, k, v)
-                # Updated rows are committed with the next chunk flush.
-            else:
-                pending_add.append(BIEstimate(**row))
-
-            loaded += 1
-
-            if len(pending_add) >= _CHUNK_SIZE:
-                _flush(pending_add, chunk_start)
-                chunk_start += len(pending_add)
-                pending_add = []
-
-        # Flush remainder and commit any pending updates.
-        if pending_add or (loaded > 0 and commit_count == 0):
-            _flush(pending_add, chunk_start)
-        elif loaded > 0:
-            # Updates were staged but no add flush triggered a commit for them.
-            self.db.commit()
-            commit_count += 1
-            logger.info(f"BI ingest: committed trailing updates (chunk {commit_count})")
+        try:
+            chunk_start = 1
+            for rec in unique_records:
+                pending.append(BIEstimate(**rec))
+                loaded += 1
+                if len(pending) >= _CHUNK_SIZE:
+                    _flush(pending, chunk_start)
+                    chunk_start += len(pending)
+                    pending = []
+            if pending:
+                _flush(pending, chunk_start)
+        except Exception as exc:
+            remaining = len(unique_records) - loaded
+            logger.error(
+                f"BI ingest: chunk commit failed after {loaded} rows "
+                f"(~{remaining} remaining). Table in partial state. File: '{filename}'",
+                exc_info=True,
+            )
+            return {
+                "ok": False,
+                "error": "partial_load_failure",
+                "loaded_before_failure": loaded,
+                "remaining": remaining,
+                "message": (
+                    "The bid intelligence table is in a partial state. "
+                    "Please re-upload the file to retry."
+                ),
+            }
 
         skipped = len(row_errors)
         logger.info(
-            f"BI ingest complete: file='{filename}' loaded={loaded} "
-            f"skipped={skipped} commits={commit_count}"
+            f"BI ingest complete: file='{filename}' loaded={loaded} skipped={skipped} "
+            f"internal_duplicates={len(internal_duplicates)} commits={commit_count}"
         )
 
         return {
             "ok": True,
             "loaded": loaded,
             "skipped": skipped,
+            "internal_duplicates": internal_duplicates,
             "errors": row_errors[:50],
             "commits": commit_count,
+            "replaced_existing": True,
+            "previous_row_count": previous_row_count,
         }
 
     # ── Analytics ──
