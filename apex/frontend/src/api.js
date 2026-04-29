@@ -229,6 +229,10 @@ export async function submitActualEntry(projectId, data) {
 export const getSpecSections = (projectId) =>
   request(`/projects/${projectId}/spec-sections`);
 
+// ── Work Categories ────────────────────────────────────
+export const getWorkCategories = (projectId) =>
+  request(`/projects/${projectId}/work-categories`);
+
 // ── Exports (blob downloads) ──────────────────────────
 async function downloadBlob(path, filename) {
   const token = localStorage.getItem('apex_token');

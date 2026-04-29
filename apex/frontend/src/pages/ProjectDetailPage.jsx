@@ -30,6 +30,7 @@ import {
   Scale,
   Shield,
   TrendingDown,
+  Clipboard,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -41,6 +42,7 @@ import VarianceTab from '../components/tabs/VarianceTab';
 import AgentLogsTab from '../components/tabs/AgentLogsTab';
 import DocumentsTab from '../components/tabs/DocumentsTab';
 import SpecSectionsTab from '../components/tabs/SpecSectionsTab';
+import WorkScopesTab from '../components/tabs/WorkScopesTab';
 import CostTrackingTab from '../components/tabs/CostTrackingTab';
 import ScheduleTab from '../components/tabs/ScheduleTab';
 import BidComparisonTab from '../components/tabs/BidComparisonTab';
@@ -75,6 +77,7 @@ const TABS = [
   { path: 'intelligence-report', label: 'Intelligence Report', icon: Shield },
   { path: 'documents', label: 'Documents', icon: Files },
   { path: 'spec-sections', label: 'Spec Sections', icon: BookOpen },
+  { path: 'work-scopes', label: 'Work Scopes', icon: Clipboard },
   { path: 'gap-report', label: 'Gap Report', icon: AlertTriangle },
   { path: 'rate-intelligence', label: 'Rate Intelligence', icon: Scale },
   { path: 'field-calibration', label: 'Field Calibration', icon: Activity },
@@ -340,6 +343,7 @@ export default function ProjectDetailPage() {
           }
         />
         <Route path="spec-sections" element={<ErrorBoundary key="spec-sections"><SpecSectionsTab projectId={id} refreshKey={specRefreshKey} /></ErrorBoundary>} />
+        <Route path="work-scopes" element={<ErrorBoundary key="work-scopes"><WorkScopesTab projectId={id} /></ErrorBoundary>} />
         <Route path="gap-report" element={<ErrorBoundary key="gap-report"><GapReportTab projectId={id} refreshKey={gapRefreshKey} /></ErrorBoundary>} />
         <Route
           path="rate-intelligence"
