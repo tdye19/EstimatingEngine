@@ -349,6 +349,30 @@ def _build_user_prompt(parsed_sections: list[dict], spec_context: str = "") -> s
     )
 
 
+def _is_truncated(content: str) -> bool:
+    """Return True if the LLM response was cut off mid-string.
+
+    Heuristic: find the last '}' and count unescaped double-quotes that follow.
+    An odd count means there is an unterminated string literal — the model hit
+    its max_tokens ceiling before closing the JSON structure.
+    """
+    stripped = content.strip()
+    last_brace = stripped.rfind("}")
+    if last_brace == -1:
+        return True
+    tail = stripped[last_brace + 1 :]
+    quote_count = 0
+    i = 0
+    while i < len(tail):
+        if tail[i] == "\\":
+            i += 2
+            continue
+        if tail[i] == '"':
+            quote_count += 1
+        i += 1
+    return quote_count % 2 == 1
+
+
 def _parse_llm_gap_response(raw_content: str) -> list[LLMGapItem]:
     """Strip markdown fences, parse JSON, and validate each item with Pydantic."""
     content = raw_content.strip()
@@ -388,23 +412,58 @@ async def _llm_gap_analysis(
     """Send parsed sections to LLM for gap analysis.
 
     Returns (items, input_tokens, output_tokens). items is None on any failure.
+    Retries once with max_tokens=32000 when the initial response is truncated.
     """
     user_prompt = _build_user_prompt(parsed_sections, spec_context=spec_context)
-    try:
-        response = await asyncio.wait_for(
+
+    async def _call(max_tokens: int) -> "LLMResponse":  # noqa: F821
+        return await asyncio.wait_for(
             provider.complete(
                 system_prompt=GAP_ANALYSIS_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
                 temperature=0.1,
-                max_tokens=4096,
+                max_tokens=max_tokens,
             ),
             timeout=LLM_TIMEOUT_SECONDS,
         )
+
+    try:
+        response = await _call(16000)
         logger.info(
             f"Agent 3 LLM: provider={response.provider} model={response.model} "
             f"input_tokens={response.input_tokens} output_tokens={response.output_tokens} "
             f"duration_ms={response.duration_ms:.0f}ms"
         )
+
+        if _is_truncated(response.content):
+            logger.warning(
+                "Agent 3 LLM: response truncated at %d chars — last 200: %r — retrying with max_tokens=32000",
+                len(response.content),
+                response.content[-200:],
+            )
+            try:
+                response = await _call(32000)
+                logger.info(
+                    f"Agent 3 LLM: provider={response.provider} model={response.model} "
+                    f"input_tokens={response.input_tokens} output_tokens={response.output_tokens} "
+                    f"duration_ms={response.duration_ms:.0f}ms"
+                )
+            except TimeoutError:
+                logger.error(
+                    f"Agent 3 LLM: retry timed out after {LLM_TIMEOUT_SECONDS}s — falling back to rule-based"
+                )
+                return None, 0, 0, 0, 0
+            except Exception as exc:
+                logger.error(f"Agent 3 LLM: retry call failed — {exc}")
+                return None, 0, 0, 0, 0
+
+            if _is_truncated(response.content):
+                logger.error(
+                    "Agent 3 LLM: retry response also truncated at %d chars — falling back to rule-based",
+                    len(response.content),
+                )
+                return None, 0, 0, 0, 0
+
         items = _parse_llm_gap_response(response.content)
         logger.info(f"Agent 3 LLM: parsed {len(items)} validated gap items")
         return (
