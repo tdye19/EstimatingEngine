@@ -22,6 +22,20 @@ from apex.backend.services.llm_retry import with_llm_retry
 
 logger = logging.getLogger("apex.llm_provider")
 
+
+# ---------------------------------------------------------------------------
+# Billing error — non-retryable, requires human action
+# ---------------------------------------------------------------------------
+
+
+class LLMProviderBillingError(RuntimeError):
+    """Raised when an LLM provider returns HTTP 402 Payment Required.
+
+    Billing failures are not transient and cannot be resolved by retrying.
+    The pipeline must halt and alert the operator to top up account credits.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Shared HTTP client pool
 # ---------------------------------------------------------------------------
@@ -336,6 +350,16 @@ class OpenRouterProvider(AnthropicProvider):
         model_lower = self._model.lower()
         return "claude" in model_lower or "anthropic" in model_lower
 
+    @staticmethod
+    def _check_for_billing_error(resp: "httpx.Response") -> None:
+        """Raise LLMProviderBillingError on 402; otherwise delegate to raise_for_status."""
+        if resp.status_code == 402:
+            raise LLMProviderBillingError(
+                f"OpenRouter returned 402 Payment Required — account balance exhausted. "
+                f"Top up credits at openrouter.ai. Response: {resp.text[:500]}"
+            )
+        resp.raise_for_status()
+
     # -- Override complete() to pick the right API format ------------------
 
     @with_llm_retry(max_retries=3, base_delay=1.0)
@@ -405,8 +429,10 @@ class OpenRouterProvider(AnthropicProvider):
         if _pooled is not None:
             try:
                 resp = await _pooled.post("/messages", json=payload, headers=headers)
-                resp.raise_for_status()
+                self._check_for_billing_error(resp)
                 data = resp.json()
+            except LLMProviderBillingError:
+                raise  # billing is not a transport error — don't fall through to fresh client
             except (httpx.TransportError, RuntimeError) as exc:
                 logger.warning(
                     "OpenRouter pooled client error (%s) — creating fresh client for this request",
@@ -415,14 +441,14 @@ class OpenRouterProvider(AnthropicProvider):
                 fresh = httpx.AsyncClient(timeout=300.0)
                 try:
                     resp = await fresh.post(url, json=payload, headers=headers)
-                    resp.raise_for_status()
+                    self._check_for_billing_error(resp)
                     data = resp.json()
                 finally:
                     await fresh.aclose()
         else:
             async with httpx.AsyncClient(timeout=300.0) as client:
                 resp = await client.post(url, json=payload, headers=headers)
-                resp.raise_for_status()
+                self._check_for_billing_error(resp)
                 data = resp.json()
 
         duration_ms = (time.monotonic() - start) * 1000
@@ -480,8 +506,10 @@ class OpenRouterProvider(AnthropicProvider):
         if _pooled is not None:
             try:
                 resp = await _pooled.post("/chat/completions", json=payload, headers=headers)
-                resp.raise_for_status()
+                self._check_for_billing_error(resp)
                 data = resp.json()
+            except LLMProviderBillingError:
+                raise  # billing is not a transport error — don't fall through to fresh client
             except (httpx.TransportError, RuntimeError) as exc:
                 logger.warning(
                     "OpenRouter pooled client error (%s) — creating fresh client for this request",
@@ -490,14 +518,14 @@ class OpenRouterProvider(AnthropicProvider):
                 fresh = httpx.AsyncClient(timeout=300.0)
                 try:
                     resp = await fresh.post(url, json=payload, headers=headers)
-                    resp.raise_for_status()
+                    self._check_for_billing_error(resp)
                     data = resp.json()
                 finally:
                     await fresh.aclose()
         else:
             async with httpx.AsyncClient(timeout=300.0) as client:
                 resp = await client.post(url, json=payload, headers=headers)
-                resp.raise_for_status()
+                self._check_for_billing_error(resp)
                 data = resp.json()
 
         duration_ms = (time.monotonic() - start) * 1000

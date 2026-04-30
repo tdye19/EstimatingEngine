@@ -9,6 +9,7 @@ Uses LLM parsing when a provider is available; falls back to regex.
 
 import logging
 import time
+from collections import Counter
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -26,6 +27,7 @@ from apex.backend.services.assembly_parameter_extractor import (
     extract_assembly_parameters,
     is_division_03_section,
 )
+from apex.backend.services.llm_provider import LLMProviderBillingError
 from apex.backend.services.token_tracker import TokenBudgetExceeded, log_token_usage
 from apex.backend.services.ws_manager import ws_manager
 from apex.backend.utils.async_helper import run_async as _run_async
@@ -39,6 +41,8 @@ def _parse_document(doc_text: str, use_llm: bool, provider) -> tuple[list[dict],
         try:
             sections, in_tok, out_tok = _run_async(llm_parse_spec_sections(doc_text, provider))
             return sections, "llm", in_tok, out_tok
+        except LLMProviderBillingError:
+            raise
         except Exception as e:
             logger.warning(f"LLM parse failed, falling back to regex: {e}")
 
@@ -238,6 +242,8 @@ def _enrich_division_03_parameters(
                 for w in result.get("warnings", []):
                     warnings.append(f"[{section.section_number}] {w}")
 
+            except LLMProviderBillingError:
+                raise
             except Exception as exc:
                 # Non-swallow: one section's failure never blocks the rest.
                 warnings.append(f"Extraction failed for section {section.section_number} " f"(id={section.id}): {exc}")
@@ -317,31 +323,43 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     )
     db.commit()
 
-    # Get all completed spec documents
-    documents = (
+    # Load all completed documents, then accept only spec-classified ones.
+    # work_scope / drawing / general / addendum / schedule each have dedicated
+    # agents; processing them here wastes tokens and triggers spurious
+    # section-validator warnings (e.g. non-CSI numbers like "03A", "26 ALL").
+    _candidate_docs = (
         db.query(Document)
         .filter(
             Document.project_id == project_id,
             Document.processing_status == "completed",
-            Document.classification == "spec",
             Document.is_deleted == False,  # noqa: E712
         )
         .all()
     )
 
-    # Also include unclassified documents (they might contain specs)
-    general_docs = (
-        db.query(Document)
-        .filter(
-            Document.project_id == project_id,
-            Document.processing_status == "completed",
-            Document.classification.in_(["general", None]),
-            Document.is_deleted == False,  # noqa: E712
-        )
-        .all()
-    )
+    all_docs = [d for d in _candidate_docs if d.classification == "spec"]
 
-    all_docs = documents + general_docs
+    _skip_counts: Counter[str] = Counter(
+        d.classification or "unclassified"
+        for d in _candidate_docs
+        if d.classification != "spec"
+    )
+    _spec_count = len(all_docs)
+    if _skip_counts:
+        _skip_parts = ", ".join(
+            f"{n} {cls} skipped" for cls, n in sorted(_skip_counts.items())
+        )
+        logger.info(
+            "Agent 2: filtered input — %d spec docs accepted, %s",
+            _spec_count,
+            _skip_parts,
+        )
+    else:
+        logger.info(
+            "Agent 2: filtered input — %d spec docs accepted, none skipped",
+            _spec_count,
+        )
+
     total_docs = len(all_docs)
     total_sections = 0
     doc_results = []
@@ -459,6 +477,9 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
                 docs_remaining=docs_remaining,
             ) from exc
 
+        except LLMProviderBillingError:
+            raise
+
         except Exception as e:
             logger.error(f"Failed to parse document {doc.id}: {e}")
             doc_results.append(
@@ -489,6 +510,8 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     # Defense in depth — enrichment must never break Agent 2's existing contract.
     try:
         enrichment_result = _enrich_division_03_parameters(db, project_id, use_llm=True)
+    except LLMProviderBillingError:
+        raise
     except Exception as exc:
         logger.exception("Assembly parameter enrichment phase failed wholesale")
         enrichment_result = {

@@ -321,6 +321,7 @@ class AgentOrchestrator:
     def _run_pipeline_locked(self, document_id: int = None, pipeline_mode: str = "spec") -> dict:
         """Internal pipeline execution — called while holding the project lock."""
         from apex.backend.agents.pipeline_contracts import ContractViolation
+        from apex.backend.services.llm_provider import LLMProviderBillingError
         from apex.backend.services.ws_manager import ws_manager
 
         pipeline_id = str(uuid.uuid4())
@@ -509,6 +510,35 @@ class AgentOrchestrator:
                     failed_at = agent_num
                     break
 
+                except LLMProviderBillingError as exc:
+                    billing_msg = (
+                        "LLM provider billing issue — pipeline halted. "
+                        "Top up OpenRouter credits and re-run."
+                    )
+                    self._log_error(log, str(exc))
+                    logger.error("Agent %d billing failure: %s", agent_num, exc)
+                    ws_status[agent_num].update(
+                        {"status": "failed", "error_message": billing_msg}
+                    )
+                    project = self.db.query(Project).filter(Project.id == self.project_id).first()
+                    if project:
+                        project.status = "failed_billing"
+                        self.db.commit()
+                    ws_manager.broadcast_sync(
+                        self.project_id,
+                        {
+                            "type": "pipeline_error",
+                            "project_id": self.project_id,
+                            "pipeline_id": pipeline_id,
+                            "pipeline_mode": effective_mode,
+                            "status": "failed_billing",
+                            "message": billing_msg,
+                            "agents": list(ws_status.values()),
+                            "total_elapsed_ms": _elapsed_ms(),
+                        },
+                    )
+                    raise  # halt pipeline — do NOT continue to downstream agents
+
                 except Exception as exc:
                     last_error = str(exc)
                     if attempt < max_retries:
@@ -545,6 +575,30 @@ class AgentOrchestrator:
                     from apex.backend.agents.agent_2b_work_scopes import run_work_scope_agent
 
                     results["agent_2b"] = run_work_scope_agent(self.db, self.project_id, use_llm=True)
+                except LLMProviderBillingError as exc:
+                    billing_msg = (
+                        "LLM provider billing issue — pipeline halted. "
+                        "Top up OpenRouter credits and re-run."
+                    )
+                    logger.error("Agent 2B billing failure: %s", exc)
+                    project = self.db.query(Project).filter(Project.id == self.project_id).first()
+                    if project:
+                        project.status = "failed_billing"
+                        self.db.commit()
+                    ws_manager.broadcast_sync(
+                        self.project_id,
+                        {
+                            "type": "pipeline_error",
+                            "project_id": self.project_id,
+                            "pipeline_id": pipeline_id,
+                            "pipeline_mode": effective_mode,
+                            "status": "failed_billing",
+                            "message": billing_msg,
+                            "agents": list(ws_status.values()),
+                            "total_elapsed_ms": _elapsed_ms(),
+                        },
+                    )
+                    raise
                 except Exception as exc:
                     logger.exception("Agent 2B failed for project %d", self.project_id)
                     results["agent_2b"] = {"error": str(exc), "status": "failed"}

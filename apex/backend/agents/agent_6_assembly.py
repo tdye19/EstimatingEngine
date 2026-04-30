@@ -52,6 +52,7 @@ from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.services.library.bid_intelligence.models import BIEstimate
 from apex.backend.services.library.field_actuals.service import FieldActualsService
 from apex.backend.services.library.productivity_brain.models import PBLineItem, PBProject
+from apex.backend.services.llm_provider import LLMProviderBillingError
 from apex.backend.services.token_tracker import log_token_usage
 from apex.backend.utils.async_helper import run_async as _run_async
 from apex.backend.utils.csi_utils import parse_csi_division
@@ -872,6 +873,8 @@ async def _llm_generate_narrative(report_data: dict, provider, spec_context: str
             response.cache_creation_input_tokens,
             response.cache_read_input_tokens,
         )
+    except LLMProviderBillingError:
+        raise
     except Exception as exc:
         logger.error(f"Agent 6 v2 narrative LLM: call failed — {exc}")
         return None, 0, 0, 0, 0
@@ -1052,6 +1055,8 @@ def run_assembly_agent(db: Session, project_id: int, use_llm: bool = True) -> di
                     logger.warning("Agent 6 v2: LLM returned empty — using template")
             else:
                 logger.warning("Agent 6 v2: LLM unreachable — using template")
+        except LLMProviderBillingError:
+            raise
         except Exception as exc:
             logger.warning(f"Agent 6 v2: LLM failed ({exc}) — using template")
 
@@ -1223,6 +1228,8 @@ async def _llm_generate_summary(
             response.cache_creation_input_tokens,
             response.cache_read_input_tokens,
         )
+    except LLMProviderBillingError:
+        raise
     except Exception as exc:
         logger.error(f"Agent 6 summary LLM: call failed — {exc}")
         return None, 0, 0, 0, 0
@@ -1489,6 +1496,8 @@ def run_assembly_agent_v1(db: Session, project_id: int, use_llm: bool = True) ->
                 logger.warning(
                     f"Agent 6 v1 summary: LLM provider '{provider.provider_name}' unreachable — using fallback summary"
                 )
+        except LLMProviderBillingError:
+            raise
         except Exception as exc:
             logger.warning(f"Agent 6 v1 summary: LLM call failed ({exc}) — using fallback summary")
 

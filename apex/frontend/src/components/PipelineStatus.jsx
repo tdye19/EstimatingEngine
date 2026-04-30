@@ -86,10 +86,11 @@ function normalizeWsMessage(msg) {
 }
 
 export default function PipelineStatus({ projectId, onComplete }) {
-  const [agents, setAgents]         = useState([]);
-  const [overall, setOverall]       = useState('pending');
-  const [connMode, setConnMode]     = useState(null);   // 'ws' | 'poll' | null
-  const [liveElapsedMs, setLiveMs]  = useState(0);
+  const [agents, setAgents]             = useState([]);
+  const [overall, setOverall]           = useState('pending');
+  const [connMode, setConnMode]         = useState(null);   // 'ws' | 'poll' | null
+  const [liveElapsedMs, setLiveMs]      = useState(0);
+  const [billingErrorMsg, setBillingMsg] = useState(null);
 
   // Keep a stable ref to onComplete so the effect closure never goes stale
   const onCompleteRef = useRef(onComplete);
@@ -146,7 +147,7 @@ export default function PipelineStatus({ projectId, onComplete }) {
       }
 
       // Stop polling once the pipeline is terminal
-      if (newOverall === 'completed' || newOverall === 'failed') {
+      if (newOverall === 'completed' || newOverall === 'failed' || newOverall === 'failed_billing') {
         clearInterval(pollTimer);
         pollTimer = null;
         if (newOverall === 'completed') onCompleteRef.current?.();
@@ -205,7 +206,15 @@ export default function PipelineStatus({ projectId, onComplete }) {
             applyUpdate({ ...normalizeWsMessage(msg), overall: 'completed' });
             ws?.close(1000, 'pipeline complete');
           } else if (msg.type === 'pipeline_error') {
-            applyUpdate({ ...normalizeWsMessage(msg), overall: 'failed' });
+            if (msg.status === 'failed_billing') {
+              setBillingMsg(
+                msg.message ||
+                  'LLM provider billing issue — pipeline halted. Top up OpenRouter credits and re-run.'
+              );
+              applyUpdate({ ...normalizeWsMessage(msg), overall: 'failed_billing' });
+            } else {
+              applyUpdate({ ...normalizeWsMessage(msg), overall: 'failed' });
+            }
           }
         } catch {
           // non-JSON or unexpected frame — ignore
@@ -287,11 +296,18 @@ export default function PipelineStatus({ projectId, onComplete }) {
           {overall === 'completed' && (
             <span className="text-xs font-medium text-green-600">All agents complete</span>
           )}
-          {overall === 'failed' && (
+          {(overall === 'failed' || overall === 'failed_billing') && (
             <span className="text-xs font-medium text-red-600">Pipeline stopped</span>
           )}
         </div>
       </div>
+
+      {/* Billing error banner */}
+      {overall === 'failed_billing' && billingErrorMsg && (
+        <div className="mb-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+          {billingErrorMsg}
+        </div>
+      )}
 
       {/* Horizontal step bar */}
       <div className="flex items-start gap-2 overflow-x-auto pb-1">

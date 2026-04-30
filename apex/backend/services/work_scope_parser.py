@@ -22,7 +22,7 @@ import re
 from collections import Counter
 from typing import Any
 
-from apex.backend.services.llm_provider import LLMProvider, get_llm_provider
+from apex.backend.services.llm_provider import LLMProvider, LLMProviderBillingError, get_llm_provider
 from apex.backend.utils.async_helper import run_async
 
 logger = logging.getLogger("apex.services.work_scope_parser")
@@ -103,6 +103,8 @@ def parse_work_scopes(
         try:
             provider = get_llm_provider(agent_number=2, suffix="B")
             resp_content = run_async(_llm_complete(text, provider))
+        except LLMProviderBillingError:
+            raise
         except Exception as exc:
             warnings.append(f"LLM call failed: {exc}. Fell back to regex.")
             wcs = _regex_parse(text, source_document_id, warnings)
