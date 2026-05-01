@@ -20,6 +20,7 @@ removal of the self-promotion code path.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from unittest.mock import patch
 
@@ -118,68 +119,76 @@ def test_agent_2_clean_slate_drops_stale_sections(db_session: Session):
 # ---------------------------------------------------------------------------
 
 
-def test_agent_2_does_not_self_promote_unclassified_docs(db_session: Session):
-    """Pre-HF-26, Agent 2 promoted any document to classification="spec"
-    if it parsed at least one section from it. This created a feedback
-    loop where mis-parsed non-spec docs (winest.xlsx producing a single
-    section-shaped fragment) became permanent spec targets.
+def test_agent_2_filters_non_spec_docs_before_parsing(db_session: Session, caplog):
+    """HF-28 invariant: Agent 2 rejects non-spec documents at the
+    classification filter layer, before _parse_document is ever invoked.
 
-    Post-HF-26: documents retain their Agent 1 classification regardless
-    of how many sections Agent 2 parses from them."""
-    project = _make_project(db_session, "nopromote")
+    HF-26 verified Agent 2 wouldn't self-promote docs it DID parse.
+    HF-28 enforces the strictly stronger guarantee: non-spec docs are
+    never passed to the parser at all. _parse_document is patched to
+    raise AssertionError so any invocation is an immediate test failure."""
+    project = _make_project(db_session, "filterspec")
 
-    # Doc starts as "general" — caught by Agent 2's secondary filter.
-    # Pre-HF-26, parsing any section from it would flip classification
-    # to "spec" forever.
-    doc = Document(
-        project_id=project.id,
-        filename="something_general.txt",
-        file_path="/fake/general.txt",
-        file_type="txt",
-        classification="general",
-        raw_text="dummy text — Agent 2's parser will be patched",
-        processing_status="completed",
-    )
-    db_session.add(doc)
+    for classification, filename in [
+        ("general", "general_doc.txt"),
+        ("work_scope", "scope.txt"),
+        (None, "unclassified.txt"),
+    ]:
+        db_session.add(Document(
+            project_id=project.id,
+            filename=filename,
+            file_path=f"/fake/{filename}",
+            file_type="txt",
+            classification=classification,
+            raw_text="text that must never reach the parser",
+            processing_status="completed",
+        ))
     db_session.commit()
-    db_session.refresh(doc)
 
-    original_classification = doc.classification
-    assert original_classification == "general"
-
-    # Patch Agent 2's parser to return one section, regardless of input,
-    # so we deterministically hit the path that USED to self-promote.
-    fake_section = {
-        "section_number": "07 21 00",
-        "title": "Thermal Insulation",
-        "in_scope": True,
-        "material_specs": {},
-        "quality_requirements": [],
-        "referenced_standards": [],
-        "submittals_required": [],
-        "raw_content": "fake parsed content",
+    # Snapshot seeded classifications before the run.
+    db_session.expire_all()
+    seeded = {
+        d.id: d.classification
+        for d in db_session.query(Document).filter_by(project_id=project.id).all()
     }
 
-    def _fake_parse(raw_text, llm_available, provider):
-        return ([fake_section], "regex", 0, 0)
+    def _must_not_parse(*args, **kwargs):
+        raise AssertionError("_parse_document called on a non-spec document")
 
-    with patch(
-        "apex.backend.agents.agent_2_spec_parser._parse_document",
-        side_effect=_fake_parse,
-    ):
-        result = run_spec_parser_agent(db_session, project.id)
+    with caplog.at_level(logging.INFO, logger="apex.agent.spec_parser"):
+        with patch(
+            "apex.backend.agents.agent_2_spec_parser._parse_document",
+            side_effect=_must_not_parse,
+        ):
+            result = run_spec_parser_agent(db_session, project.id)
 
-    # Sanity: Agent 2 actually processed the doc and created a section
-    # (otherwise the no-promotion test is vacuous).
-    assert result["sections_parsed"] >= 1, (
-        f"test setup failure — Agent 2 parsed {result['sections_parsed']} "
-        "sections; the no-promotion assertion below would be vacuous"
-    )
+    # d. Zero sections parsed.
+    assert result["sections_parsed"] == 0
 
-    # The HF-26 invariant: classification is unchanged.
+    # e. No SpecSection rows created for this project.
     db_session.expire_all()
-    fresh_doc = db_session.query(Document).filter_by(id=doc.id).one()
-    assert fresh_doc.classification == "general", (
-        f"Agent 2 mutated doc.classification from 'general' to "
-        f"{fresh_doc.classification!r} — self-promotion regressed"
+    section_count = (
+        db_session.query(SpecSection)
+        .filter(SpecSection.project_id == project.id)
+        .count()
+    )
+    assert section_count == 0, f"Expected 0 SpecSection rows, got {section_count}"
+
+    # f. No document had its classification mutated.
+    for doc in db_session.query(Document).filter_by(project_id=project.id).all():
+        assert doc.classification == seeded[doc.id], (
+            f"{doc.filename!r} classification changed from "
+            f"{seeded[doc.id]!r} to {doc.classification!r}"
+        )
+
+    # g. Filter log line accounts for all three skipped classifications.
+    # Counter sorts alphabetically: general, unclassified, work_scope.
+    expected_log = (
+        "Agent 2: filtered input — 0 spec docs accepted, "
+        "1 general skipped, 1 unclassified skipped, 1 work_scope skipped"
+    )
+    messages = [r.getMessage() for r in caplog.records]
+    assert any(expected_log in m for m in messages), (
+        f"Expected log fragment not found: {expected_log!r}\n"
+        "Captured messages:\n" + "\n".join(f"  {m!r}" for m in messages)
     )
