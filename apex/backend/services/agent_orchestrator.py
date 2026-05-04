@@ -65,6 +65,11 @@ def _get_project_lock(project_id: int) -> threading.Lock:
 AGENT_DEFINITIONS = {
     1: ("Document Ingestion Agent", "apex.backend.agents.agent_1_ingestion", "run_ingestion_agent"),
     2: ("Spec Parser Agent", "apex.backend.agents.agent_2_spec_parser", "run_spec_parser_agent"),
+    # Agent 2.5 — stored as integer 25, displayed as "2B" in the UI.
+    # Parses Work Scope documents (standalone or embedded) into WorkCategory rows.
+    # Runs after Agent 2 before rate/gap analysis. Non-blocking: pipeline continues
+    # on failure, but failure is visible in ws_status and AgentRunLog.
+    25: ("Work Scope Parser Agent", "apex.backend.agents.agent_2b_work_scopes", "run_work_scope_agent"),
     3: ("Scope Analysis Agent", "apex.backend.agents.agent_3_gap_analysis", "run_gap_analysis_agent"),
     # Agent 3.5 — stored as integer 35, display-formatted as "3.5" by the API / UI.
     # Runs after Agent 3 and before Agent 5; cross-references takeoff line items
@@ -75,6 +80,12 @@ AGENT_DEFINITIONS = {
     6: ("Intelligence Report Agent", "apex.backend.agents.agent_6_assembly", "run_assembly_agent"),
     7: ("IMPROVE Feedback Agent", "apex.backend.agents.agent_7_improve", "run_improve_agent"),
 }
+
+# Agents in this set produce AgentRunLog failure entries and visible ws_status
+# "failed" state on error, but do NOT halt the pipeline (failed_at is not set).
+# Use this only for genuinely additive stages where downstream agents can
+# degrade gracefully. Never add a stage here if downstream requires its output.
+_NON_BLOCKING_AGENTS: frozenset[int] = frozenset({25})
 
 # ---------------------------------------------------------------------------
 # Parallel execution helpers for Agents 3 & 4
@@ -121,12 +132,21 @@ class AgentOrchestrator:
     # ------------------------------------------------------------------
 
     def _log_start(self, agent_name: str, agent_number: int) -> AgentRunLog:
+        model_name: str | None = None
+        try:
+            from apex.backend.services.llm_provider import get_llm_provider
+
+            model_name = get_llm_provider(agent_number=agent_number).model_name
+        except Exception:
+            pass
+
         log = AgentRunLog(
             project_id=self.project_id,
             agent_name=agent_name,
             agent_number=agent_number,
             status="running",
             started_at=datetime.utcnow(),
+            model_name=model_name,
         )
         self.db.add(log)
         self.db.commit()
@@ -332,7 +352,7 @@ class AgentOrchestrator:
         # Sprint 18.3.2: Agent 3.5 (scope matcher) slots between 3 and 5 —
         # consumes Agent 3 scope analysis and Agent 4 takeoff line items to
         # emit GapFinding rows for Agent 5 and the Intelligence Report.
-        pipeline_agents = [1, 2, 4, 3, 35, 5, 6]
+        pipeline_agents = [1, 2, 25, 4, 3, 35, 5, 6]
         failed_at: int | None = None
         effective_mode = pipeline_mode
 
@@ -399,6 +419,16 @@ class AgentOrchestrator:
                 if agent_num == 2:
                     skip_reason = "WinEst import: data already structured — no spec document to parse"
                     logger.info(f"Skipping Agent 2 — {skip_reason}")
+                    self._log_skipped(agent_name, agent_num, reason=skip_reason)
+                    results[key] = {"status": "skipped", "skipped_because": skip_reason}
+                    ws_status[agent_num]["status"] = "skipped"
+                    skipped_agents.append(agent_num)
+                    _broadcast("running")
+                    continue
+
+                if agent_num == 25:
+                    skip_reason = "WinEst import: work scope parsing skipped alongside Agent 2"
+                    logger.info(f"Skipping Agent 2B — {skip_reason}")
                     self._log_skipped(agent_name, agent_num, reason=skip_reason)
                     results[key] = {"status": "skipped", "skipped_because": skip_reason}
                     ws_status[agent_num]["status"] = "skipped"
@@ -556,7 +586,6 @@ class AgentOrchestrator:
 
             if last_error is not None:
                 results[key] = {"error": last_error, "status": "failed"}
-                failed_at = agent_num
                 ws_status[agent_num].update(
                     {
                         "status": "failed",
@@ -564,44 +593,9 @@ class AgentOrchestrator:
                     }
                 )
                 _broadcast("running", agent_num)
-
-            # -----------------------------------------------------------------
-            # Agent 2B (Work Scope Parser) — Sprint 18.1
-            # Runs right after Agent 2 completes. Additive intelligence:
-            # a failure must not block Agents 3/4/5/6/7.
-            # -----------------------------------------------------------------
-            if agent_num == 2 and last_error is None and effective_mode != "winest_import":
-                try:
-                    from apex.backend.agents.agent_2b_work_scopes import run_work_scope_agent
-
-                    results["agent_2b"] = run_work_scope_agent(self.db, self.project_id, use_llm=True)
-                except LLMProviderBillingError as exc:
-                    billing_msg = (
-                        "LLM provider billing issue — pipeline halted. "
-                        "Top up OpenRouter credits and re-run."
-                    )
-                    logger.error("Agent 2B billing failure: %s", exc)
-                    project = self.db.query(Project).filter(Project.id == self.project_id).first()
-                    if project:
-                        project.status = "failed_billing"
-                        self.db.commit()
-                    ws_manager.broadcast_sync(
-                        self.project_id,
-                        {
-                            "type": "pipeline_error",
-                            "project_id": self.project_id,
-                            "pipeline_id": pipeline_id,
-                            "pipeline_mode": effective_mode,
-                            "status": "failed_billing",
-                            "message": billing_msg,
-                            "agents": list(ws_status.values()),
-                            "total_elapsed_ms": _elapsed_ms(),
-                        },
-                    )
-                    raise
-                except Exception as exc:
-                    logger.exception("Agent 2B failed for project %d", self.project_id)
-                    results["agent_2b"] = {"error": str(exc), "status": "failed"}
+                # Non-blocking agents record failure but do not halt downstream stages.
+                if agent_num not in _NON_BLOCKING_AGENTS:
+                    failed_at = agent_num
 
         # Update project status
         project = self.db.query(Project).filter(Project.id == self.project_id).first()
@@ -731,7 +725,7 @@ class AgentOrchestrator:
     # ------------------------------------------------------------------
 
     def get_pipeline_status(self) -> list[dict]:
-        """Return the latest status of each pipeline agent (1-6) for this project.
+        """Return the latest status of each pipeline agent (1-6 plus 25/2B) for this project.
 
         For each agent number, finds the most recent AgentRunLog record and
         returns a status dict.  Agents with no log record are reported as
@@ -755,7 +749,8 @@ class AgentOrchestrator:
         log_by_num = {log.agent_number: log for log in latest_logs}
 
         statuses = []
-        for agent_num in range(1, 7):
+        # Pipeline order: 1, 2, 25 (2B), 4, 3, 35 (3.5), 5, 6
+        for agent_num in [1, 2, 25, 4, 3, 35, 5, 6]:
             agent_name = AGENT_DEFINITIONS[agent_num][0]
             log = log_by_num.get(agent_num)
 

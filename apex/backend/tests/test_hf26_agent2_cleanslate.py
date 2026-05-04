@@ -100,7 +100,20 @@ def test_agent_2_clean_slate_drops_stale_sections(db_session: Session):
 
     # No documents present → Agent 2 finds nothing to parse, but the
     # clean-slate delete must still fire at the start of the run.
-    run_spec_parser_agent(db_session, project.id)
+    # Provider must be mocked — Agent 2 now hard-fails without a reachable LLM.
+    class _FakeProvider:
+        provider_name = "fake"
+        model_name = "fake-model"
+        async def health_check(self) -> bool:
+            return True
+
+    with (
+        patch("apex.backend.services.llm_provider.get_llm_provider", return_value=_FakeProvider()),
+        patch("apex.backend.agents.agent_2_spec_parser._enrich_division_03_parameters",
+              return_value={"division_03_count": 0, "enriched": 0, "extraction_methods": {},
+                            "warnings": [], "duration_ms": 0.0}),
+    ):
+        run_spec_parser_agent(db_session, project.id)
 
     # Refresh the session view so we see what Agent 2 committed.
     db_session.expire_all()
@@ -155,10 +168,22 @@ def test_agent_2_filters_non_spec_docs_before_parsing(db_session: Session, caplo
     def _must_not_parse(*args, **kwargs):
         raise AssertionError("_parse_document called on a non-spec document")
 
+    class _FakeProvider:
+        provider_name = "fake"
+        model_name = "fake-model"
+        async def health_check(self) -> bool:
+            return True
+
     with caplog.at_level(logging.INFO, logger="apex.agent.spec_parser"):
-        with patch(
-            "apex.backend.agents.agent_2_spec_parser._parse_document",
-            side_effect=_must_not_parse,
+        with (
+            patch("apex.backend.services.llm_provider.get_llm_provider", return_value=_FakeProvider()),
+            patch(
+                "apex.backend.agents.agent_2_spec_parser._parse_document",
+                side_effect=_must_not_parse,
+            ),
+            patch("apex.backend.agents.agent_2_spec_parser._enrich_division_03_parameters",
+                  return_value={"division_03_count": 0, "enriched": 0, "extraction_methods": {},
+                                "warnings": [], "duration_ms": 0.0}),
         ):
             result = run_spec_parser_agent(db_session, project.id)
 

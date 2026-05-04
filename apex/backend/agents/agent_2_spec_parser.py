@@ -4,7 +4,10 @@ Parses CSI MasterFormat specs to identify in-scope divisions and extract
 material specifications, quality requirements, and referenced standards.
 Does NOT extract quantities — those come from drawings, not specs.
 
-Uses LLM parsing when a provider is available; falls back to regex.
+Uses LLM parsing only — no regex fallback. If the provider is unavailable
+or the LLM response is invalid, the agent raises and halts the pipeline.
+Regex fallback has been removed: it produces structurally plausible but
+semantically wrong SpecSection rows that silently poison downstream agents.
 """
 
 import logging
@@ -19,7 +22,6 @@ from apex.backend.agents.tools.spec_tools import (
     division_mapper_tool,
     keyword_tagger_tool,
     llm_parse_spec_sections,
-    regex_parse_spec_sections,
 )
 from apex.backend.models.document import Document
 from apex.backend.models.spec_section import SpecSection
@@ -35,18 +37,39 @@ from apex.backend.utils.async_helper import run_async as _run_async
 logger = logging.getLogger("apex.agent.spec_parser")
 
 
-def _parse_document(doc_text: str, use_llm: bool, provider) -> tuple[list[dict], str, int, int]:
-    """Return (extracted_sections, parse_method, input_tokens, output_tokens)."""
-    if use_llm and provider is not None:
-        try:
-            sections, in_tok, out_tok = _run_async(llm_parse_spec_sections(doc_text, provider))
-            return sections, "llm", in_tok, out_tok
-        except LLMProviderBillingError:
-            raise
-        except Exception as e:
-            logger.warning(f"LLM parse failed, falling back to regex: {e}")
+class Agent2ProviderUnavailableError(RuntimeError):
+    """Raised when Agent 2's LLM provider cannot be initialised or fails health check.
 
-    return regex_parse_spec_sections(doc_text), "regex", 0, 0
+    Pipeline must halt — regex fallback is not permitted because it produces
+    structurally plausible but semantically wrong SpecSection rows.
+    """
+
+
+class Agent2LLMParseFailure(RuntimeError):
+    """Raised when the LLM returns an invalid or unparseable response during spec parsing.
+
+    Distinct from LLMProviderBillingError (billing) and
+    Agent2ProviderUnavailableError (connectivity). Indicates the provider
+    was reachable but its output failed validation or JSON extraction.
+    """
+
+
+def _parse_document(doc_text: str, provider) -> tuple[list[dict], str, int, int]:
+    """Return (extracted_sections, parse_method, input_tokens, output_tokens).
+
+    LLM-only path. Raises Agent2LLMParseFailure if the provider returns an
+    invalid or unparseable response. Raises LLMProviderBillingError on 402.
+    Regex fallback has been removed — caller must handle failure explicitly.
+    """
+    try:
+        sections, in_tok, out_tok = _run_async(llm_parse_spec_sections(doc_text, provider))
+        return sections, "llm", in_tok, out_tok
+    except LLMProviderBillingError:
+        raise
+    except Exception as e:
+        raise Agent2LLMParseFailure(
+            f"LLM spec parse failed: {e}"
+        ) from e
 
 
 def _build_work_description(section_data: dict) -> str:
@@ -290,28 +313,34 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     """Parse all spec documents for a project into structured sections.
 
     v2: Extracts spec parameters (materials, quality, standards) — not quantities.
-    Uses LLM-first parsing with regex fallback.
-    Returns dict with sections_parsed count, parse_method, and per-doc details.
+    LLM parsing only — no regex fallback. Raises Agent2ProviderUnavailableError
+    if the provider cannot be reached; raises Agent2LLMParseFailure if the LLM
+    response cannot be parsed. Either exception halts the pipeline.
 
     Uses Gemini 2.5 Flash (via OpenRouter) for cost optimization — 10x cheaper
     than Sonnet for structured extraction. Upgrade to Sonnet via
     AGENT_2_PROVIDER=anthropic if parsing quality degrades on complex specs.
     Also supports direct Gemini API via AGENT_2_PROVIDER=gemini.
     """
-    # Resolve LLM provider once for this run (Agent 2 defaults to Gemini via OpenRouter)
-    provider = None
-    llm_available = False
+    # Resolve LLM provider once for this run (Agent 2 defaults to Gemini via OpenRouter).
+    # Hard-fail if provider unavailable — no regex fallback is permitted.
     try:
         from apex.backend.services.llm_provider import get_llm_provider
 
         provider = get_llm_provider(agent_number=2)
         llm_available = _run_async(provider.health_check())
-        if llm_available:
-            logger.info(f"LLM provider '{provider.provider_name}' is available — using LLM parsing")
-        else:
-            logger.info(f"LLM provider '{provider.provider_name}' is not reachable — using regex fallback")
+        if not llm_available:
+            raise Agent2ProviderUnavailableError(
+                f"LLM provider '{provider.provider_name}' failed health check — "
+                "spec parsing requires LLM and cannot fall back to regex"
+            )
+        logger.info(f"LLM provider '{provider.provider_name}' is available — using LLM parsing")
+    except (Agent2ProviderUnavailableError, LLMProviderBillingError):
+        raise
     except Exception as e:
-        logger.warning(f"Could not initialise LLM provider ({e}), using regex fallback")
+        raise Agent2ProviderUnavailableError(
+            f"Could not initialise LLM provider: {e}"
+        ) from e
 
     # HF-26: clean-slate per project. Without this, SpecSection rows from
     # earlier code paths (or from previously-misclassified docs) accumulate
@@ -371,126 +400,144 @@ def run_spec_parser_agent(db: Session, project_id: int) -> dict:
     upsert_errors = 0
     upsert_warnings: list[str] = []
 
-    for doc_idx, doc in enumerate(all_docs):
-        if not doc.raw_text:
-            continue
+    try:
+        for doc_idx, doc in enumerate(all_docs):
+            if not doc.raw_text:
+                continue
 
-        try:
-            extracted, parse_method, in_tok, out_tok = _parse_document(doc.raw_text, llm_available, provider)
-            run_parse_methods.append(parse_method)
-            if parse_method == "llm" and provider is not None and (in_tok or out_tok):
-                log_token_usage(
-                    db=db,
-                    project_id=project_id,
-                    agent_number=2,
-                    provider=provider.provider_name,
-                    model=provider.model_name,
-                    input_tokens=in_tok,
-                    output_tokens=out_tok,
+            try:
+                extracted, parse_method, in_tok, out_tok = _parse_document(doc.raw_text, provider)
+                run_parse_methods.append(parse_method)
+                if in_tok or out_tok:
+                    log_token_usage(
+                        db=db,
+                        project_id=project_id,
+                        agent_number=2,
+                        provider=provider.provider_name,
+                        model=provider.model_name,
+                        input_tokens=in_tok,
+                        output_tokens=out_tok,
+                    )
+
+                sections_created = 0
+                for section_data in extracted:
+                    div_info = division_mapper_tool(section_data["section_number"])
+
+                    # Build backward-compatible fields from v2 data so Agents 3/4 still work
+                    work_desc = _build_work_description(section_data)
+                    raw_content = section_data.get("raw_content", "")
+
+                    # Extract keywords from work description + raw content
+                    keywords = keyword_tagger_tool(work_desc + " " + raw_content)
+
+                    # Referenced standards serve as materials_referenced for backward compat
+                    standards = section_data.get("referenced_standards", [])
+                    submittals = section_data.get("submittals_required", [])
+
+                    try:
+                        outcome = _upsert_spec_section(
+                            db,
+                            project_id=project_id,
+                            doc_id=doc.id,
+                            section_data=section_data,
+                            division_number=div_info["division_number"],
+                            work_desc=work_desc,
+                            keywords=keywords,
+                            standards=standards,
+                            submittals=submittals,
+                            raw_content=raw_content,
+                        )
+                    except Exception as exc:
+                        upsert_errors += 1
+                        upsert_warnings.append(
+                            f"Upsert failed for {section_data.get('section_number')} "
+                            f"(doc {doc.id}): {exc}"
+                        )
+                        logger.exception(
+                            "SpecSection upsert failed for %s on doc %d",
+                            section_data.get("section_number"),
+                            doc.id,
+                        )
+                        continue
+
+                    if outcome == "new":
+                        upsert_new += 1
+                        sections_created += 1
+                    elif outcome == "replaced":
+                        upsert_replaced += 1
+                        sections_created += 1
+                    else:  # "skipped"
+                        upsert_skipped += 1
+
+                db.commit()
+                total_sections += sections_created
+
+                # HF-26: removed self-promotion. Documents retain their Agent 1
+                # classification. The general/None secondary filter above gives
+                # unclassified docs a chance on every run; permanent re-classification
+                # to "spec" was creating a feedback loop where any non-spec doc
+                # (e.g., winest.xlsx) that yielded a single section-shaped fragment
+                # got locked into the spec pool forever.
+
+                doc_results.append(
+                    {
+                        "document_id": doc.id,
+                        "filename": doc.filename,
+                        "sections_found": sections_created,
+                        "parse_method": parse_method,
+                        "status": "success",
+                    }
                 )
 
-            sections_created = 0
-            for section_data in extracted:
-                div_info = division_mapper_tool(section_data["section_number"])
+            except TokenBudgetExceeded as exc:
+                docs_remaining = total_docs - doc_idx - 1
+                logger.error(
+                    "Budget exceeded on document %r (doc %d/%d); %d document(s) remain unprocessed: %s",
+                    doc.filename,
+                    doc_idx + 1,
+                    total_docs,
+                    docs_remaining,
+                    exc,
+                )
+                raise TokenBudgetExceeded(
+                    exc.project_id,
+                    exc.tokens_used,
+                    exc.cost_used,
+                    document_name=doc.filename,
+                    docs_remaining=docs_remaining,
+                ) from exc
 
-                # Build backward-compatible fields from v2 data so Agents 3/4 still work
-                work_desc = _build_work_description(section_data)
-                raw_content = section_data.get("raw_content", "")
+            except LLMProviderBillingError:
+                raise
 
-                # Extract keywords from work description + raw content
-                keywords = keyword_tagger_tool(work_desc + " " + raw_content)
+            except Agent2LLMParseFailure:
+                raise
 
-                # Referenced standards serve as materials_referenced for backward compat
-                standards = section_data.get("referenced_standards", [])
-                submittals = section_data.get("submittals_required", [])
+            except Exception as e:
+                logger.error(f"Failed to process document {doc.id}: {e}")
+                doc_results.append(
+                    {
+                        "document_id": doc.id,
+                        "filename": doc.filename,
+                        "sections_found": 0,
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
 
-                try:
-                    outcome = _upsert_spec_section(
-                        db,
-                        project_id=project_id,
-                        doc_id=doc.id,
-                        section_data=section_data,
-                        division_number=div_info["division_number"],
-                        work_desc=work_desc,
-                        keywords=keywords,
-                        standards=standards,
-                        submittals=submittals,
-                        raw_content=raw_content,
-                    )
-                except Exception as exc:
-                    upsert_errors += 1
-                    upsert_warnings.append(
-                        f"Upsert failed for {section_data.get('section_number')} "
-                        f"(doc {doc.id}): {exc}"
-                    )
-                    logger.exception(
-                        "SpecSection upsert failed for %s on doc %d",
-                        section_data.get("section_number"),
-                        doc.id,
-                    )
-                    continue
-
-                if outcome == "new":
-                    upsert_new += 1
-                    sections_created += 1
-                elif outcome == "replaced":
-                    upsert_replaced += 1
-                    sections_created += 1
-                else:  # "skipped"
-                    upsert_skipped += 1
-
-            db.commit()
-            total_sections += sections_created
-
-            # HF-26: removed self-promotion. Documents retain their Agent 1
-            # classification. The general/None secondary filter above gives
-            # unclassified docs a chance on every run; permanent re-classification
-            # to "spec" was creating a feedback loop where any non-spec doc
-            # (e.g., winest.xlsx) that yielded a single section-shaped fragment
-            # got locked into the spec pool forever.
-
-            doc_results.append(
-                {
-                    "document_id": doc.id,
-                    "filename": doc.filename,
-                    "sections_found": sections_created,
-                    "parse_method": parse_method,
-                    "status": "success",
-                }
-            )
-
-        except TokenBudgetExceeded as exc:
-            docs_remaining = total_docs - doc_idx - 1
-            logger.error(
-                "Budget exceeded on document %r (doc %d/%d); %d document(s) remain unprocessed: %s",
-                doc.filename,
-                doc_idx + 1,
-                total_docs,
-                docs_remaining,
-                exc,
-            )
-            raise TokenBudgetExceeded(
-                exc.project_id,
-                exc.tokens_used,
-                exc.cost_used,
-                document_name=doc.filename,
-                docs_remaining=docs_remaining,
-            ) from exc
-
-        except LLMProviderBillingError:
-            raise
-
-        except Exception as e:
-            logger.error(f"Failed to parse document {doc.id}: {e}")
-            doc_results.append(
-                {
-                    "document_id": doc.id,
-                    "filename": doc.filename,
-                    "sections_found": 0,
-                    "status": "error",
-                    "error": str(e),
-                }
-            )
+    except (Agent2LLMParseFailure, Agent2ProviderUnavailableError) as exc:
+        # Hard failure — remove any partial SpecSection rows so downstream
+        # agents never consume incomplete or missing-doc data from this run.
+        logger.error(
+            "Agent 2 hard failure — removing partial SpecSection rows for project %d: %s",
+            project_id,
+            exc,
+        )
+        db.query(SpecSection).filter(SpecSection.project_id == project_id).delete(
+            synchronize_session=False
+        )
+        db.commit()
+        raise
 
     # Overall parse method: "llm" if any doc used LLM, else "regex"
     overall_parse_method = "llm" if "llm" in run_parse_methods else "regex"

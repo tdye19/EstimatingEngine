@@ -613,6 +613,7 @@ class Agent35Output(BaseModel):
 _CONTRACT_MAP: dict[int, type[BaseModel]] = {
     1: Agent1Output,
     2: Agent2Output,
+    25: Agent2BOutput,  # Agent 2B/2.5 — Work Scope Parser
     3: Agent3Output,
     35: Agent35Output,
     4: Agent4Output,
@@ -624,6 +625,7 @@ _CONTRACT_MAP: dict[int, type[BaseModel]] = {
 AGENT_NAMES = {
     1: "Document Ingestion Agent",
     2: "Spec Parser Agent",
+    25: "Work Scope Parser Agent",  # displayed as "2B"
     3: "Scope Analysis Agent",
     35: "Scope Matcher Agent",  # displayed as "3.5"
     4: "Rate Intelligence Agent",

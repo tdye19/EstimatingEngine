@@ -178,7 +178,4 @@ def run_work_scope_agent(
         ),
     )
 
-    # No entry in _CONTRACT_MAP for 2B (it's not in the numbered int slots),
-    # so validate_agent_output returns the dict unchanged. Call it anyway for
-    # consistency with the other agents' exit pattern.
-    return validate_agent_output(agent_number=0, output=output_dict)
+    return validate_agent_output(agent_number=25, output=output_dict)
