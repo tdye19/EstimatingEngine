@@ -24,5 +24,16 @@ class AgentRunLog(Base, TimestampMixin):
     input_data = Column(JSON, nullable=True)
     output_data = Column(JSON, nullable=True)
     estimated_cost = Column(Float, nullable=True)
+    # Phase 1 provenance enrichment
+    plan_set_id = Column(Integer, ForeignKey("plan_sets.id", ondelete="SET NULL"), nullable=True)
+    plan_sheet_id = Column(Integer, ForeignKey("plan_sheets.id", ondelete="SET NULL"), nullable=True)
+    scope_package_id = Column(Integer, ForeignKey("scope_packages.id", ondelete="SET NULL"), nullable=True)
+    prompt_version = Column(String(100), nullable=True)
+    input_bundle_hash = Column(String(64), nullable=True)
+    model_name = Column(String(100), nullable=True)
+    model_params_json = Column(JSON, nullable=True)
+    confidence_summary = Column(JSON, nullable=True)
+    output_schema_version = Column(String(50), nullable=True)
+    parent_run_id = Column(Integer, ForeignKey("agent_run_logs.id", ondelete="SET NULL"), nullable=True)
 
     project = relationship("Project", back_populates="agent_run_logs")

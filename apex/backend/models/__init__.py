@@ -1,4 +1,7 @@
 from apex.backend.models.agent_run_log import AgentRunLog
+from apex.backend.models.plan_set import PlanSet, PlanSheet, SheetRegion
+from apex.backend.models.plan_takeoff import PlanTakeoffItem, TakeoffLayer
+from apex.backend.models.scope_package import ScopePackage
 from apex.backend.models.audit_log import AuditLog
 from apex.backend.models.bid_comparison import BidComparison
 from apex.backend.models.change_order import ChangeOrder
@@ -113,4 +116,10 @@ __all__ = [
     "SubBidPackage",
     "SubBid",
     "SubBidLineItem",
+    "ScopePackage",
+    "PlanSet",
+    "PlanSheet",
+    "SheetRegion",
+    "TakeoffLayer",
+    "PlanTakeoffItem",
 ]

@@ -1,6 +1,6 @@
 """Project model."""
 
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from apex.backend.db.database import Base
@@ -36,6 +36,11 @@ class Project(Base, TimestampMixin):
     complexity_level = Column(String(20), nullable=True)  # low | medium | high | very_high
     schedule_pressure = Column(String(20), nullable=True)  # low | medium | high | extreme
     bid_due_date = Column(String(50), nullable=True)  # ISO date string
+    # Phase 1 — concrete domain spine
+    trade_focus = Column(String(50), nullable=True)
+    scope_type = Column(String(50), nullable=True)
+    client_name = Column(String(255), nullable=True)
+    archived_at = Column(DateTime, nullable=True)
 
     owner = relationship("User", back_populates="projects")
     organization = relationship("Organization", back_populates="projects")
@@ -76,4 +81,16 @@ class Project(Base, TimestampMixin):
     )
     bid_outcomes = relationship(
         "BidOutcome", back_populates="project", cascade="all, delete-orphan"
+    )
+    scope_packages = relationship(
+        "ScopePackage", back_populates="project", cascade="all, delete-orphan"
+    )
+    plan_sets = relationship(
+        "PlanSet", back_populates="project", cascade="all, delete-orphan"
+    )
+    plan_takeoff_layers = relationship(
+        "TakeoffLayer", back_populates="project", cascade="all, delete-orphan"
+    )
+    plan_takeoff_items = relationship(
+        "PlanTakeoffItem", back_populates="project", cascade="all, delete-orphan"
     )

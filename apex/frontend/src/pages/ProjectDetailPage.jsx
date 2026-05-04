@@ -30,6 +30,9 @@ import {
   Shield,
   TrendingDown,
   Clipboard,
+  Grid3X3,
+  Download,
+  Plus,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GapReportTab from '../components/tabs/GapReportTab';
@@ -51,6 +54,10 @@ import EstimateVersionsTab from '../components/tabs/EstimateVersionsTab';
 import ShadowComparisonTab from '../components/tabs/ShadowComparisonTab';
 import ErrorBoundary from '../components/ErrorBoundary';
 import PipelineStatus from '../components/PipelineStatus';
+import NewJobWizard from '../components/NewJobWizard';
+
+const SheetsTab = lazy(() => import('../components/tabs/SheetsTab'));
+const ExportBuilderModal = lazy(() => import('../components/ExportBuilderModal'));
 
 const EstimateLibraryTab = lazy(() => import('../components/tabs/EstimateLibraryTab'));
 const BatchUploadTab = lazy(() => import('../components/tabs/BatchUploadTab'));
@@ -73,30 +80,32 @@ const HIDDEN_IN_DEMO = new Set([
 ]);
 
 const TABS = [
-  { path: 'intelligence-report', label: 'Intelligence Report', icon: Shield },
-  { path: 'documents', label: 'Documents', icon: Files },
+  { path: 'intelligence-report', label: 'Overview', icon: Shield },
+  { path: 'documents', label: 'Plans & Specs', icon: Files },
+  { path: 'sheets', label: 'Sheets', icon: Grid3X3 },
   { path: 'spec-sections', label: 'Spec Sections', icon: BookOpen },
-  { path: 'work-scopes', label: 'Work Scopes', icon: Clipboard },
-  { path: 'gap-report', label: 'Gap Report', icon: AlertTriangle },
-  { path: 'rate-intelligence', label: 'Rate Intelligence', icon: Scale },
-  { path: 'field-calibration', label: 'Field Calibration', icon: Activity },
+  { path: 'work-scopes', label: 'Scope', icon: Clipboard },
+  { path: 'gap-report', label: 'Scope Gaps', icon: AlertTriangle },
+  { path: 'rate-intelligence', label: 'Rate Check', icon: Scale },
+  { path: 'field-calibration', label: 'Field Data', icon: Activity },
   { path: 'takeoff', label: 'Takeoff', icon: Ruler },
   { path: 'labor', label: 'Labor', icon: HardHat },
   { path: 'estimate', label: 'Estimate', icon: Calculator },
   { path: 'shadow-comparison', label: 'Shadow Compare', icon: Search },
-  { path: 'estimate-versions', label: 'Versions', icon: GitBranch },
+  { path: 'estimate-versions', label: 'Revisions', icon: GitBranch },
   { path: 'bid-comparison', label: 'Bid Compare', icon: BarChart2 },
   { path: 'sub-packages', label: 'Sub Packages', icon: Package },
   { path: 'change-orders', label: 'Change Orders', icon: FileDiff },
   { path: 'variance', label: 'Variance', icon: TrendingUp },
   { path: 'schedule', label: 'Schedule', icon: Calendar },
-  { path: 'agents', label: 'Agent Logs', icon: Activity },
+  { path: 'agents', label: 'Run Logs', icon: Activity },
   { path: 'cost-tracking', label: 'Cost Tracking', icon: DollarSign },
   { path: 'estimate-library', label: 'Estimate Library', icon: LibraryBig },
   { path: 'benchmarks', label: 'Benchmarks', icon: BarChart2 },
-  { path: 'productivity-brain', label: 'Productivity Brain', icon: Brain },
-  { path: 'bid-intelligence', label: 'Bid Intelligence', icon: Target },
+  { path: 'productivity-brain', label: 'Productivity', icon: Brain },
+  { path: 'bid-intelligence', label: 'Bid History', icon: Target },
   { path: 'decision-estimate', label: 'Decision Estimate', icon: TrendingDown },
+  { path: 'exports', label: 'Exports', icon: Download },
 ];
 
 export default function ProjectDetailPage() {
@@ -124,6 +133,7 @@ export default function ProjectDetailPage() {
   const [versionsRefreshKey, setVersionsRefreshKey] = useState(0);
   const [comparisonRefreshKey, setComparisonRefreshKey] = useState(0);
   const [intelReportRefreshKey, setIntelReportRefreshKey] = useState(0);
+  const [showWizard, setShowWizard] = useState(false);
   const fileInputRef = useRef(null);
 
   const loadProject = () => {
@@ -254,6 +264,10 @@ export default function ProjectDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowWizard(true)} className="btn-secondary flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            New Job
+          </button>
           <button onClick={openEditModal} className="btn-secondary flex items-center gap-2">
             <Pencil className="h-4 w-4" />
             Edit Project
@@ -446,8 +460,30 @@ export default function ProjectDetailPage() {
             </ErrorBoundary>
           }
         />
+        <Route
+          path="sheets"
+          element={
+            <ErrorBoundary key="sheets">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
+                <SheetsTab projectId={id} />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="exports"
+          element={
+            <ErrorBoundary key="exports">
+              <Suspense fallback={<div className="p-8 text-gray-400">Loading...</div>}>
+                <ExportBuilderModal projectId={id} standalone />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
         <Route index element={<Navigate to="intelligence-report" replace />} />
       </Routes>
+
+      <NewJobWizard open={showWizard} onClose={() => setShowWizard(false)} onCreated={() => setShowWizard(false)} />
 
       {showEditModal && editForm && (
         <div

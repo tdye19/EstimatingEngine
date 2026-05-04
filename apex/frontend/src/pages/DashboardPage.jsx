@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { ToastProvider, useToast } from '../components/Toast';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { listProjects, createProject, deleteProject, cloneProject } from '../api';
+import NewJobWizard from '../components/NewJobWizard';
 import {
   FolderKanban,
   DollarSign,
@@ -38,11 +39,13 @@ const EMPTY_FORM = {
 
 function DashboardPageInner() {
   const { addToast } = useToast();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -146,10 +149,16 @@ function DashboardPageInner() {
           <h1 className="text-2xl font-bold">Project Dashboard</h1>
           <p className="text-gray-500 text-sm mt-1">Manage your estimating pipeline</p>
         </div>
-        <button onClick={openModal} className="btn-primary flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          New Project
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowWizard(true)} className="btn-primary flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            New Job
+          </button>
+          <button onClick={openModal} className="btn-secondary flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Quick Create
+          </button>
+        </div>
       </div>
 
       {/* Stats row */}
@@ -323,6 +332,16 @@ function DashboardPageInner() {
           </div>
         </div>
       )}
+
+      <NewJobWizard
+        open={showWizard}
+        onClose={() => setShowWizard(false)}
+        onCreated={(projectId) => {
+          setShowWizard(false);
+          loadProjects();
+          if (projectId) navigate(`/projects/${projectId}`);
+        }}
+      />
     </div>
   );
 }

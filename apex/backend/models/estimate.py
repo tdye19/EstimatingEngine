@@ -57,5 +57,6 @@ class EstimateLineItem(Base, TimestampMixin):
     total_cost = Column(Float, default=0.0)
     unit_cost = Column(Float, default=0.0)
     notes = Column(Text, nullable=True)
+    agent_run_log_id = Column(Integer, ForeignKey("agent_run_logs.id", ondelete="SET NULL"), nullable=True)
 
     estimate = relationship("Estimate", back_populates="line_items")

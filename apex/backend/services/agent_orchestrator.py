@@ -479,6 +479,14 @@ class AgentOrchestrator:
                             logger.info("Agent 1 detected WinEst import — switching to winest_import pipeline mode")
                         effective_mode = "winest_import"
 
+                    # Persistence adapters — bridge agent outputs to Phase 1 tables
+                    if agent_num == 1:
+                        from apex.backend.services.persistence_adapters import adapt_agent1_plan_sets
+                        adapt_agent1_plan_sets(self.db, self.project_id, result, log.id)
+                    elif agent_num == 4:
+                        from apex.backend.services.persistence_adapters import adapt_agent4_takeoff_items
+                        adapt_agent4_takeoff_items(self.db, self.project_id, result, log.id)
+
                     # Summarise result for the log
                     summary_keys = (
                         "documents_processed",

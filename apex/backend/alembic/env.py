@@ -62,6 +62,10 @@ from apex.backend.models.field_actuals import FieldActualsLineItem, FieldActuals
 from apex.backend.models.historical_line_item import HistoricalLineItem  # noqa: F401, E402
 from apex.backend.models.intelligence_report import IntelligenceReportModel  # noqa: F401, E402
 from apex.backend.models.takeoff_v2 import TakeoffItemV2  # noqa: F401, E402
+from apex.backend.models.plan_set import PlanSet, PlanSheet, SheetRegion  # noqa: F401, E402
+from apex.backend.models.plan_takeoff import PlanTakeoffItem, TakeoffLayer  # noqa: F401, E402
+from apex.backend.models.export_profile import ExportProfile  # noqa: F401, E402
+from apex.backend.models.scope_package import ScopePackage  # noqa: F401, E402
 from apex.backend.models.work_category import WorkCategory  # noqa: F401, E402
 from apex.backend.services.library.bid_intelligence.models import BIEstimate  # noqa: F401, E402
 from apex.backend.services.library.productivity_brain.models import PBLineItem, PBProject  # noqa: F401, E402

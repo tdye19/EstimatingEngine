@@ -601,3 +601,19 @@ export const getDecisionCostBreakdown = (projectId) =>
 
 export const getDecisionRiskItems = (projectId) =>
   request(`/decision/projects/${projectId}/risk-items`);
+
+// ── Plan Sheets ───────────────────────────────────────
+export const updatePlanSheet = (sheetId, data) =>
+  request(`/plan-sheets/${sheetId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+
+// ── Export Profiles ───────────────────────────────────
+export const getExportProfile = () => request('/export-profile');
+
+export const upsertExportProfile = (data) =>
+  request('/export-profile', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });

@@ -44,6 +44,10 @@ from apex.backend.routers import token_usage as token_usage_router
 from apex.backend.routers import users as users_router
 from apex.backend.routers import websocket as ws_router
 from apex.backend.routers import work_categories as work_categories_router
+from apex.backend.routers import scope_packages as scope_packages_router
+from apex.backend.routers import export_profiles as export_profiles_router
+from apex.backend.routers import plan_sets as plan_sets_router
+from apex.backend.routers import plan_takeoff as plan_takeoff_router
 from apex.backend.routers.library import benchmarks as benchmarks_router
 from apex.backend.routers.library import bid_intelligence as bid_intelligence_router
 from apex.backend.routers.library import field_actuals as field_actuals_router
@@ -181,6 +185,10 @@ app.include_router(dashboard_router.router)
 app.include_router(retrieval_router.router)
 app.include_router(work_categories_router.router)
 app.include_router(agent_run_logs_router.router)
+app.include_router(scope_packages_router.router)
+app.include_router(plan_sets_router.router)
+app.include_router(plan_takeoff_router.router)
+app.include_router(export_profiles_router.router)
 
 # Dev-only test router — only active when APEX_DEV_MODE=true
 if _is_dev:

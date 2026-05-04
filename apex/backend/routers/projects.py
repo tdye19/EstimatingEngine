@@ -130,6 +130,9 @@ def create_project(
         bid_date=data.bid_date,
         owner_id=user.id,
         organization_id=user.organization_id,
+        trade_focus=data.trade_focus,
+        scope_type=data.scope_type,
+        client_name=data.client_name,
     )
     db.add(project)
     db.commit()

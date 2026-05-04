@@ -80,6 +80,9 @@ class ProjectCreate(BaseModel):
     square_footage: float | None = None
     estimated_value: float | None = None
     bid_date: str | None = None
+    trade_focus: str | None = None
+    scope_type: str | None = None
+    client_name: str | None = None
 
 
 class ProjectUpdate(BaseModel):
@@ -94,6 +97,9 @@ class ProjectUpdate(BaseModel):
     bid_date: str | None = None
     manual_estimate_total: float | None = None
     manual_estimate_notes: str | None = None
+    trade_focus: str | None = None
+    scope_type: str | None = None
+    client_name: str | None = None
 
 
 class ProjectOut(BaseModel):
@@ -111,6 +117,9 @@ class ProjectOut(BaseModel):
     bid_date: str | None = None
     manual_estimate_total: float | None = None
     manual_estimate_notes: str | None = None
+    trade_focus: str | None = None
+    scope_type: str | None = None
+    client_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -581,3 +590,182 @@ class BenchmarkQuery(BaseModel):
     unit_of_measure: str | None = None
     min_confidence: float | None = None  # filter out low-confidence benchmarks
     min_sample_size: int | None = None
+
+
+# ── Phase 1 domain spine ──────────────────────────────────────────────────────
+
+# --- ScopePackage ---
+class ScopePackageCreate(BaseModel):
+    name: str
+    code: str | None = None
+    trade_focus: str | None = None
+    csi_division: str | None = None
+    status: str = "active"
+    inclusions_json: str | None = None
+    exclusions_json: str | None = None
+    assumptions_json: str | None = None
+
+
+class ScopePackageUpdate(BaseModel):
+    name: str | None = None
+    code: str | None = None
+    trade_focus: str | None = None
+    csi_division: str | None = None
+    status: str | None = None
+    inclusions_json: str | None = None
+    exclusions_json: str | None = None
+    assumptions_json: str | None = None
+
+
+class ScopePackageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: int
+    name: str
+    code: str | None = None
+    trade_focus: str | None = None
+    csi_division: str | None = None
+    status: str
+    inclusions_json: str | None = None
+    exclusions_json: str | None = None
+    assumptions_json: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- PlanSet ---
+class PlanSetCreate(BaseModel):
+    version_label: str | None = None
+    upload_id: int | None = None
+    source_filename: str | None = None
+
+
+class PlanSetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: int
+    version_label: str | None = None
+    upload_id: int | None = None
+    source_filename: str | None = None
+    sheet_count: int
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- PlanSheet ---
+class PlanSheetUpdate(BaseModel):
+    sheet_number: str | None = None
+    sheet_name: str | None = None
+    discipline: str | None = None
+    confirmed_scale: str | None = None
+    preview_image_url: str | None = None
+    width_px: int | None = None
+    height_px: int | None = None
+    ocr_text_json: str | None = None
+    metadata_json: str | None = None
+
+
+class PlanSheetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: int
+    plan_set_id: int
+    sheet_number: str | None = None
+    sheet_name: str | None = None
+    discipline: str | None = None
+    page_index: int
+    preview_image_url: str | None = None
+    width_px: int | None = None
+    height_px: int | None = None
+    detected_scale: str | None = None
+    confirmed_scale: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- SheetRegion ---
+class SheetRegionCreate(BaseModel):
+    region_type: str | None = None
+    bbox_json: str | None = None
+    label: str | None = None
+    source_method: str | None = None
+    review_status: str = "pending"
+
+
+class SheetRegionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    plan_sheet_id: int
+    region_type: str | None = None
+    bbox_json: str | None = None
+    label: str | None = None
+    source_method: str | None = None
+    review_status: str
+    created_at: datetime
+
+
+# --- TakeoffLayer ---
+class TakeoffLayerCreate(BaseModel):
+    name: str
+    trade_focus: str | None = None
+    layer_type: str | None = None
+    scope_package_id: int | None = None
+    visibility_default: bool = True
+
+
+class TakeoffLayerOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: int
+    plan_sheet_id: int | None = None
+    scope_package_id: int | None = None
+    trade_focus: str | None = None
+    name: str
+    layer_type: str | None = None
+    visibility_default: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- PlanTakeoffItem ---
+class PlanTakeoffItemCreate(BaseModel):
+    item_type: str | None = None
+    label: str | None = None
+    measurement_type: str | None = None
+    quantity: float | None = None
+    unit: str | None = None
+    geometry_geojson: str | None = None
+    bbox_json: str | None = None
+    source_method: str = "manual"
+    confidence: float | None = None
+    assumptions_json: str | None = None
+
+
+class PlanTakeoffItemUpdate(BaseModel):
+    label: str | None = None
+    quantity: float | None = None
+    unit: str | None = None
+    geometry_geojson: str | None = None
+    bbox_json: str | None = None
+    review_status: str | None = None
+    assumptions_json: str | None = None
+
+
+class PlanTakeoffItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: int
+    plan_sheet_id: int | None = None
+    takeoff_layer_id: int
+    agent_run_log_id: int | None = None
+    item_type: str | None = None
+    label: str | None = None
+    measurement_type: str | None = None
+    quantity: float | None = None
+    unit: str | None = None
+    source_method: str
+    confidence: float | None = None
+    review_status: str
+    created_at: datetime
+    updated_at: datetime

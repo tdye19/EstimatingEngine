@@ -15,13 +15,13 @@ import {
 import LLMStatus from './LLMStatus';
 
 const NAV = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/', icon: LayoutDashboard, label: 'Projects' },
   { to: '/library', icon: LibraryBig, label: 'Library' },
-  { to: '/productivity', icon: Library, label: 'Productivity Library' },
-  { to: '/materials', icon: DollarSign, label: 'Material Prices' },
-  { to: '/compare', icon: ArrowLeftRight, label: 'Compare' },
-  { to: '/field-entry', icon: ClipboardList, label: 'Field Entry' },
-  { to: '/benchmarking', icon: TrendingUp, label: 'Benchmarking' },
+  { to: '/productivity', icon: Library, label: 'Productivity' },
+  { to: '/materials', icon: DollarSign, label: 'Materials' },
+  { to: '/compare', icon: ArrowLeftRight, label: 'Bid Compare' },
+  { to: '/field-entry', icon: ClipboardList, label: 'Field Actuals' },
+  { to: '/benchmarking', icon: TrendingUp, label: 'Benchmarks' },
 ];
 
 const ADMIN_NAV = { to: '/admin', icon: Shield, label: 'Admin' };
