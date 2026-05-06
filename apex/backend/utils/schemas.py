@@ -42,11 +42,10 @@ class OrganizationOut(BaseModel):
 
 # --- User ---
 class UserCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     email: str
     password: str
     full_name: str
-    role: str = "estimator"
-    organization_id: int | None = None
 
 
 class UserOut(BaseModel):

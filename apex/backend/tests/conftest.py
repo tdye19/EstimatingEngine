@@ -5,6 +5,8 @@ import os
 # Set env vars BEFORE any app imports
 os.environ["APEX_DEV_MODE"] = "true"
 os.environ["DATABASE_URL"] = "sqlite://"
+os.environ["RATE_LIMIT_REGISTER"] = "1000/minute"
+os.environ["RATE_LIMIT_LOGIN"] = "1000/minute"
 
 import pytest
 from fastapi.testclient import TestClient

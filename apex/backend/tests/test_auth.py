@@ -66,6 +66,93 @@ class TestLogin:
         assert res.status_code == 401
 
 
+class TestRegisterPrivilegeEscalation:
+    def test_role_field_ignored(self, client):
+        """role='admin' in body is silently ignored; created user gets estimator."""
+        res = client.post(
+            "/api/auth/register",
+            json={
+                "email": "escalate@example.com",
+                "password": "pass123",
+                "full_name": "Escalator",
+                "role": "admin",
+            },
+        )
+        assert res.status_code == 200
+        assert res.json()["data"]["role"] == "estimator"
+
+    def test_organization_id_ignored(self, client):
+        """organization_id in body is silently ignored; created user gets None."""
+        res = client.post(
+            "/api/auth/register",
+            json={
+                "email": "orgtest@example.com",
+                "password": "pass123",
+                "full_name": "OrgTest",
+                "organization_id": 999,
+            },
+        )
+        assert res.status_code == 200
+        assert res.json()["data"]["organization_id"] is None
+
+
+class TestAdminCreate:
+    def test_no_auth_401(self, client):
+        res = client.post(
+            "/api/users/admin/create",
+            json={"email": "x@example.com", "password": "pass", "full_name": "X", "role": "admin"},
+        )
+        assert res.status_code == 401
+
+    def test_estimator_auth_403(self, client, auth_headers):
+        res = client.post(
+            "/api/users/admin/create",
+            json={"email": "x@example.com", "password": "pass", "full_name": "X", "role": "admin"},
+            headers=auth_headers,
+        )
+        assert res.status_code == 403
+
+    def test_admin_creates_admin_role(self, client, admin_headers):
+        res = client.post(
+            "/api/users/admin/create",
+            json={
+                "email": "created-admin@example.com",
+                "password": "pass123",
+                "full_name": "Created Admin",
+                "role": "admin",
+            },
+            headers=admin_headers,
+        )
+        assert res.status_code == 200
+        assert res.json()["data"]["role"] == "admin"
+
+    def test_invalid_role_422(self, client, admin_headers):
+        res = client.post(
+            "/api/users/admin/create",
+            json={
+                "email": "hacker@example.com",
+                "password": "pass123",
+                "full_name": "Hacker",
+                "role": "hacker",
+            },
+            headers=admin_headers,
+        )
+        assert res.status_code == 422
+
+    def test_duplicate_email_400(self, client, admin_headers, admin_user):
+        res = client.post(
+            "/api/users/admin/create",
+            json={
+                "email": admin_user.email,
+                "password": "pass123",
+                "full_name": "Duplicate",
+                "role": "estimator",
+            },
+            headers=admin_headers,
+        )
+        assert res.status_code == 400
+
+
 class TestMe:
     def test_me_authenticated(self, client, test_user, auth_headers):
         res = client.get("/api/auth/me", headers=auth_headers)

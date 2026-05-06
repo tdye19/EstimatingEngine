@@ -1,12 +1,14 @@
 """Users management router — admin-only CRUD for user accounts and roles."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from apex.backend.db.database import get_db
 from apex.backend.models.user import User
-from apex.backend.utils.auth import require_auth, require_role
+from apex.backend.utils.auth import hash_password, require_auth, require_role
 from apex.backend.utils.schemas import APIResponse, UserOut
 
 router = APIRouter(prefix="/api/users", tags=["users"], dependencies=[Depends(require_auth)])
@@ -22,7 +24,7 @@ class UserCreateAdmin(BaseModel):
     email: str
     password: str
     full_name: str
-    role: str = "estimator"
+    role: Literal["admin", "estimator", "viewer"] = "estimator"
     organization_id: int | None = None
 
 
@@ -33,6 +35,30 @@ def list_users(db: Session = Depends(get_db)):
     return APIResponse(
         success=True,
         data=[UserOut.model_validate(u).model_dump(mode="json") for u in users],
+    )
+
+
+@router.post("/admin/create", response_model=APIResponse, dependencies=[Depends(require_role("admin"))])
+def admin_create_user(data: UserCreateAdmin, db: Session = Depends(get_db)):
+    """Admin: create a user with an explicit role."""
+    existing = db.query(User).filter(User.email == data.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    user = User(
+        email=data.email,
+        hashed_password=hash_password(data.password),
+        full_name=data.full_name,
+        role=data.role,
+        organization_id=data.organization_id,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return APIResponse(
+        success=True,
+        message="User created successfully",
+        data=UserOut.model_validate(user).model_dump(mode="json"),
     )
 
 
