@@ -30,7 +30,7 @@ from apex.backend.models.takeoff_v2 import TakeoffItemV2
 from apex.backend.models.upload_session import UploadSession
 from apex.backend.models.user import User
 from apex.backend.models.work_category import WorkCategory
-from apex.backend.services.crew_orchestrator import get_orchestrator
+from apex.backend.services.agent_orchestrator import AgentOrchestrator
 from apex.backend.services.proposal_form_excel_service import (
     build_export_filename,
     render_proposal_form_xlsx,
@@ -763,7 +763,7 @@ def _run_pipeline(project_id: int, document_id: int = None, pipeline_mode: str =
     try:
         if pipeline_mode is None:
             pipeline_mode = _detect_pipeline_mode(db, project_id, document_id)
-        orchestrator = get_orchestrator(db, project_id)
+        orchestrator = AgentOrchestrator(db, project_id)
         orchestrator.run_pipeline(document_id=document_id, pipeline_mode=pipeline_mode)
     finally:
         db.close()
@@ -843,7 +843,7 @@ def pipeline_status(project_id: int, db: Session = Depends(get_db), user: User =
     """Return the current pipeline status for each agent (1-6)."""
     get_authorized_project(project_id, user, db)
 
-    orchestrator = get_orchestrator(db, project_id)
+    orchestrator = AgentOrchestrator(db, project_id)
     statuses = orchestrator.get_pipeline_status()
 
     # Derive overall status
@@ -877,7 +877,7 @@ def run_single_agent(
         raise HTTPException(status_code=400, detail="agent_number must be between 1 and 7")
     get_authorized_project(project_id, user, db)
     try:
-        orchestrator = get_orchestrator(db, project_id)
+        orchestrator = AgentOrchestrator(db, project_id)
         result = orchestrator.run_single_agent(agent_number)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -1009,7 +1009,7 @@ async def upload_actuals(
 
         session = SessionLocal()
         try:
-            orchestrator = get_orchestrator(session, pid)
+            orchestrator = AgentOrchestrator(session, pid)
             orchestrator.run_improve_agent()
         finally:
             session.close()
