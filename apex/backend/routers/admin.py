@@ -110,6 +110,71 @@ def update_organization(
     return APIResponse(data=OrganizationOut.model_validate(org).model_dump())
 
 
+@router.post("/projects/{project_id}/agent-3/force-rule-based")
+def force_rule_based_gap_analysis(
+    project_id: int,
+    _user: User = Depends(_admin),
+    db: Session = Depends(get_db),
+):
+    """Re-run Agent 3 with force_rule_based=True for empirical rule validation.
+
+    Creates a new GapReport row alongside the existing LLM report. The LLM
+    report is untouched. The AgentRunLog entry is tagged " (force_rule_based)"
+    so it is distinguishable from normal pipeline runs.
+    """
+    from apex.backend.agents.agent_3_gap_analysis import run_gap_analysis_agent
+    from apex.backend.models.agent_run_log import AgentRunLog
+    from apex.backend.models.gap_report import GapReport
+    from apex.backend.models.project import Project
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    log = AgentRunLog(
+        project_id=project_id,
+        agent_name="Scope Analysis Agent (force_rule_based)",
+        agent_number=3,
+        status="running",
+        started_at=datetime.utcnow(),
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+
+    try:
+        result = run_gap_analysis_agent(db, project_id, force_rule_based=True)
+        log.status = "completed"
+        log.completed_at = datetime.utcnow()
+        log.duration_seconds = (log.completed_at - log.started_at).total_seconds()
+        log.output_summary = f"force_rule_based: {result.get('total_gaps', 0)} gaps"
+        log.output_data = result
+        db.commit()
+    except Exception as exc:
+        log.status = "failed"
+        log.completed_at = datetime.utcnow()
+        log.error_message = str(exc)
+        db.commit()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    gap_report_id = result.get("report_id")
+    report = db.query(GapReport).filter(GapReport.id == gap_report_id).first()
+
+    return APIResponse(
+        data={
+            "gap_report_id": gap_report_id,
+            "analysis_method": (report.metadata_json or {}).get("analysis_method") if report else None,
+            "total_gaps": result.get("total_gaps"),
+            "critical_count": result.get("critical_count"),
+            "moderate_count": result.get("moderate_count"),
+            "watch_count": result.get("watch_count"),
+            "overall_score": result.get("overall_score"),
+            "sections_analyzed": result.get("sections_analyzed"),
+            "agent_run_log_id": log.id,
+        }
+    )
+
+
 @router.delete("/organizations/{org_id}", status_code=204)
 def delete_organization(
     org_id: int,

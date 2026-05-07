@@ -1,8 +1,10 @@
-"""Unit tests for Agent 3 domain-rules fallback observability (19E.3).
+"""Unit tests for Agent 3 gap analysis (19E.3 + force_rule_based flag).
 
-Regression cover: when run_domain_rules() returns zero findings, Agent 3 must
-emit a WARNING log and set analysis_method = "rule_based_empty_fallback_to_checklist"
-instead of silently logging at INFO and writing "rule_based".
+Covers:
+  - Fallback observability: zero domain-rule findings → WARNING + fallback metadata.
+  - force_rule_based=True skips LLM provider entirely.
+  - force_rule_based=True invokes run_domain_rules.
+  - force_rule_based=False (default) still attempts LLM init (regression guard).
 """
 
 from __future__ import annotations
@@ -80,3 +82,41 @@ def test_empty_domain_rules_logs_warning_and_sets_fallback_metadata(
 
     report = db_session.query(GapReport).filter(GapReport.id == result["report_id"]).one()
     assert (report.metadata_json or {}).get("analysis_method") == "rule_based_empty_fallback_to_checklist"
+
+
+# ---------------------------------------------------------------------------
+# force_rule_based flag tests (Sprint 19E)
+# ---------------------------------------------------------------------------
+
+
+def test_force_rule_based_skips_llm_provider(db_session, project_with_specs):
+    """When force_rule_based=True, get_llm_provider must never be called."""
+    with patch("apex.backend.services.llm_provider.get_llm_provider") as mock_get_provider:
+        result = a3.run_gap_analysis_agent(db_session, project_with_specs.id, force_rule_based=True)
+    mock_get_provider.assert_not_called()
+    assert result is not None
+    assert "report_id" in result
+
+
+def test_force_rule_based_uses_domain_rules_first(db_session, project_with_specs):
+    """When force_rule_based=True, run_domain_rules is invoked and analysis_method is rule-based."""
+    from apex.backend.models.gap_report import GapReport
+
+    with patch.object(a3, "run_domain_rules", return_value=[]) as mock_rules:
+        result = a3.run_gap_analysis_agent(db_session, project_with_specs.id, force_rule_based=True)
+
+    mock_rules.assert_called_once()
+    report = db_session.query(GapReport).filter(GapReport.id == result["report_id"]).one()
+    assert (report.metadata_json or {}).get("analysis_method") in {
+        "rule_based",
+        "rule_based_empty_fallback_to_checklist",
+    }
+
+
+def test_default_invocation_unchanged(db_session, project_with_specs):
+    """force_rule_based=False (default) still attempts the LLM init path (regression guard)."""
+    with patch("apex.backend.services.llm_provider.get_llm_provider", return_value=None) as mock_get_provider:
+        with patch.object(a3, "run_domain_rules", return_value=[]):
+            result = a3.run_gap_analysis_agent(db_session, project_with_specs.id)
+    mock_get_provider.assert_called_once()
+    assert result is not None

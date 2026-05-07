@@ -580,7 +580,7 @@ def _retrieve_spec_context_for_gaps(project_id: int) -> str:
 # ---------------------------------------------------------------------------
 
 
-def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
+def run_gap_analysis_agent(db: Session, project_id: int, force_rule_based: bool = False) -> dict:
     """Run gap analysis comparing project specs against master checklist.
 
     Execution order:
@@ -616,60 +616,66 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
     analysis_method = "rule_based"
     scored_gaps: list[dict] = []
 
-    try:
-        from apex.backend.services.llm_provider import get_llm_provider
-
-        provider = get_llm_provider(agent_number=3)
-        try:
-            llm_available = _run_async(
-                asyncio.wait_for(provider.health_check(), timeout=HEALTH_CHECK_TIMEOUT_SECONDS)
-            )
-        except TimeoutError:
-            logger.warning(
-                f"Agent 3: LLM provider '{provider.provider_name}' health check timed out "
-                f"after {HEALTH_CHECK_TIMEOUT_SECONDS}s — using rule-based fallback"
-            )
-            llm_available = False
-        if llm_available:
-            logger.info(
-                f"Agent 3: LLM provider '{provider.provider_name}/{provider.model_name}' "
-                "is available — attempting LLM gap analysis"
-            )
-        else:
-            logger.info(f"Agent 3: LLM provider '{provider.provider_name}' is unreachable — using rule-based fallback")
-    except Exception as exc:
-        logger.warning(f"Agent 3: could not initialise LLM provider ({exc}) — using rule-based fallback")
-
-    if llm_available and provider is not None:
-        # Retrieve real spec language to ground the LLM's gap analysis
-        spec_context = _retrieve_spec_context_for_gaps(project_id)
-        if spec_context:
-            logger.info("Agent 3: injecting spec retrieval context into LLM prompt")
-        llm_items, in_tok, out_tok, cache_create, cache_read = _run_async(
-            _llm_gap_analysis(parsed_sections, provider, spec_context=spec_context)
+    if force_rule_based:
+        logger.info(
+            "Agent 3: force_rule_based=True — bypassing LLM path for empirical "
+            "rule validation. This is the validation harness path, not production."
         )
-        if llm_items:
-            log_token_usage(
-                db=db,
-                project_id=project_id,
-                agent_number=3,
-                provider=provider.provider_name,
-                model=provider.model_name,
-                input_tokens=in_tok,
-                output_tokens=out_tok,
-                cache_creation_tokens=cache_create,
-                cache_read_tokens=cache_read,
+    else:
+        try:
+            from apex.backend.services.llm_provider import get_llm_provider
+
+            provider = get_llm_provider(agent_number=3)
+            try:
+                llm_available = _run_async(
+                    asyncio.wait_for(provider.health_check(), timeout=HEALTH_CHECK_TIMEOUT_SECONDS)
+                )
+            except TimeoutError:
+                logger.warning(
+                    f"Agent 3: LLM provider '{provider.provider_name}' health check timed out "
+                    f"after {HEALTH_CHECK_TIMEOUT_SECONDS}s — using rule-based fallback"
+                )
+                llm_available = False
+            if llm_available:
+                logger.info(
+                    f"Agent 3: LLM provider '{provider.provider_name}/{provider.model_name}' "
+                    "is available — attempting LLM gap analysis"
+                )
+            else:
+                logger.info(f"Agent 3: LLM provider '{provider.provider_name}' is unreachable — using rule-based fallback")
+        except Exception as exc:
+            logger.warning(f"Agent 3: could not initialise LLM provider ({exc}) — using rule-based fallback")
+
+        if llm_available and provider is not None:
+            # Retrieve real spec language to ground the LLM's gap analysis
+            spec_context = _retrieve_spec_context_for_gaps(project_id)
+            if spec_context:
+                logger.info("Agent 3: injecting spec retrieval context into LLM prompt")
+            llm_items, in_tok, out_tok, cache_create, cache_read = _run_async(
+                _llm_gap_analysis(parsed_sections, provider, spec_context=spec_context)
             )
-            analysis_method = "llm"
-            gap_dicts = _llm_items_to_gap_dicts(llm_items)
-            for gap in gap_dicts:
-                scored_gaps.append(risk_tagger_tool(gap))
-            logger.info(
-                f"Agent 3: LLM path succeeded — {len(scored_gaps)} gaps identified "
-                f"(provider={provider.provider_name}, model={provider.model_name})"
-            )
-        else:
-            logger.warning("Agent 3: LLM returned no valid gap items — falling back to rule-based analysis")
+            if llm_items:
+                log_token_usage(
+                    db=db,
+                    project_id=project_id,
+                    agent_number=3,
+                    provider=provider.provider_name,
+                    model=provider.model_name,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
+                    cache_creation_tokens=cache_create,
+                    cache_read_tokens=cache_read,
+                )
+                analysis_method = "llm"
+                gap_dicts = _llm_items_to_gap_dicts(llm_items)
+                for gap in gap_dicts:
+                    scored_gaps.append(risk_tagger_tool(gap))
+                logger.info(
+                    f"Agent 3: LLM path succeeded — {len(scored_gaps)} gaps identified "
+                    f"(provider={provider.provider_name}, model={provider.model_name})"
+                )
+            else:
+                logger.warning("Agent 3: LLM returned no valid gap items — falling back to rule-based analysis")
 
     # -----------------------------------------------------------------------
     # Rule-based fallback — Sprint 17.2-v2: domain rules Priority 1, generic Priority 2
