@@ -33,3 +33,4 @@ apex/backend/tests/fixtures/pb/*.xlsx
 
 # Local scratch workspace (e.g., pb_batch downloads)
 tmp/
+.claude/
