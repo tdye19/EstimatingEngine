@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   listDocuments, deleteDocument, bulkDeleteDocuments, runPipeline,
-  getPipelineStatus, getDocumentFileUrl, uploadBatchZip,
+  getPipelineStatus, getDocumentSignedUrl, uploadBatchZip,
   uploadDocument, initChunkedUpload, uploadChunk, completeChunkedUpload,
 } from '../../api';
 import { FileText, Clock, CheckCircle2, XCircle, Loader2, Trash2, Play, Eye, Archive, FolderUp } from 'lucide-react';
@@ -96,6 +96,7 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
 
   const [error, setError] = useState('');
   const [viewingDoc, setViewingDoc] = useState(null);
+  const [viewingDocUrl, setViewingDocUrl] = useState(null);
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -124,6 +125,16 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
   };
 
   useEffect(loadDocs, [projectId, refreshKey]);
+
+  const handleViewDoc = async (doc) => {
+    try {
+      const { signed_url } = await getDocumentSignedUrl(projectId, doc.id);
+      setViewingDoc(doc);
+      setViewingDocUrl(signed_url);
+    } catch (err) {
+      setError(err.message || 'Failed to open document');
+    }
+  };
 
   // Cleanup poll on unmount
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
@@ -421,11 +432,11 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
 
   return (
     <div className="space-y-4">
-      {viewingDoc && (
+      {viewingDoc && viewingDocUrl && (
         <PdfViewer
-          url={getDocumentFileUrl(projectId, viewingDoc.id)}
+          url={viewingDocUrl}
           filename={viewingDoc.filename}
-          onClose={() => setViewingDoc(null)}
+          onClose={() => { setViewingDoc(null); setViewingDocUrl(null); }}
         />
       )}
       <div className="flex items-center justify-between">
@@ -601,7 +612,7 @@ export default function DocumentsTab({ projectId, refreshKey, onUploaded, onPipe
                     <td className="px-4 py-3 flex items-center gap-1">
                       {doc.file_type === 'pdf' && (
                         <button
-                          onClick={() => setViewingDoc({ id: doc.id, filename: doc.filename })}
+                          onClick={() => handleViewDoc(doc)}
                           className="p-1 rounded text-gray-300 hover:text-apex-600 hover:bg-apex-50 transition-colors"
                           title="View document"
                         >

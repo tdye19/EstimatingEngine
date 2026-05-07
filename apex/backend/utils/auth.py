@@ -51,6 +51,32 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+BLOB_TOKEN_TTL_SECONDS = 300  # 5-minute max per spec
+
+
+def create_blob_token(doc_id: int, ttl_seconds: int = BLOB_TOKEN_TTL_SECONDS) -> str:
+    """Issue a short-lived signed token scoped to a single document (for browser-direct access)."""
+    expire = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
+    return jwt.encode({"sub": str(doc_id), "type": "blob", "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verify_blob_token(blob_token: str) -> int:
+    """Validate a blob token and return the encoded doc_id. Raises 401 on any failure."""
+    try:
+        payload = jwt.decode(blob_token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired blob token") from exc
+    if payload.get("type") != "blob":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+    sub = payload.get("sub")
+    if sub is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid blob token")
+    try:
+        return int(sub)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid blob token") from exc
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: Session = Depends(get_db),

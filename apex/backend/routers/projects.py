@@ -9,7 +9,7 @@ import shutil
 import time
 import traceback
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 
@@ -35,7 +35,16 @@ from apex.backend.services.proposal_form_excel_service import (
     build_export_filename,
     render_proposal_form_xlsx,
 )
-from apex.backend.utils.auth import ALGORITHM, SECRET_KEY, get_authorized_project, get_current_user, require_auth
+from apex.backend.utils.auth import (
+    ALGORITHM,
+    BLOB_TOKEN_TTL_SECONDS,
+    SECRET_KEY,
+    create_blob_token,
+    get_authorized_project,
+    get_current_user,
+    require_auth,
+    verify_blob_token,
+)
 from apex.backend.utils.feature_flags import feature_visible
 from apex.backend.utils.schemas import (
     AgentStepStatus,
@@ -50,6 +59,10 @@ from apex.backend.utils.schemas import (
 )
 
 router = APIRouter(prefix="/api/projects", tags=["projects"], dependencies=[Depends(require_auth)])
+
+# Blob-token-authenticated routes use their own router so they bypass the global require_auth.
+# Auth is enforced per-request via verify_blob_token instead.
+blob_router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -890,39 +903,47 @@ def run_single_agent(
     )
 
 
-@router.get("/{project_id}/documents/{doc_id}/file")
+@router.post("/{project_id}/documents/{doc_id}/signed-url")
+def get_document_signed_url(
+    project_id: int,
+    doc_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """Issue a short-lived signed URL for browser-direct document access."""
+    get_authorized_project(project_id, user, db)
+    doc = (
+        db.query(Document)
+        .filter(
+            Document.id == doc_id,
+            Document.project_id == project_id,
+            Document.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    blob_token = create_blob_token(doc_id)
+    expires_at = (datetime.now(UTC) + timedelta(seconds=BLOB_TOKEN_TTL_SECONDS)).isoformat()
+    signed_url = f"/api/projects/{project_id}/documents/{doc_id}/file?blob_token={blob_token}"
+    return {"signed_url": signed_url, "expires_at": expires_at}
+
+
+@blob_router.get("/{project_id}/documents/{doc_id}/file")
 def get_document_file(
     project_id: int,
     doc_id: int,
-    token: str = Query(None),
+    blob_token: str = Query(...),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
-    """Serve the actual document file for viewing."""
-    from jose import JWTError
-    from jose import jwt as jose_jwt
+    """Serve document file. Requires a short-lived signed blob token (not a user JWT)."""
+    from fastapi.responses import FileResponse
 
-    # If no user from Authorization header, try the query-string token
-    if user is None and token:
-        try:
-            payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            sub = payload.get("sub")
-            if sub is not None:
-                user = (
-                    db.query(User)
-                    .filter(
-                        User.id == int(sub),
-                        User.is_deleted == False,  # noqa: E712
-                    )
-                    .first()
-                )
-        except (JWTError, ValueError):
-            pass
+    verified_doc_id = verify_blob_token(blob_token)
+    if verified_doc_id != doc_id:
+        raise HTTPException(status_code=401, detail="Token does not match document")
 
-    if user is None:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    get_authorized_project(project_id, user, db)
     doc = (
         db.query(Document)
         .filter(
@@ -940,8 +961,6 @@ def get_document_file(
         file_path = os.path.join(os.getcwd(), file_path)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
-
-    from fastapi.responses import FileResponse
 
     media_type = {
         "pdf": "application/pdf",

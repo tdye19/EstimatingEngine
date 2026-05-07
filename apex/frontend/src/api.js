@@ -92,10 +92,8 @@ export const uploadChunk = (projectId, uploadId, chunkNumber, chunkBlob) => {
 export const completeChunkedUpload = (projectId, uploadId) =>
   request(`/projects/${projectId}/documents/upload/${uploadId}/complete`, { method: 'POST' });
 
-export function getDocumentFileUrl(projectId, docId) {
-  const token = localStorage.getItem('apex_token');
-  return `${BASE}/projects/${projectId}/documents/${docId}/file?token=${token}`;
-}
+export const getDocumentSignedUrl = (projectId, docId) =>
+  request(`/projects/${projectId}/documents/${docId}/signed-url`, { method: 'POST' });
 
 // ── Delete ────────────────────────────────────────────
 export const deleteProject = (id) =>
