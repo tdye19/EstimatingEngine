@@ -695,8 +695,16 @@ def run_gap_analysis_agent(db: Session, project_id: int) -> dict:
             for gap in domain_gaps:
                 scored_gaps.append(risk_tagger_tool(gap))
         else:
-            logger.info("Agent 3: no domain rules triggered — falling back to generic CSI checklist")
             project_divisions = set(s.division_number for s in sections)
+            logger.warning(
+                "Agent 3 domain rules returned 0 findings on project_id=%d. "
+                "Available divisions in scope: %s. "
+                "Falling back to generic CSI checklist. This is the #4 doctrine "
+                "anti-pattern — investigate Agent 2 extraction coverage.",
+                project_id,
+                sorted(d for d in project_divisions if d),
+            )
+            analysis_method = "rule_based_empty_fallback_to_checklist"
             core_divisions = {"03", "05", "07", "08", "09"}
             check_divisions = project_divisions | core_divisions
             checklist = {div: items for div, items in MASTER_SCOPE_CHECKLIST.items() if div in check_divisions}

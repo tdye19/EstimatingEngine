@@ -125,7 +125,10 @@ def test_llm_call_times_out_falls_back_to_rule_based(
     from apex.backend.models.gap_report import GapReport
 
     report = db_session.query(GapReport).filter(GapReport.id == result["report_id"]).one()
-    assert (report.metadata_json or {}).get("analysis_method") == "rule_based"
+    assert (report.metadata_json or {}).get("analysis_method") in {
+        "rule_based",
+        "rule_based_empty_fallback_to_checklist",
+    }
 
 
 def test_health_check_times_out_skips_llm(db_session, project_with_specs, monkeypatch):
@@ -147,7 +150,10 @@ def test_health_check_times_out_skips_llm(db_session, project_with_specs, monkey
     from apex.backend.models.gap_report import GapReport
 
     report = db_session.query(GapReport).filter(GapReport.id == result["report_id"]).one()
-    assert (report.metadata_json or {}).get("analysis_method") == "rule_based"
+    assert (report.metadata_json or {}).get("analysis_method") in {
+        "rule_based",
+        "rule_based_empty_fallback_to_checklist",
+    }
 
 
 def test_llm_call_exception_still_handled(db_session, project_with_specs):
@@ -164,4 +170,7 @@ def test_llm_call_exception_still_handled(db_session, project_with_specs):
     from apex.backend.models.gap_report import GapReport
 
     report = db_session.query(GapReport).filter(GapReport.id == result["report_id"]).one()
-    assert (report.metadata_json or {}).get("analysis_method") == "rule_based"
+    assert (report.metadata_json or {}).get("analysis_method") in {
+        "rule_based",
+        "rule_based_empty_fallback_to_checklist",
+    }
