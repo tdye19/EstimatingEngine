@@ -1,0 +1,282 @@
+{
+  "project_id": 5,
+  "timestamp": "20260507T152835Z",
+  "documents": [
+    {
+      "id": 6,
+      "filename": "2025-11-21 KCCU CI 1 Specifications .pdf",
+      "file_type": "pdf",
+      "classification": "spec",
+      "page_count": 175,
+      "raw_text_len": 387352,
+      "raw_text_first_500": "KCCU \n \n2025-006 \nNew Headquarters \n \n11.21.2025 \nBattle Creek, Michigan \n \n \nTable of Contents \n1\nTABLE OF CONTENTS \n \nDIVISION 14 - CONVEYING EQUIPMENT\n142100 \nElectric Traction Elevators \n \nDIVISION 23 \u2013 HEATING, VENTILATING AND AIR-CONDITIONING (HVAC) \n231123 \nFacility Natural-Gas Piping \n \nDIVISION 26 \u2013 ELECTRICAL \n260500 \nGeneral Electrical Requirements \n \n260519 \nLow-Voltage Electrical Power Conductors and Cables \n \n260526 \nGrounding and Bonding for Electrical Systems \n \n260533.13 \nCondui",
+      "raw_text_last_500": "ction Issuance No. 1\n\nKCCU \n \n2025-006 \nNew Headquarters \n \n11.21.2025 \nBattle Creek, Michigan \n \n \nWATER DISTRIBUTION \n \n334400-7 \n \n \n \na. \nPressure test. \n \n \nb. \nFlush. \n \n \nc. \nChlorinate. \n \n \nd. \nWait 24 hours. \n \n \ne. \nFlush. \n \n \nf. \nBacteriological sample. \n \n \ng. \nWait 24 hours - DO NOT FLUSH. \n \n \nh. \nBacteriological sample. \n \n \nI. \nPlace in service, or upon failed sample, repeat entire sequence. \n \n \n \nEND OF SECTION 334400 \n \nConstruction Issuance No. 1\nConstruction Issuance No. 1",
+      "patterns": {
+        "csi_section_headers": 0,
+        "bare_site_civil_6digit": 100,
+        "wc_headings": 2,
+        "work_category_no": 0,
+        "division_headers": 6
+      }
+    },
+    {
+      "id": 7,
+      "filename": "KCCU_Volume_2_Work_Scopes_12_1_2025.pdf",
+      "file_type": "pdf",
+      "classification": "work_scope",
+      "page_count": 28,
+      "raw_text_len": 71482,
+      "raw_text_first_500": "PROJECT MANUAL \n \n \nKCCU Headquarters  \n \nBattle Creek, MI \n \n \n \n \n \n \nVOLUME 2 \n \nBid Package No. 1 \n \nMonday, December 1, 2025 \n \n \nSite, Civil, Elevator, Generator Procurement, Site Electrical & Temp. Electrical \nService \n \n \n \nCONSTRUCTION MANAGER \n \nThe Christman Company \n \n208 N. Capitol Avenue \n \nLansing, Michigan, 48933-1357 \n \n517-482-1488 \n \n \n \nArchitect\nMechanical & Electrical Engineer\nMayottegroup Architects \n6240 W. Mt. Hope \nLansing, MI 48917\nHED\n123 West 5th Street\nRoyal Oak, MI",
+      "raw_text_last_500": "WC 35 -2 \nWC 35  Material Testing \nAllowances: \nThis Contractor shall include in their Base Bid a Construction Manager\u2019s allowance of $0.  Reference Section \n01020 for specific instructions on allowances. \n \nUnit Prices: \nUnit Prices are to be complete furnished in-place operations, and include all costs, incidental materials and work, \ninsurance, fringes, bonds, engineering, overhead and profit.  Reference the Trade Contract Proposal form for \nunit pricing required. \nEnd of Work Category No. 35",
+      "patterns": {
+        "csi_section_headers": 0,
+        "bare_site_civil_6digit": 9,
+        "wc_headings": 104,
+        "work_category_no": 16,
+        "division_headers": 0
+      }
+    }
+  ],
+  "agent_2_runs": [
+    {
+      "run_id": 32,
+      "started_at": "2026-05-07T14:49:15.769154",
+      "completed_at": "2026-05-07T14:49:15.794442",
+      "duration_ms": 25.31,
+      "status": "failed",
+      "output_data": null,
+      "error_message": "LLM provider 'ollama' failed health check \u2014 spec parsing requires LLM and cannot fall back to regex"
+    },
+    {
+      "run_id": 40,
+      "started_at": "2026-05-07T14:49:45.683734",
+      "completed_at": "2026-05-07T14:49:45.717802",
+      "duration_ms": 34.088,
+      "status": "failed",
+      "output_data": null,
+      "error_message": "LLM provider 'ollama' failed health check \u2014 spec parsing requires LLM and cannot fall back to regex"
+    },
+    {
+      "run_id": 48,
+      "started_at": "2026-05-07T14:52:12.673248",
+      "completed_at": "2026-05-07T15:03:17.708095",
+      "duration_ms": 665034.864,
+      "status": "completed",
+      "output_data": {
+        "sections_parsed": 19,
+        "documents_processed": 1,
+        "parse_method": "llm",
+        "results": [
+          {
+            "document_id": 6,
+            "filename": "2025-11-21 KCCU CI 1 Specifications .pdf",
+            "sections_found": 19,
+            "parse_method": "llm",
+            "status": "success"
+          }
+        ],
+        "assembly_parameters": {
+          "division_03_count": 0,
+          "enriched": 0,
+          "extraction_methods": {},
+          "warnings": [],
+          "duration_ms": 2.162644000236469
+        },
+        "dedup": {
+          "inserted": 19,
+          "replaced": 0,
+          "skipped": 0,
+          "errors": 0,
+          "warnings": [
+            "Upserted 0 existing sections; inserted 19 new; skipped 0 shorter duplicates"
+          ]
+        }
+      },
+      "error_message": null
+    }
+  ],
+  "agent_2_coverage": {
+    "14": 1,
+    "23": 1,
+    "26": 9,
+    "31": 2,
+    "32": 3,
+    "33": 3
+  },
+  "agent_2_inferred_method": "LLM_LIKELY",
+  "agent_2b_runs": [
+    {
+      "run_id": 33,
+      "agent_number": 25,
+      "agent_name": "Work Scope Parser Agent",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "status": "skipped",
+      "output_data": null,
+      "error_message": null
+    },
+    {
+      "run_id": 41,
+      "agent_number": 25,
+      "agent_name": "Work Scope Parser Agent",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "status": "skipped",
+      "output_data": null,
+      "error_message": null
+    },
+    {
+      "run_id": 49,
+      "agent_number": 25,
+      "agent_name": "Work Scope Parser Agent",
+      "started_at": "2026-05-07T15:03:17.711569",
+      "completed_at": "2026-05-07T15:07:25.401059",
+      "duration_ms": 247689.51,
+      "status": "completed",
+      "output_data": {
+        "project_id": 5,
+        "documents_examined": 2,
+        "documents_parsed": 1,
+        "work_categories_created": 8,
+        "work_categories_updated": 0,
+        "parse_methods": {
+          "llm": 8,
+          "regex": 0,
+          "regex_fallback": 0
+        },
+        "classification_summary": {
+          "standalone_work_scope": 1,
+          "embedded_work_scope": 0,
+          "no_work_scope": 1
+        },
+        "warnings": [],
+        "duration_ms": 247680.88657999987
+      },
+      "error_message": null
+    }
+  ],
+  "agent_2b_inferred_method": "LLM_LIKELY",
+  "work_categories": [
+    {
+      "id": 1,
+      "wc_number": "WC 00",
+      "title": "General Requirements for All Subcontractors",
+      "work_included_count": 0,
+      "related_work_by_others_count": 0,
+      "add_alternates_count": 0,
+      "allowances_count": 0,
+      "unit_prices_count": 0,
+      "parse_method": "llm",
+      "parse_confidence": 0.85
+    },
+    {
+      "id": 2,
+      "wc_number": "WC 02",
+      "title": "Earthwork and Site Utilities",
+      "work_included_count": 6,
+      "related_work_by_others_count": 10,
+      "add_alternates_count": 1,
+      "allowances_count": 1,
+      "unit_prices_count": 1,
+      "parse_method": "llm",
+      "parse_confidence": 0.85
+    },
+    {
+      "id": 3,
+      "wc_number": "WC 05",
+      "title": "Site Concrete",
+      "work_included_count": 6,
+      "related_work_by_others_count": 7,
+      "add_alternates_count": 1,
+      "allowances_count": 1,
+      "unit_prices_count": 1,
+      "parse_method": "llm",
+      "parse_confidence": 0.85
+    },
+    {
+      "id": 4,
+      "wc_number": "WC 06",
+      "title": "Asphalt Paving",
+      "work_included_count": 7,
+      "related_work_by_others_count": 4,
+      "add_alternates_count": 0,
+      "allowances_count": 1,
+      "unit_prices_count": 1,
+      "parse_method": "llm",
+      "parse_confidence": 0.85
+    },
+    {
+      "id": 5,
+      "wc_number": "WC 07",
+      "title": "Fencing",
+      "work_included_count": 6,
+      "related_work_by_others_count": 1,
+      "add_alternates_count": 1,
+      "allowances_count": 1,
+      "unit_prices_count": 1,
+      "parse_method": "llm",
+      "parse_confidence": 0.85
+    },
+    {
+      "id": 6,
+      "wc_number": "WC 28A",
+      "title": "Generator Procurement, Exterior Site Electrical and Temp. Electric",
+      "work_included_count": 23,
+      "related_work_by_others_count": 6,
+      "add_alternates_count": 1,
+      "allowances_count": 1,
+      "unit_prices_count": 1,
+      "parse_method": "llm",
+      "parse_confidence": 0.85
+    },
+    {
+      "id": 7,
+      "wc_number": "WC 30",
+      "title": "Elevators",
+      "work_included_count": 10,
+      "related_work_by_others_count": 7,
+      "add_alternates_count": 0,
+      "allowances_count": 1,
+      "unit_prices_count": 1,
+      "parse_method": "llm",
+      "parse_confidence": 0.85
+    },
+    {
+      "id": 8,
+      "wc_number": "WC 35",
+      "title": "Materials Testing",
+      "work_included_count": 4,
+      "related_work_by_others_count": 1,
+      "add_alternates_count": 0,
+      "allowances_count": 1,
+      "unit_prices_count": 1,
+      "parse_method": "llm",
+      "parse_confidence": 0.85
+    }
+  ],
+  "hypotheses": [
+    "Agent 2 working as designed \u2014 Div 31/32/33 sections ARE present in DB. Handoff observation may reflect an earlier failed run (regex fallback), not the most recent LLM run. Verify against run timestamps."
+  ],
+  "routing_analysis": [
+    {
+      "doc_id": 6,
+      "filename": "2025-11-21 KCCU CI 1 Specifications .pdf",
+      "classification": "spec",
+      "routed_agent2_spec": true,
+      "routed_agent2b_work_scopes": false,
+      "wc_pattern_count": 2,
+      "flag": null
+    },
+    {
+      "doc_id": 7,
+      "filename": "KCCU_Volume_2_Work_Scopes_12_1_2025.pdf",
+      "classification": "work_scope",
+      "routed_agent2_spec": false,
+      "routed_agent2b_work_scopes": true,
+      "wc_pattern_count": 104,
+      "flag": null
+    }
+  ]
+}
