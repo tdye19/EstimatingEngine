@@ -167,4 +167,16 @@ MUST acknowledge that you are pattern-matching rather than reasoning,
 and produce a different response (or no response) rather than
 continuing to generate output that sounds plausible but isn't grounded.
 
+### 11.7 Verify Before Destructive Operations
+
+Before recommending paste-over, deletion, replacement, or wholesale
+rewrite of any file, configuration, or content:
+
+- You MUST ask to see the current state first.
+- You MUST NOT recommend destructive operations based on assumptions
+  about what currently exists.
+- This applies to: project instructions, config files, schemas being
+  migrated, code being rewritten, and any user-managed content where
+  prior state has value.
+
 ---
