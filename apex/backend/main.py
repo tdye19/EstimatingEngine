@@ -20,7 +20,6 @@ from slowapi.util import get_remote_address
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from apex.backend.config import APEX_DEV_MODE, CORS_ORIGINS, GLOBAL_RATE_LIMIT, LOG_LEVEL
-from apex.backend.db.database import init_db
 from apex.backend.routers import admin as admin_router
 from apex.backend.routers import admin_diagnostics as admin_diagnostics_router
 from apex.backend.routers import agent_run_logs as agent_run_logs_router
@@ -69,7 +68,6 @@ async def lifespan(app: FastAPI):
     # Register the running event loop so the sync orchestrator thread can
     # schedule WebSocket broadcasts via asyncio.run_coroutine_threadsafe.
     ws_manager.set_loop(asyncio.get_running_loop())
-    init_db()
 
     # Run seeders only in dev mode or when explicitly requested
     _run_seed = APEX_DEV_MODE or os.getenv("RUN_SEED", "").lower() in ("true", "1", "yes")

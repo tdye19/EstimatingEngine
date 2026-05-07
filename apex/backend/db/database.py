@@ -3,7 +3,7 @@
 import logging
 import os
 
-from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 _db_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -55,41 +55,3 @@ def get_db():
 
 # Schema migrations handled by Alembic — see apex/backend/alembic/versions/
 # Run: PYTHONPATH=. alembic -c apex/backend/alembic.ini upgrade head
-def init_db():
-    ensure_project_context_columns(engine)
-
-
-def ensure_project_context_columns(eng) -> None:
-    """Add decision-system context columns to the existing projects table.
-
-    Uses try/except per column so it is safe to call on an already-migrated DB
-    (SQLite raises OperationalError when a column already exists).
-    """
-    new_columns = [
-        ("project_type", "VARCHAR(100)"),
-        ("market_sector", "VARCHAR(100)"),
-        ("region", "VARCHAR(100)"),
-        ("delivery_method", "VARCHAR(50)"),
-        ("contract_type", "VARCHAR(50)"),
-        ("complexity_level", "VARCHAR(20)"),
-        ("schedule_pressure", "VARCHAR(20)"),
-        ("size_sf", "FLOAT"),
-        ("scope_types", "TEXT"),
-    ]
-    inspector = inspect(eng)
-    if "projects" not in inspector.get_table_names():
-        logger.debug("Project table does not exist; skipping context column migration")
-        return
-
-    existing_cols = {col_info["name"] for col_info in inspector.get_columns("projects")}
-    with eng.connect() as conn:
-        for col_name, col_type in new_columns:
-            if col_name in existing_cols:
-                continue
-            try:
-                conn.execute(text(f"ALTER TABLE projects ADD COLUMN {col_name} {col_type}"))
-                conn.commit()
-                logger.debug("Added column projects.%s", col_name)
-            except Exception:
-                # Column creation failed or already exists (race condition).
-                conn.rollback()
