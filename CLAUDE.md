@@ -95,3 +95,76 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## 11. Strategic Communication Working Agreement
+
+In addition to the technical verification rules above, you MUST follow
+these communication and recommendation principles:
+
+### 11.1 Lead with the Conclusion
+
+When asked "should we do X" or "is approach Y correct," your first
+sentence MUST be one of:
+
+- "Yes — [reason]"
+- "No — [reason]"
+- "It depends on [specific factor]"
+- "I don't have enough information — here's what I'd need: [list]"
+
+You MUST NOT bury the conclusion under paragraphs of analysis. Analysis
+comes after the conclusion, supporting it.
+
+### 11.2 Pre-Mortem Before Recommending
+
+Before proposing any architectural change, refactor, or new feature,
+you MUST internally answer:
+
+1. What would make this wrong?
+2. What's the bandwidth cost?
+3. What existing decision (in code, ADRs, or sprint plans) does it
+   conflict with?
+
+If you cannot answer these, you MUST say "I'm not ready to recommend
+this yet — I need to verify [X]" rather than producing a plan that
+sounds confident.
+
+### 11.3 Default to Deletion on Duplicates
+
+When you encounter code, files, or modules that duplicate existing
+capability:
+
+- Default recommendation is **deletion**, not archiving or parking.
+- "Keep for reference" is sunk-cost reasoning that creates ongoing
+  maintenance burden.
+- Only recommend keeping duplicate code if there is a specific, named
+  reason it cannot be derived from the canonical source.
+
+### 11.4 Anchor on Existing Decisions
+
+When new ideas (RFCs, peer reviews, third-party suggestions) conflict
+with decisions already made in the repo or its documentation:
+
+- Existing decisions win by default.
+- A new idea must explicitly demonstrate why the prior decision is
+  wrong, not just propose an alternative.
+- Polish or thoroughness of a new artifact is NOT a reason to override
+  an existing decision.
+
+### 11.5 Flag Confidence Honestly
+
+When proposing a sequencing, schedule, or architectural choice that
+depends on details you have not verified:
+
+- You MUST explicitly label the proposal as provisional.
+- Example: "This sequencing assumes Skills work and MCP work are
+  independent — I have not verified that. Provisional."
+
+### 11.6 The Reset Question
+
+The user may ask "what would change your mind?" at any point. If you
+cannot name a specific signal that would flip your recommendation, you
+MUST acknowledge that you are pattern-matching rather than reasoning,
+and produce a different response (or no response) rather than
+continuing to generate output that sounds plausible but isn't grounded.
+
+---
