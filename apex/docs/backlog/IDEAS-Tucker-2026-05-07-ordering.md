@@ -6,6 +6,10 @@ new product surface proposals (Insurance & Bond Requirements Analyzer,
 Contract Cost Intelligence Analyzer). This document explains where they
 slot in the existing roadmap.
 
+**Decision: Option B** — Sprint 22 stays Override Capture (critical for
+M2 data flywheel). New proposals slot as 22.5 and 22.6 immediately
+after Override Capture lands.
+
 ---
 
 ## Proposed slot summary
@@ -17,8 +21,9 @@ slot in the existing roadmap.
 | 19F | WC-SPEC-LINK hero feature | Planned |
 | 20 | Skills + RSMeans + Postgres | Planned |
 | 21 | MCP integration | Planned |
-| 22.1 | Insurance & Bond Requirements Analyzer | **NEW — Tucker 2026-05-07** |
-| 22.2 | Contract Cost Intelligence Analyzer | **NEW — Tucker 2026-05-07** |
+| 22 | Override Capture | Planned (critical path for M2) |
+| 22.5 | Insurance & Bond Requirements Analyzer | **NEW — Tucker 2026-05-07** |
+| 22.6 | Contract Cost Intelligence Analyzer | **NEW — Tucker 2026-05-07** |
 | 23–24 | Managed Agents migration | Planned |
 | 25 | Design + integrations | Planned |
 | 26+ | Calibration | Planned |
@@ -26,6 +31,19 @@ slot in the existing roadmap.
 ---
 
 ## Ordering rationale
+
+### Why post-Override-Capture (Sprint 22.5+)
+
+Override Capture is the keystone for the M2 data flywheel target
+(September 2026). Every bid run with override capture turned on
+produces calibration data that feeds every other APEX surface — gap
+analysis, rate intelligence, and (eventually) contract cost
+recommendations. Pushing Override Capture later to make room for new
+features starves the data flywheel and weakens the M2 narrative.
+
+The two new proposals are valuable but not on the critical path to M2.
+They slot after Override Capture, so the data flywheel keeps building
+while new product surface gets added.
 
 ### Why post-pilot (Sprint 22+)
 
@@ -43,7 +61,7 @@ Adding new product surface pre-pilot risks two failure modes:
    pilot polish. Squeezing two new features in costs depth on every
    item.
 
-### Why 22.1 (Insurance/Bond) before 22.2 (Contract Cost)
+### Why 22.5 (Insurance/Bond) before 22.6 (Contract Cost)
 
 Three reasons:
 
@@ -65,15 +83,17 @@ Three reasons:
 
 - **Pilot signal that contract risk pricing is the burning need at
   Christman.** If estimators ask "where's the contract risk analysis?"
-  during pilot week 1, prioritize 22.2 over 22.1.
+  during pilot week 1, prioritize 22.6 over 22.5.
 - **Christman risk officer joining the pilot conversation.** That user
-  has stronger interest in 22.1 (insurance/bond requirements) than
-  estimators do. If risk officer engagement happens, 22.1 becomes a
-  pre-pilot polish item instead of post-pilot expansion.
-- **A faster path to 22.2 via the calibration corpus appearing.** If
+  has stronger interest in 22.5 (insurance/bond requirements) than
+  estimators do. If risk officer engagement happens, 22.5 may move up
+  to be a pre-pilot polish item.
+- **A faster path to 22.6 via the calibration corpus appearing.** If
   Christman provides 10+ past bids with applied risk markups in the
-  pilot's first weeks, the long-pole dependency on 22.2 disappears
-  and it becomes just-as-easy as 22.1.
+  pilot's first weeks, the long-pole dependency on 22.6 disappears
+  and it becomes just-as-easy as 22.5.
+- **Override Capture lands ahead of schedule.** If Sprint 22 finishes
+  early, 22.5 immediately backfills.
 
 ### What would make this ordering wrong
 
@@ -82,7 +102,7 @@ Three reasons:
 - **If a competitor ships construction-estimating-grade contract cost
   intelligence first.** Document Crunch is the competitor to watch
   here. If they expand into bid-phase cost intelligence (rather than
-  staying in execution-phase legal review), 22.2 becomes urgent and
+  staying in execution-phase legal review), 22.6 becomes urgent and
   pre-pilot work becomes worth the squeeze.
 - **If the 19E.5 decision picks Direction B** (full rule schema
   restructure). That consumes 2–3 sprints of bandwidth and pushes 22.x
@@ -104,7 +124,7 @@ Justification:
 
 This is NOT recommended as a planned pre-pilot deliverable. It's a
 "bonus shot" if pilot prep finishes early. If pilot prep runs hot
-(typical), Insurance/Bond stays in 22.1 as planned.
+(typical), Insurance/Bond stays in 22.5 as planned.
 
 Contract Cost Intelligence does NOT have this stretch option — too much
 design and corpus work to compress safely.
