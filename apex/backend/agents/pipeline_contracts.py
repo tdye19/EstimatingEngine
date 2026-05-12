@@ -160,6 +160,39 @@ class Agent3Output(BaseModel):
     spec_vs_takeoff_gaps: int = 0  # count of spec-vs-takeoff cross-reference gaps
 
 
+class GapFinding(BaseModel):
+    """Internal gap finding — input/output model for Agent 3 pipeline and the rule validator.
+
+    Both LLM-path findings and rule-based findings are normalized to this model
+    before the validator runs. The five rule_* fields are attached exclusively by
+    validate_and_attach_rule_facts() and are never populated by the LLM.
+    """
+
+    division_number: str | None = None
+    section_number: str | None = None
+    title: str
+    gap_type: str
+    severity: str
+    description: str | None = None
+    recommendation: str | None = None
+    cost_impact_description: str | None = None
+    cost_impact_low: float | None = None
+    cost_impact_high: float | None = None
+    cost_unit: str | None = None
+    typical_responsibility: str | None = None
+    rfi_language: str | None = None
+    rule_id: str | None = None  # 19E.6.2: LLM may emit; validator strips invalid values
+    risk_score: float | None = None
+    # 19E.6.3: Validator-attached canonical fields — never populated by LLM
+    rule_standard_ref: str | None = None
+    rule_severity: str | None = None
+    rule_cost_range_text: str | None = None
+    rule_typical_responsibility: str | None = None
+    rule_rfi_template: str | None = None
+
+    model_config = ConfigDict(extra="allow")
+
+
 # ---------------------------------------------------------------------------
 # Agent 3.5 — Scope Gap Analysis (Sprint 18.3.1)
 # ---------------------------------------------------------------------------

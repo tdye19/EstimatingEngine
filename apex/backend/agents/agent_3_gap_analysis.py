@@ -739,6 +739,29 @@ def run_gap_analysis_agent(db: Session, project_id: int, force_rule_based: bool 
                 scored_gaps.append(risk_tagger_tool(gap))
 
     # -----------------------------------------------------------------------
+    # Validate rule_id citations; attach canonical library facts (19E.6.3)
+    # -----------------------------------------------------------------------
+    from apex.backend.agents.pipeline_contracts import GapFinding as _GapFinding
+    from apex.backend.agents.tools.rule_validator import validate_and_attach_rule_facts
+
+    _findings = [_GapFinding.model_validate(g) for g in scored_gaps]
+    _val = validate_and_attach_rule_facts(_findings)
+    scored_gaps = [f.model_dump() for f in _val.findings]
+
+    if _val.stripped_cite_count:
+        logger.warning(
+            "Agent 3: validator stripped %d invalid rule_id(s): %s",
+            _val.stripped_cite_count,
+            _val.stripped_rule_ids,
+        )
+    logger.info(
+        "Agent 3 rule validator: valid=%d stripped=%d no_cite=%d",
+        _val.valid_cite_count,
+        _val.stripped_cite_count,
+        _val.no_cite_count,
+    )
+
+    # -----------------------------------------------------------------------
     # Score, persist, and return
     # -----------------------------------------------------------------------
     scores = gap_scorer_tool(scored_gaps)
