@@ -37,7 +37,28 @@ class DomainGapRule(BaseModel):
     cost_impact_low: float | None = None
     cost_impact_high: float | None = None
     rfi_language: str = ""
+    standard_ref: str | None = None  # Referenced code standards (e.g. "ACI 318", "ASTM E1745")
     affected_csi_codes: list[str] = []
+
+    def to_grounding_view(self) -> dict:
+        """Grounding view serialized into the Agent 3 LLM prompt."""
+        return {
+            "rule_id": self.id,
+            "category": self.gap_type,
+            "trigger_summary": self.title,
+            "typical_responsibility": self.typical_responsibility or "TBD — author pending",
+        }
+
+    def to_canonical_facts(self) -> dict:
+        """Canonical facts the validator attaches to LLM-cited findings."""
+        return {
+            "rule_id": self.id,
+            "standard_ref": self.standard_ref,
+            "severity": self.severity,
+            "cost_range_text": self.cost_impact_description or "TBD — author pending",
+            "typical_responsibility": self.typical_responsibility or "TBD — author pending",
+            "rfi_template": self.rfi_language or "TBD — author pending",
+        }
 
 
 CONCRETE_GAP_RULES: list[DomainGapRule] = [
@@ -1012,3 +1033,21 @@ def run_domain_rules(
 
     logger.info(f"Domain rules: {len(triggered)} of {len(ALL_DOMAIN_RULES)} rules triggered")
     return triggered
+
+
+# ---------------------------------------------------------------------------
+# Canonical grounding accessors — Spec 19E.6.1
+# ---------------------------------------------------------------------------
+
+_RULE_INDEX: dict[str, DomainGapRule] = {r.id: r for r in ALL_DOMAIN_RULES}
+
+
+def get_grounding_view_all() -> list[dict]:
+    """Return grounding views for all 25 rules, ready to JSON-serialize into the Agent 3 prompt."""
+    return [r.to_grounding_view() for r in ALL_DOMAIN_RULES]
+
+
+def get_canonical_facts(rule_id: str) -> dict | None:
+    """Return canonical facts for a single rule by ID, or None for an unknown rule_id."""
+    rule = _RULE_INDEX.get(rule_id)
+    return rule.to_canonical_facts() if rule else None

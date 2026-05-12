@@ -1,0 +1,136 @@
+{
+  "spike": "19E-5",
+  "project_id": 5,
+  "timestamp": "2026-05-12T13:05:40.148300+00:00",
+  "provider": "openrouter",
+  "model": "claude-sonnet-4-6",
+  "metrics": {
+    "total_findings": 18,
+    "valid_cite_count": 9,
+    "hallucinated_count": 0,
+    "no_cite_count": 9,
+    "valid_cite_rate_overall": 0.5,
+    "valid_cite_rate_among_cited": 1.0,
+    "hallucinated_rate": 0.0,
+    "no_cite_rate": 0.5
+  },
+  "pass_fail": "PASS",
+  "fail_reasons": [],
+  "token_counts": {
+    "input_tokens": 5753,
+    "output_tokens": 3796,
+    "duration_ms": 81872.7,
+    "estimated_cost_usd": 0.074199
+  },
+  "classified_findings": [
+    {
+      "description": "The spec includes Section 23 11 23 Facility Natural-Gas Piping, but no Work Category assigns this scope to any subcontractor. There is no mechanical/plumbing WC in the bid package. Natural gas piping ",
+      "rule_id": null,
+      "classification": "no_cite",
+      "rule_trigger_summary": null
+    },
+    {
+      "description": "WC 28A covers exterior site electrical and generator procurement but there is no Work Category covering interior electrical distribution, lighting, power, fire alarm, low-voltage, or any other interio",
+      "rule_id": null,
+      "classification": "no_cite",
+      "rule_trigger_summary": null
+    },
+    {
+      "description": "WC 30 Elevators requires the elevator subcontractor to furnish embedded supports, anchors, and inserts and deliver them to the jobsite, but assigns installation of those embeds to 'assigned subcontrac",
+      "rule_id": "CGR-002",
+      "classification": "valid_cite",
+      "rule_trigger_summary": "Anchor Bolts & Steel Embeds Responsibility"
+    },
+    {
+      "description": "WC 28A states that exterior concrete pads for electrical equipment are to be installed by WC 05, but WC 05 (Site Concrete) makes no mention of generator pads, transformer pads, or other electrical equ",
+      "rule_id": null,
+      "classification": "no_cite",
+      "rule_trigger_summary": null
+    },
+    {
+      "description": "The spec includes Section 32 92 00 Turf and Grasses, and WC 02 lists it as 'For Reference Only.' No Work Category formally assigns landscaping, seeding, sodding, or irrigation installation. Marking tu",
+      "rule_id": "CIV-005",
+      "classification": "valid_cite",
+      "rule_trigger_summary": "Erosion Control Maintenance Responsibility & Duration"
+    },
+    {
+      "description": "No Work Category addresses dewatering during earthwork, utility installation, or foundation construction. WC 02 covers earth moving and site utilities but is silent on groundwater management. Dependin",
+      "rule_id": "CIV-001",
+      "classification": "valid_cite",
+      "rule_trigger_summary": "Dewatering Excluded from Earthwork Scope"
+    },
+    {
+      "description": "No Work Category addresses rock excavation. WC 02 covers earth moving per Section 31 20 00, but neither the WC nor the spec section text (empty) clarifies whether rock excavation is included, excluded",
+      "rule_id": "CIV-002",
+      "classification": "valid_cite",
+      "rule_trigger_summary": "Rock Excavation Not Addressed"
+    },
+    {
+      "description": "No Work Category addresses potential contaminated soil handling, disposal, or remediation. WC 02 covers site clearing and earth moving but is silent on contaminated material. If the site has a prior u",
+      "rule_id": "CIV-003",
+      "classification": "valid_cite",
+      "rule_trigger_summary": "Potential Contaminated Soil"
+    },
+    {
+      "description": "WC 02 covers storm drainage, sanitary sewer, and water distribution piping but does not explicitly address trench safety and shoring requirements. For deep utility installations, OSHA-compliant trench",
+      "rule_id": "CIV-008",
+      "classification": "valid_cite",
+      "rule_trigger_summary": "Trench Safety / Shoring for Utilities"
+    },
+    {
+      "description": "The earthwork balance \u2014 whether the site is cut-heavy or fill-heavy \u2014 is not addressed in any Work Category. WC 02 covers earth moving but does not specify whether excess soil export or import fill is",
+      "rule_id": "CIV-004",
+      "classification": "valid_cite",
+      "rule_trigger_summary": "Earthwork Balance \u2014 Import/Export Costs"
+    },
+    {
+      "description": "WC 02 covers utility installation including sanitary sewer and water distribution, but no Work Category addresses utility connection fees, tap fees, or meter fees charged by the municipality or utilit",
+      "rule_id": "CIV-010",
+      "classification": "valid_cite",
+      "rule_trigger_summary": "Utility Connection & Tap Fees"
+    },
+    {
+      "description": "WC 35 Materials Testing covers compaction testing for sitework, but the scope boundary between who pays for re-testing after failing compaction tests is not addressed in WC 02 or WC 35. If WC 02 fails",
+      "rule_id": "CIV-007",
+      "classification": "valid_cite",
+      "rule_trigger_summary": "Compaction Testing Responsibility"
+    },
+    {
+      "description": "WC 06 Asphalt Paving requires the paving subcontractor to coordinate manhole and catch basin casting adjustments with WC 02, but neither WC explicitly assigns responsibility for final casting adjustme",
+      "rule_id": null,
+      "classification": "no_cite",
+      "rule_trigger_summary": null
+    },
+    {
+      "description": "WC 05 Site Concrete includes curbs, gutters, sidewalks, and concrete paving but does not explicitly address erosion control measures required during and after concrete placement, nor does it address p",
+      "rule_id": null,
+      "classification": "no_cite",
+      "rule_trigger_summary": null
+    },
+    {
+      "description": "WC 28A includes generator procurement and installation per spec section 26 32 13, but does not address the fuel system for the generator \u2014 specifically the diesel fuel storage tank, secondary containm",
+      "rule_id": null,
+      "classification": "no_cite",
+      "rule_trigger_summary": null
+    },
+    {
+      "description": "No Work Category addresses fire protection (sprinkler) systems. There is no spec section for Division 21 in the provided list, and no WC references fire suppression. WC 28A references a coordination m",
+      "rule_id": null,
+      "classification": "no_cite",
+      "rule_trigger_summary": null
+    },
+    {
+      "description": "No Work Category addresses structural concrete, foundations, slab-on-grade, or structural framing (Division 03 or 05). The project has elevators (requiring a pit and hoistway structure) and a generato",
+      "rule_id": null,
+      "classification": "no_cite",
+      "rule_trigger_summary": null
+    },
+    {
+      "description": "No Work Category addresses interior mechanical systems (HVAC, plumbing fixtures, domestic water, sanitary waste inside the building). The only mechanical spec section present is 23 11 23 Natural Gas P",
+      "rule_id": null,
+      "classification": "no_cite",
+      "rule_trigger_summary": null
+    }
+  ],
+  "raw_llm_response": "[\n  {\n    \"description\": \"The spec includes Section 23 11 23 Facility Natural-Gas Piping, but no Work Category assigns this scope to any subcontractor. There is no mechanical/plumbing WC in the bid package. Natural gas piping from the meter to all equipment connections \u2014 including regulators, valves, flexible connectors, and pressure testing \u2014 is entirely unassigned. This is a critical cost omission that could result in a significant change order or project delay if not resolved before bid.\",\n    \"severity\": \"critical\",\n    \"affected_csi_division\": \"23\",\n    \"recommendation\": \"Confirm with the owner/CM whether a mechanical or plumbing subcontractor is being bid separately. If not, assign Section 23 11 23 to a specific WC and solicit a sub-bid. Clarify scope boundary at the utility meter and at all equipment connections.\"\n  },\n  {\n    \"description\": \"WC 28A covers exterior site electrical and generator procurement but there is no Work Category covering interior electrical distribution, lighting, power, fire alarm, low-voltage, or any other interior electrical systems. The spec sections listed under WC 28A are general electrical sections that would normally apply to both interior and exterior work, yet the WC title and description limit scope to exterior site electrical and the generator. Interior electrical rough-in, panels, devices, interior lighting, and associated systems appear to be entirely unassigned, representing a potentially very large cost gap.\",\n    \"severity\": \"critical\",\n    \"affected_csi_division\": \"26\",\n    \"recommendation\": \"Determine whether interior electrical is being bid under a separate future package (e.g., an interior fit-out package). If it is part of this bid, create a dedicated WC for interior electrical and assign all relevant spec sections. Clarify the exact scope boundary of WC 28A with the CM in writing before finalizing the bid.\"\n  },\n  {\n    \"description\": \"WC 30 Elevators requires the elevator subcontractor to furnish embedded supports, anchors, and inserts and deliver them to the jobsite, but assigns installation of those embeds to 'assigned subcontractor.' No WC explicitly accepts responsibility for installing elevator pit embeds, sill supports, or hoistway blockouts in concrete. This creates a scope gap between WC 30 and whatever concrete or structural WC would place these items. Missed embeds discovered after concrete pours result in costly core drilling or structural remediation.\",\n    \"severity\": \"high\",\n    \"affected_csi_division\": \"14\",\n    \"recommendation\": \"Identify which WC is responsible for installing elevator embeds furnished by WC 30. Add explicit language to the concrete or structural WC confirming responsibility for placing elevator pit embeds, sill supports, and hoistway blockouts per WC 30 shop drawings. Require 48-hour advance notice protocol to be acknowledged by the receiving WC.\",\n    \"rule_id\": \"CGR-002\"\n  },\n  {\n    \"description\": \"WC 28A states that exterior concrete pads for electrical equipment are to be installed by WC 05, but WC 05 (Site Concrete) makes no mention of generator pads, transformer pads, or other electrical equipment pads. The scope boundary for these pads \u2014 including sizing, reinforcement, grounding provisions, and conduit stub-ups \u2014 is not clearly assigned in WC 05. If WC 05 bidders do not include these pads, they will be a gap between the two trades.\",\n    \"severity\": \"high\",\n    \"affected_csi_division\": \"26\",\n    \"recommendation\": \"Add explicit language to WC 05 listing all electrical equipment pads by type and quantity, referencing the electrical drawings. Confirm WC 05 includes all reinforcement, embedded conduit sleeves, and anchor bolts for these pads. Require WC 28A to furnish pad layout drawings to WC 05 prior to bid finalization.\"\n  },\n  {\n    \"description\": \"The spec includes Section 32 92 00 Turf and Grasses, and WC 02 lists it as 'For Reference Only.' No Work Category formally assigns landscaping, seeding, sodding, or irrigation installation. Marking turf and grasses as 'For Reference Only' means no subcontractor is contractually obligated to perform this work. Erosion control and final site stabilization \u2014 which may be required by the stormwater pollution prevention plan (SWPPP) and local authority \u2014 could be left unperformed, creating regulatory and warranty risk.\",\n    \"severity\": \"high\",\n    \"affected_csi_division\": \"32\",\n    \"recommendation\": \"Confirm whether a separate landscaping/irrigation WC (e.g., WC 08) is planned for a future bid package. If this work is within the current bid scope, create a dedicated WC and assign Section 32 92 00 with full scope language. Clarify SWPPP obligations and who is responsible for maintaining erosion control and achieving final vegetative stabilization.\",\n    \"rule_id\": \"CIV-005\"\n  },\n  {\n    \"description\": \"No Work Category addresses dewatering during earthwork, utility installation, or foundation construction. WC 02 covers earth moving and site utilities but is silent on groundwater management. Depending on site conditions and depth of utility trenches or foundations, dewatering could be a significant cost. Without an explicit assignment, this scope will fall through the cracks between WC 02 and any future foundation WC.\",\n    \"severity\": \"high\",\n    \"affected_csi_division\": \"31\",\n    \"recommendation\": \"Add dewatering language to WC 02 or create a separate allowance/WC for dewatering. Review geotechnical report for groundwater depth and seasonal high water table. Clarify whether dewatering is included in WC 02 scope or excluded and carried as a GC allowance.\",\n    \"rule_id\": \"CIV-001\"\n  },\n  {\n    \"description\": \"No Work Category addresses rock excavation. WC 02 covers earth moving per Section 31 20 00, but neither the WC nor the spec section text (empty) clarifies whether rock excavation is included, excluded, or carried as a unit price alternate. If rock is encountered during site clearing, utility trenching, or foundation excavation, the cost exposure can be substantial and will likely result in a change order dispute if not addressed in the bid documents.\",\n    \"severity\": \"high\",\n    \"affected_csi_division\": \"31\",\n    \"recommendation\": \"Review the geotechnical report for rock probability. Add explicit language to WC 02 stating whether rock excavation is included or excluded. If excluded, establish a unit price alternate for rock removal. Consider requiring bidders to acknowledge the geotechnical report.\",\n    \"rule_id\": \"CIV-002\"\n  },\n  {\n    \"description\": \"No Work Category addresses potential contaminated soil handling, disposal, or remediation. WC 02 covers site clearing and earth moving but is silent on contaminated material. If the site has a prior use history or Phase I/II ESA findings, encountering contaminated soil during excavation or utility trenching could trigger regulatory requirements and significant unbudgeted disposal costs.\",\n    \"severity\": \"high\",\n    \"affected_csi_division\": \"31\",\n    \"recommendation\": \"Review Phase I and Phase II ESA reports for the site. Add contract language to WC 02 clarifying how contaminated soil discovery is handled \u2014 whether it is an owner risk item, a unit price, or an allowance. Ensure the contract clearly defines the protocol for stopping work and notifying the CM if contamination is encountered.\",\n    \"rule_id\": \"CIV-003\"\n  },\n  {\n    \"description\": \"WC 02 covers storm drainage, sanitary sewer, and water distribution piping but does not explicitly address trench safety and shoring requirements. For deep utility installations, OSHA-compliant trench shoring or sloping is mandatory regardless of whether the spec addresses it. Omitting this cost from WC 02 bids is common and can result in significant field cost exposure or safety violations.\",\n    \"severity\": \"high\",\n    \"affected_csi_division\": \"31\",\n    \"recommendation\": \"Add explicit trench safety and shoring language to WC 02, requiring compliance with OSHA 29 CFR 1926 Subpart P. Require bidders to include all shoring, sheeting, trench boxes, and dewatering necessary for safe trench excavation. Consider requiring a site-specific trench safety plan for utilities deeper than 5 feet.\",\n    \"rule_id\": \"CIV-008\"\n  },\n  {\n    \"description\": \"The earthwork balance \u2014 whether the site is cut-heavy or fill-heavy \u2014 is not addressed in any Work Category. WC 02 covers earth moving but does not specify whether excess soil export or import fill is included in the bid scope. Without a clear statement on earthwork balance, bidders may assume a balanced site and exclude trucking costs that could be substantial depending on cut/fill volumes.\",\n    \"severity\": \"medium\",\n    \"affected_csi_division\": \"31\",\n    \"recommendation\": \"Provide a cut/fill analysis or earthwork balance summary to WC 02 bidders. Add explicit language to WC 02 stating whether import or export of material is included, and if so, the estimated quantities and haul distances. If unknown, establish a unit price for import/export.\",\n    \"rule_id\": \"CIV-004\"\n  },\n  {\n    \"description\": \"WC 02 covers utility installation including sanitary sewer and water distribution, but no Work Category addresses utility connection fees, tap fees, or meter fees charged by the municipality or utility company. These fees can be significant and are frequently missed in bids when responsibility is not explicitly assigned.\",\n    \"severity\": \"medium\",\n    \"affected_csi_division\": \"33\",\n    \"recommendation\": \"Confirm with the owner whether utility connection and tap fees are owner-paid direct or included in the contractor's scope. Add explicit language to WC 02 or the general conditions clarifying responsibility for all utility fees, permits, and inspection costs associated with water, sewer, gas, and electric connections.\",\n    \"rule_id\": \"CIV-010\"\n  },\n  {\n    \"description\": \"WC 35 Materials Testing covers compaction testing for sitework, but the scope boundary between who pays for re-testing after failing compaction tests is not addressed in WC 02 or WC 35. If WC 02 fails a compaction test, the cost of rework and re-testing could be disputed between the earthwork sub and the testing WC.\",\n    \"severity\": \"medium\",\n    \"affected_csi_division\": \"31\",\n    \"recommendation\": \"Add language to WC 02 stating that the earthwork subcontractor is responsible for all rework costs if compaction tests fail, and that re-testing costs will be back-charged to WC 02. Clarify in WC 35 that the NTE budget covers initial testing only, with re-testing costs allocated to the failing trade.\",\n    \"rule_id\": \"CIV-007\"\n  },\n  {\n    \"description\": \"WC 06 Asphalt Paving requires the paving subcontractor to coordinate manhole and catch basin casting adjustments with WC 02, but neither WC explicitly assigns responsibility for final casting adjustments (raising or lowering frames and covers to match finished pavement grade). This is a common scope gap that results in disputes and unfinished work at project closeout.\",\n    \"severity\": \"medium\",\n    \"affected_csi_division\": \"32\",\n    \"recommendation\": \"Add explicit language to WC 02 confirming that final adjustment of all manhole frames, catch basin castings, valve boxes, and utility covers to finished pavement grade is included in WC 02 scope. Confirm WC 06 is responsible only for coordinating timing, not performing the adjustments.\"\n  },\n  {\n    \"description\": \"WC 05 Site Concrete includes curbs, gutters, sidewalks, and concrete paving but does not explicitly address erosion control measures required during and after concrete placement, nor does it address protection of adjacent asphalt paving (WC 06) and landscaping areas (WC 02/08) during concrete operations. Damage to adjacent work by WC 05 operations is a common source of back-charges.\",\n    \"severity\": \"low\",\n    \"affected_csi_division\": \"32\",\n    \"recommendation\": \"Add language to WC 05 requiring protection of adjacent paving, utilities, and landscaped areas during concrete operations. Require WC 05 to repair any damage to adjacent work caused by their operations at no additional cost to the owner.\"\n  },\n  {\n    \"description\": \"WC 28A includes generator procurement and installation per spec section 26 32 13, but does not address the fuel system for the generator \u2014 specifically the diesel fuel storage tank, secondary containment, fuel piping, and fill station. Generator fuel systems are often specified under a separate section (e.g., Division 33 or a fuel system spec) or as part of the generator spec, and are frequently missed when spec section text is not available for review.\",\n    \"severity\": \"medium\",\n    \"affected_csi_division\": \"26\",\n    \"recommendation\": \"Review spec section 26 32 13 in full to determine whether the fuel storage tank, containment, and fuel piping are included in the generator spec or specified elsewhere. Confirm which WC is responsible for the complete fuel system including tank, secondary containment, piping, fill station, and any required environmental permits. Add explicit language to WC 28A if this scope is intended to be included.\"\n  },\n  {\n    \"description\": \"No Work Category addresses fire protection (sprinkler) systems. There is no spec section for Division 21 in the provided list, and no WC references fire suppression. WC 28A references a coordination meeting with the fire protection contractor, implying a fire protection scope exists, but it is entirely absent from both the spec sections and the Work Categories. This is a critical omission for a building with elevators and a generator.\",\n    \"severity\": \"critical\",\n    \"affected_csi_division\": \"21\",\n    \"recommendation\": \"Confirm whether fire protection is part of this bid package or a separate future package. If it is within scope, add the appropriate Division 21 spec sections and create a dedicated WC for fire suppression. Ensure elevator pit, hoistway, and machine room sprinkler heads are assigned to the fire protection WC and coordinated with WC 30.\"\n  },\n  {\n    \"description\": \"No Work Category addresses structural concrete, foundations, slab-on-grade, or structural framing (Division 03 or 05). The project has elevators (requiring a pit and hoistway structure) and a generator (requiring a structural pad), yet no WC covers structural concrete or steel. These are major cost items that appear entirely unassigned in the current bid package.\",\n    \"severity\": \"critical\",\n    \"affected_csi_division\": \"03\",\n    \"recommendation\": \"Confirm whether structural concrete and steel are part of a separate bid package (e.g., a shell/core package). If they are within this bid scope, immediately add Division 03 and Division 05 spec sections and create corresponding Work Categories. Coordinate elevator pit and hoistway structural requirements with WC 30.\"\n  },\n  {\n    \"description\": \"No Work Category addresses interior mechanical systems (HVAC, plumbing fixtures, domestic water, sanitary waste inside the building). The only mechanical spec section present is 23 11 23 Natural Gas Piping, which is itself unassigned. For a building with elevators and a generator, mechanical systems are a major scope area. Their complete absence from the WC structure suggests either a significant gap or a separate future package that should be confirmed.\",\n    \"severity\": \"critical\",\n    \"affected_csi_division\": \"23\",\n    \"recommendation\": \"Confirm with the owner/CM whether mechanical and plumbing systems are part of this bid package or a future interior package. If within scope, add all relevant Division 22 and Division 23 spec sections and create dedicated Work Categories. Clarify the scope boundary between site utilities (WC 02) and interior plumbing at the building foundation wall.\"\n  }\n]"
+}
