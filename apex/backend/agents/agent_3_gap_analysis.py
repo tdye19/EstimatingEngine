@@ -762,6 +762,24 @@ def run_gap_analysis_agent(db: Session, project_id: int, force_rule_based: bool 
     )
 
     # -----------------------------------------------------------------------
+    # Rule citation telemetry (Spec 19E.6.4) — LLM path uses validator output;
+    # fallback path records zeros (no LLM call means no LLM citations).
+    # -----------------------------------------------------------------------
+    if analysis_method == "llm":
+        rule_telemetry: dict | None = _val.to_telemetry_dict()
+    else:
+        n = len(_val.findings)
+        rule_telemetry = {
+            "total_findings": n,
+            "valid_cite_count": 0,
+            "stripped_cite_count": 0,
+            "no_cite_count": n,
+            "valid_rule_ids": [],
+            "stripped_rule_ids": [],
+            "path": "fallback",
+        }
+
+    # -----------------------------------------------------------------------
     # Score, persist, and return
     # -----------------------------------------------------------------------
     scores = gap_scorer_tool(scored_gaps)
@@ -880,5 +898,6 @@ def run_gap_analysis_agent(db: Session, project_id: int, force_rule_based: bool 
             "report_id": report.id,
             "sections_analyzed": len(parsed_sections),
             "spec_vs_takeoff_gaps": svt_gap_count,
+            "rule_telemetry": rule_telemetry,
         },
     )

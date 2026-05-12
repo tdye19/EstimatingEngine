@@ -33,6 +33,7 @@ class AgentRunLog(Base, TimestampMixin):
     model_name = Column(String(100), nullable=True)
     model_params_json = Column(JSON, nullable=True)
     confidence_summary = Column(JSON, nullable=True)
+    rule_telemetry = Column(JSON, nullable=True)
     output_schema_version = Column(String(50), nullable=True)
     parent_run_id = Column(Integer, ForeignKey("agent_run_logs.id", ondelete="SET NULL"), nullable=True)
 

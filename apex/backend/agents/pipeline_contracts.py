@@ -158,6 +158,7 @@ class Agent3Output(BaseModel):
     report_id: int
     sections_analyzed: int = Field(ge=0)
     spec_vs_takeoff_gaps: int = 0  # count of spec-vs-takeoff cross-reference gaps
+    rule_telemetry: dict | None = None  # 19E.6.4: ValidationResult summary for ADR telemetry
 
 
 class GapFinding(BaseModel):

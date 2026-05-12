@@ -175,6 +175,8 @@ class AgentOrchestrator:
             log.tokens_used = tokens
             log.output_summary = summary
             log.output_data = output_data
+            if output_data and "rule_telemetry" in output_data:
+                log.rule_telemetry = output_data["rule_telemetry"]
 
             if tokens == 0 and log.started_at is not None:
                 usage_records = (
