@@ -70,7 +70,7 @@ from slowapi.util import get_remote_address
 from apex.backend.config import (
     ALLOWED_EXTENSIONS,
     CHUNK_SIZE,
-    MAX_UPLOAD_BYTES,
+    MAX_UPLOAD_SIZE,
     PIPELINE_RATE_LIMIT,
     SESSION_TTL,
     UPLOAD_DIR,
@@ -351,11 +351,11 @@ async def chunked_upload_init(
             detail=f"File type '.{file_ext}' not allowed. Accepted: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
         )
 
-    # Validate file size
-    if data.file_size > MAX_UPLOAD_BYTES:
+    # Validate file size — fail with 413 so clients know it's a size limit, not a bad request
+    if data.file_size > MAX_UPLOAD_SIZE:
         raise HTTPException(
-            status_code=400,
-            detail=f"File too large ({data.file_size / 1024 / 1024:.1f} MB). Maximum: {MAX_UPLOAD_BYTES // 1024 // 1024} MB",
+            status_code=413,
+            detail=f"File too large ({data.file_size / 1024 / 1024:.1f} MB). Maximum: {MAX_UPLOAD_SIZE // 1024 // 1024} MB",
         )
 
     if data.file_size > 100 * 1024 * 1024:
@@ -420,8 +420,43 @@ async def chunked_upload_chunk(
         )
 
     chunk_data = await chunk.read()
+
+    # Per-chunk size enforcement — reject before touching disk
+    if len(chunk_data) > CHUNK_SIZE:
+        log.warning(
+            "Chunk size exceeded for upload %s: chunk=%d bytes, max=%d bytes — aborting session",
+            upload_id, len(chunk_data), CHUNK_SIZE,
+        )
+        cleanup_chunks(upload_id)
+        if session.temp_dir and os.path.isdir(session.temp_dir):
+            shutil.rmtree(session.temp_dir, ignore_errors=True)
+        db.delete(session)
+        db.commit()
+        raise HTTPException(
+            status_code=413,
+            detail=f"Chunk size {len(chunk_data)} exceeds maximum {CHUNK_SIZE}",
+        )
+
+    # Cumulative bytes enforcement — reject if total would exceed declared file size
+    new_bytes = session.bytes_received + len(chunk_data)
+    if new_bytes > session.file_size:
+        log.warning(
+            "Cumulative upload bytes exceeded for %s: cumulative=%d, declared=%d — aborting session",
+            upload_id, new_bytes, session.file_size,
+        )
+        cleanup_chunks(upload_id)
+        if session.temp_dir and os.path.isdir(session.temp_dir):
+            shutil.rmtree(session.temp_dir, ignore_errors=True)
+        db.delete(session)
+        db.commit()
+        raise HTTPException(
+            status_code=413,
+            detail=f"Cumulative upload size {new_bytes} exceeds declared file size {session.file_size}",
+        )
+
     get_chunk_path(upload_id, chunk_number).write_bytes(chunk_data)
 
+    session.bytes_received = new_bytes
     session.next_chunk = chunk_number + 1
     session.expires_at = datetime.utcnow() + timedelta(seconds=SESSION_TTL)
     db.commit()

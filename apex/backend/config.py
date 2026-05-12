@@ -11,7 +11,7 @@ UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "./uploads")
 CHUNK_SIZE: int = int(os.getenv("UPLOAD_CHUNK_SIZE", str(2 * 1024 * 1024)))  # 2 MB
 CHUNK_SIZE_BYTES: int = CHUNK_SIZE  # alias used by validation code
 SESSION_TTL: int = int(os.getenv("UPLOAD_SESSION_TTL", "1800"))  # 30 minutes
-MAX_UPLOAD_BYTES: int = int(os.getenv("MAX_UPLOAD_MB", "2048")) * 1024 * 1024
+MAX_UPLOAD_SIZE: int = int(os.getenv("MAX_UPLOAD_SIZE", str(500 * 1024 * 1024)))  # 500 MB
 ALLOWED_EXTENSIONS: set[str] = {
     "pdf",
     "docx",

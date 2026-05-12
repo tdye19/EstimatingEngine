@@ -18,6 +18,7 @@ class UploadSession(Base):
     content_type = Column(String(255), nullable=True)
     total_chunks = Column(Integer, nullable=False)
     next_chunk = Column(Integer, nullable=False, default=0)
+    bytes_received = Column(Integer, nullable=False, default=0)
     temp_dir = Column(String(1000), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     expires_at = Column(DateTime, nullable=False, index=True)
