@@ -208,6 +208,7 @@ class LLMGapItem(BaseModel):
     affected_csi_division: str
     recommendation: str
     gap_type: str | None = "missing_division"
+    rule_id: str | None = None  # 19E.6.2: optional rule citation; validated by Spec 19E.6.3
 
     @field_validator("severity", mode="before")
     @classmethod
@@ -322,15 +323,21 @@ GAP_ANALYSIS_SYSTEM_PROMPT = (
     "## Output Format\n\n"
     "Respond ONLY with a valid JSON array. No markdown fences, no explanation, no preamble — "
     "just the raw JSON array.\n\n"
-    "Each object must have exactly these five fields:\n"
+    "Each object must have these five required fields, plus an optional rule_id:\n"
     '  "description"          — clear explanation of the gap and its cost risk\n'
     '  "severity"             — one of: "critical", "high", "medium", "low"\n'
     '  "affected_csi_division"— the CSI division number as a string, e.g. "22" or "03"\n'
     '  "recommendation"       — specific action the estimator should take before finalising bid\n'
     '  "gap_type"             — one of: "missing_division", "implied_scope", '
-    '"missing_common", "coordination_gap"\n\n'
+    '"missing_common", "coordination_gap"\n'
+    '  "rule_id"              — (optional) matching rule identifier from DOMAIN RULES, '
+    'e.g. "CGR-001"; omit if no rule applies\n\n'
     "Include all significant gaps you identify. Do not fabricate gaps for divisions that are "
-    "legitimately out of scope for the apparent building type."
+    "legitimately out of scope for the apparent building type.\n\n"
+    "For each gap finding, if one of the listed domain rules applies, include a rule_id field "
+    "with the matching rule's identifier. If no rule applies, omit the rule_id field. "
+    "You MUST NOT draft cost ranges, dollar amounts, or canonical responsibility text. "
+    "Python attaches those from the rule library."
 )
 
 
@@ -340,13 +347,24 @@ GAP_ANALYSIS_SYSTEM_PROMPT = (
 
 
 def _build_user_prompt(parsed_sections: list[dict], spec_context: str = "") -> str:
+    from apex.backend.agents.tools.domain_gap_rules import get_grounding_view_all
+
+    grounding = get_grounding_view_all()
+    grounding_block = (
+        "DOMAIN RULES (for citation only — do NOT draft cost ranges or responsibility text):\n"
+        + json.dumps(grounding, separators=(",", ":"))
+        + "\n\n"
+    )
     prefix = ""
     if spec_context:
         prefix = spec_context + "\n\n"
     return (
-        prefix + "Below are the CSI spec sections parsed from this project's specification documents. "
+        prefix
+        + grounding_block
+        + "Below are the CSI spec sections parsed from this project's specification documents. "
         "Identify all scope gaps across the four categories.\n\n"
-        "PARSED SPEC SECTIONS:\n" + json.dumps(parsed_sections, indent=2)
+        "PARSED SPEC SECTIONS:\n"
+        + json.dumps(parsed_sections, indent=2)
     )
 
 
@@ -513,6 +531,7 @@ def _llm_items_to_gap_dicts(llm_items: list[LLMGapItem]) -> list[dict]:
                 "severity": db_severity,
                 "description": item.description,
                 "recommendation": item.recommendation,
+                "rule_id": item.rule_id,
             }
         )
     return gaps
@@ -677,6 +696,7 @@ def run_gap_analysis_agent(db: Session, project_id: int, force_rule_based: bool 
             else:
                 logger.warning("Agent 3: LLM returned no valid gap items — falling back to rule-based analysis")
 
+    # TODO(post-pilot): rule-based fallback retained for safety; ADR-NNNN moved primary role to LLM grounding
     # -----------------------------------------------------------------------
     # Rule-based fallback — Sprint 17.2-v2: domain rules Priority 1, generic Priority 2
     # -----------------------------------------------------------------------
