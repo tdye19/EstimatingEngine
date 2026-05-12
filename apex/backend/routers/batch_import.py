@@ -16,12 +16,19 @@ import logging
 import os
 import tempfile
 import uuid
+import zipfile
 
 import aiofiles
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from apex.backend.config import (
+    BATCH_ZIP_ALLOWED_EXTENSIONS,
+    BATCH_ZIP_MAX_FILES,
+    BATCH_ZIP_MAX_PER_FILE_BYTES,
+    BATCH_ZIP_MAX_UNCOMPRESSED_BYTES,
+)
 from apex.backend.db.database import get_db
 from apex.backend.models.document_association import DocumentAssociation, DocumentGroup
 from apex.backend.services.batch_import_service import BatchImportResult, BatchImportService
@@ -40,6 +47,88 @@ _service = BatchImportService()
 
 # 500 MB hard limit for uploaded zips
 _MAX_ZIP_BYTES: int = 500 * 1024 * 1024
+
+
+def pre_scan_zip(
+    zip_path: str,
+    *,
+    max_uncompressed_bytes: int,
+    max_files: int,
+    max_per_file_bytes: int,
+    allowed_extensions: frozenset[str],
+) -> None:
+    """Pre-scan ZIP entries before extraction. Raises HTTPException(400) on any violation.
+
+    # Doctrine #4: fail closed before extraction, never silently degrade.
+    """
+    try:
+        zf = zipfile.ZipFile(zip_path, "r")
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid ZIP file: {exc}") from exc
+
+    with zf:
+        entries = zf.infolist()
+
+        if len(entries) > max_files:
+            raise HTTPException(
+                status_code=400,
+                detail=f"ZIP contains {len(entries)} files; maximum is {max_files}",
+            )
+
+        total_uncompressed = 0
+        for entry in entries:
+            name = entry.filename
+
+            # Path traversal protection
+            if ".." in name or name.startswith("/") or name.startswith("\\") or "\\" in name:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"ZIP contains path traversal entry: {name!r}",
+                )
+
+            # Skip directory entries for size/extension checks
+            if name.endswith("/"):
+                continue
+
+            # Per-file uncompressed size
+            if entry.file_size > max_per_file_bytes:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"ZIP entry {name!r} uncompressed size {entry.file_size} "
+                        f"exceeds per-file maximum {max_per_file_bytes}"
+                    ),
+                )
+
+            # Compression-bomb ratio check
+            if entry.compress_size > 0 and entry.file_size / entry.compress_size > 100:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"ZIP entry {name!r} compression ratio "
+                        f"{entry.file_size / entry.compress_size:.0f}:1 exceeds limit (100:1); "
+                        "suspected zip-bomb"
+                    ),
+                )
+
+            # Extension whitelist
+            ext = os.path.splitext(name)[1].lower()
+            if ext not in allowed_extensions:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"ZIP entry {name!r} has disallowed extension {ext!r}",
+                )
+
+            total_uncompressed += entry.file_size
+
+        if total_uncompressed > max_uncompressed_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"ZIP total uncompressed size {total_uncompressed} "
+                    f"exceeds maximum {max_uncompressed_bytes}"
+                ),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +185,14 @@ async def upload_zip(
             file.filename,
             total_bytes / 1024 / 1024,
             current_user.id,
+        )
+
+        pre_scan_zip(
+            tmp_path,
+            max_uncompressed_bytes=BATCH_ZIP_MAX_UNCOMPRESSED_BYTES,
+            max_files=BATCH_ZIP_MAX_FILES,
+            max_per_file_bytes=BATCH_ZIP_MAX_PER_FILE_BYTES,
+            allowed_extensions=BATCH_ZIP_ALLOWED_EXTENSIONS,
         )
 
         result = _service.process_zip(

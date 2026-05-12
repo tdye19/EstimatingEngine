@@ -24,6 +24,21 @@ ALLOWED_EXTENSIONS: set[str] = {
     "rtf",
 }
 
+# ── Batch ZIP pre-scan limits ────────────────────────────────────────
+BATCH_ZIP_MAX_UNCOMPRESSED_BYTES: int = int(
+    os.getenv("BATCH_ZIP_MAX_UNCOMPRESSED_BYTES", str(2 * 1024 * 1024 * 1024))  # 2 GB
+)
+BATCH_ZIP_MAX_FILES: int = int(os.getenv("BATCH_ZIP_MAX_FILES", "1000"))
+BATCH_ZIP_MAX_PER_FILE_BYTES: int = int(
+    os.getenv("BATCH_ZIP_MAX_PER_FILE_BYTES", str(100 * 1024 * 1024))  # 100 MB
+)
+_batch_zip_ext_raw: str = os.getenv(
+    "BATCH_ZIP_ALLOWED_EXTENSIONS", ".pdf,.docx,.xlsx,.est,.csv"
+)
+BATCH_ZIP_ALLOWED_EXTENSIONS: frozenset[str] = frozenset(
+    x.strip().lower() for x in _batch_zip_ext_raw.split(",") if x.strip()
+)
+
 # ── LLM defaults ─────────────────────────────────────────────────────
 DEFAULT_LLM_PROVIDER: str = os.getenv("DEFAULT_LLM_PROVIDER", os.getenv("LLM_PROVIDER", "ollama"))
 DEFAULT_LLM_MODEL: str = os.getenv("DEFAULT_LLM_MODEL", "")
