@@ -99,8 +99,8 @@ def score_context_similarity(project, comparable_project: ComparableProject) -> 
         CONTEXT_WEIGHTS["complexity_level"],
     )
 
-    # Size bucket
-    proj_bucket = _size_bucket(getattr(project, "size_sf", None))
+    # Size bucket — Project uses square_footage (canonical); comparable_project uses size_sf
+    proj_bucket = _size_bucket(project.square_footage)
     comp_bucket = _size_bucket(comparable_project.size_sf)
     total += _dim(proj_bucket, comp_bucket, CONTEXT_WEIGHTS["size_bucket"])
 

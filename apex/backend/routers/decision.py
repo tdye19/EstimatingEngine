@@ -90,7 +90,7 @@ def _project_dict(proj: Project) -> dict:
         "contract_type": getattr(proj, "contract_type", None),
         "complexity_level": getattr(proj, "complexity_level", None),
         "schedule_pressure": getattr(proj, "schedule_pressure", None),
-        "size_sf": getattr(proj, "size_sf", None),
+        "size_sf": proj.square_footage,
         "scope_types": getattr(proj, "scope_types", None),
     }
 
@@ -108,9 +108,12 @@ def update_project_context(
 ):
     """Update decision-system context fields on a project."""
     proj = _get_project_or_404(project_id, db)
+    # size_sf in the request schema maps to the canonical Project.square_footage column
+    _field_map = {"size_sf": "square_footage"}
     for field, value in body.model_dump(exclude_none=True).items():
-        if hasattr(proj, field):
-            setattr(proj, field, value)
+        proj_field = _field_map.get(field, field)
+        if hasattr(proj, proj_field):
+            setattr(proj, proj_field, value)
     db.commit()
     db.refresh(proj)
     return _project_dict(proj)

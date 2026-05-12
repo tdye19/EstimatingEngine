@@ -33,9 +33,9 @@ def test_project_context_columns_present_post_migration():
 
     The test DB is built from Base.metadata.create_all(), so it reflects the
     ORM model — not Alembic migrations.  We assert the 8 columns that ARE in
-    the Project model.  size_sf is included in migration 3a69638ff6bd for
-    production DBs (it was added by the retired runtime ALTER) but is not in
-    the Project model — it is a zombie column not tested here.
+    the Project model.  size_sf was a zombie column (added by migration
+    3a69638ff6bd but not on the ORM model); it was removed by migration
+    c4e8a1f2d9b7 (HF-29).  The canonical project size field is square_footage.
     """
     import apex.backend.db.database as _db
 
